@@ -50,18 +50,19 @@ function positionTooltip(e) {
 let parisXY = null;
 function updateParis() {
   if (!parisXY) return;
-  const zoom = W / vb.w;  // 1=весь мир, больше=приближено
-  const show = zoom > 2.5;
-  // Размер в SVG-координатах — делим на zoom чтобы на экране был постоянным
-  const r  = 4 / zoom;
-  const fs = 9 / zoom;
+  const zoom = W / vb.w;
+  const show = zoom > 3;
+  // Делим на zoom — элемент в SVG уменьшается когда карта приближается
+  const r  = 2 / zoom;
+  const fs = 7 / zoom;
 
   svg.select('#paris-dot')
     .attr('r', r)
     .attr('visibility', show ? 'visible' : 'hidden');
   svg.select('#paris-label')
     .attr('font-size', fs)
-    .attr('x', parisXY[0] + r + 1/zoom)
+    .attr('x', parisXY[0] + r + 0.5/zoom)
+    .attr('y', parisXY[1] + 0.5/zoom)
     .attr('visibility', show ? 'visible' : 'hidden');
 }
 
@@ -118,22 +119,23 @@ function drawMap() {
         });
     });
 
-    parisXY = proj([2.3488, 48.8534]);
+parisXY = proj([2.3488, 48.8534]);
     franceG.append('circle')
       .attr('id','paris-dot')
       .attr('cx', parisXY[0]).attr('cy', parisXY[1])
-      .attr('r', 2.5)
-      .attr('fill','#f0c040').attr('stroke','#805000').attr('stroke-width','0.8')
+      .attr('r', 0.001)
+      .attr('fill','#cc2200')
       .attr('pointer-events','none')
       .attr('visibility','hidden');
     franceG.append('text')
       .attr('id','paris-label')
-      .attr('x', parisXY[0]+4).attr('y', parisXY[1]-2)
-      .attr('font-size','8').attr('fill','#f0c040')
+      .attr('x', parisXY[0]).attr('y', parisXY[1])
+      .attr('font-size','0.001')
+      .attr('fill','#222')
       .attr('font-family','Georgia,serif')
       .attr('pointer-events','none')
       .attr('visibility','hidden')
-      .text('★ Париж');
+      .text('• Париж');
 
     updateParis();
   }).catch(err => console.error(err));

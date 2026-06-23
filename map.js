@@ -50,17 +50,18 @@ function positionTooltip(e) {
 let parisXY = null;
 function updateParis() {
   if (!parisXY) return;
-  const zoom = W / vb.w;
-  const r    = Math.max(1.5, Math.min(8, zoom * 2.5));
-  const fs   = Math.max(5,   Math.min(16, zoom * 4));
-  const show = zoom > 3.5; // ПРАВКА 2: Париж виден при большем зуме
+  const zoom = W / vb.w;  // 1=весь мир, больше=приближено
+  const show = zoom > 2.5;
+  // Размер в SVG-координатах — делим на zoom чтобы на экране был постоянным
+  const r  = 4 / zoom;
+  const fs = 9 / zoom;
 
   svg.select('#paris-dot')
     .attr('r', r)
     .attr('visibility', show ? 'visible' : 'hidden');
   svg.select('#paris-label')
     .attr('font-size', fs)
-    .attr('x', parisXY[0] + r + 2)
+    .attr('x', parisXY[0] + r + 1/zoom)
     .attr('visibility', show ? 'visible' : 'hidden');
 }
 

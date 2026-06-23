@@ -1,6 +1,6 @@
 // MAP.JS v4
 const W = 960, H = 560;
-const proj = d3.geoNaturalEarth1().scale(153).translate([W/2, H/2]);
+const proj = d3.geoNaturalEarth1().scale(153).translate([W/2, H/2]); 
 const pathGen = d3.geoPath(proj);
 const svgEl   = document.getElementById('map-svg');
 const mapWrap = document.getElementById('map-wrap');

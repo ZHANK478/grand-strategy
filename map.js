@@ -2,7 +2,7 @@
 // MAP.JS v3 — реальная карта, GeoJSON Франции, портреты
 // ============================================================
 
-const W = 960, H = 560;
+const W = 960, H = 560; 
 const proj = d3.geoNaturalEarth1().scale(153).translate([W / 2, H / 2]);
 const pathGen = d3.geoPath(proj);
 

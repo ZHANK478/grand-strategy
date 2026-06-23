@@ -2,64 +2,105 @@
 <html lang="ru">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Grand Strategy — 1852</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box;}
-body{background:#1a2330;color:#e8dcc8;font-family:Georgia,serif;overflow:hidden;height:100vh;position:relative;user-select:none;}
-#topbar{position:absolute;top:0;left:0;right:0;height:44px;background:#0d1520;border-bottom:1px solid #1e2e42;display:flex;align-items:center;z-index:100;}
-.top-stat{display:flex;align-items:center;gap:8px;padding:0 14px;height:100%;border-right:1px solid #1e2e42;font-size:13px;}
-.top-stat .icon{font-size:15px;}
+body{background:#2a2f38;color:#e8dcc8;font-family:Georgia,serif;overflow:hidden;height:100vh;position:relative;user-select:none;}
+
+/* TOP BAR */
+#topbar{position:absolute;top:0;left:0;right:0;height:42px;background:#1a1f28;border-bottom:1px solid #2a3040;display:flex;align-items:center;z-index:100;}
+.top-stat{display:flex;align-items:center;gap:7px;padding:0 14px;height:100%;border-right:1px solid #242a36;}
+.top-stat .icon{font-size:14px;}
 .top-stat .val{color:#f0e6c8;font-weight:bold;font-size:13px;}
-.top-stat .lbl{font-size:10px;color:#4a6078;text-transform:uppercase;letter-spacing:.05em;}
+.top-stat .lbl{font-size:10px;color:#506070;text-transform:uppercase;letter-spacing:.05em;}
 .stat-b{display:flex;flex-direction:column;}
-#date-disp{margin-left:auto;padding:0 16px;font-size:13px;color:#7aaccc;font-style:italic;}
-#actionbar{position:absolute;top:44px;left:0;right:0;height:40px;background:#0a1520;border-bottom:1px solid #152030;display:flex;align-items:center;gap:8px;padding:0 12px;z-index:99;}
-.abtn{display:flex;align-items:center;gap:5px;background:#0c1820;border:1px solid #1a2e44;color:#7aaabb;font-size:12px;padding:5px 12px;border-radius:4px;cursor:pointer;transition:all .15s;font-family:Georgia,serif;}
-.abtn:hover{background:#111e2e;border-color:#2a4a60;color:#b0ccd8;}
-.next-btn{background:#1a3a5a;border-color:#2a5a80;color:#80c0e0;font-weight:bold;margin-left:auto;}
-.next-btn:hover{background:#1e4a70;}
-.turn-lbl{font-size:11px;color:#3a5a78;}
-#left-panel{position:absolute;top:84px;left:0;width:280px;bottom:0;background:rgba(8,14,22,0.97);border-right:1px solid #1a2d40;z-index:90;overflow-y:auto;transition:transform .25s;}
-#left-panel.hidden{transform:translateX(-280px);}
-#toggle-btn{position:absolute;top:92px;left:280px;width:20px;height:44px;background:rgba(8,14,22,.9);border:1px solid #1a2d40;border-left:none;border-radius:0 4px 4px 0;cursor:pointer;z-index:91;display:flex;align-items:center;justify-content:center;color:#3a5a78;font-size:11px;transition:left .25s;}
+#date-disp{margin-left:auto;padding:0 16px;font-size:13px;color:#8ab0cc;font-style:italic;}
+
+/* ACTION BAR */
+#actionbar{position:absolute;top:42px;left:0;right:0;height:38px;background:#1e2330;border-bottom:1px solid #2a3040;display:flex;align-items:center;gap:8px;padding:0 12px;z-index:99;}
+.abtn{display:flex;align-items:center;gap:5px;background:#252c3a;border:1px solid #2e3a4e;color:#7aaabb;font-size:12px;padding:5px 12px;border-radius:3px;cursor:pointer;transition:all .15s;font-family:Georgia,serif;}
+.abtn:hover{background:#2a3448;border-color:#3a5068;color:#aaccdd;}
+.next-btn{background:#1a3050;border-color:#2a5080;color:#80b8e0;font-weight:bold;margin-left:auto;}
+.next-btn:hover{background:#1e3a60;}
+.turn-lbl{font-size:11px;color:#3a5070;}
+
+/* LEFT PANEL */
+#left-panel{position:absolute;top:80px;left:0;width:290px;bottom:0;background:#252c38;border-right:1px solid #1a2030;z-index:90;overflow-y:auto;transition:transform .25s;}
+#left-panel.hidden{transform:translateX(-290px);}
+#toggle-btn{position:absolute;top:88px;left:290px;width:18px;height:44px;background:#252c38;border:1px solid #1a2030;border-left:none;border-radius:0 4px 4px 0;cursor:pointer;z-index:91;display:flex;align-items:center;justify-content:center;color:#3a5070;font-size:10px;transition:left .25s;}
 #toggle-btn.closed{left:0;}
-.psec{border-bottom:1px solid #142030;padding:14px 16px;}
-.phdr{font-size:10px;text-transform:uppercase;letter-spacing:.1em;color:#3a5a78;margin-bottom:10px;}
-.portrait{width:90px;height:90px;border-radius:50%;background:#1a2d42;border:2px solid #2a4560;display:flex;align-items:center;justify-content:center;font-size:36px;margin:0 auto 10px;overflow:hidden;}
-.portrait img{width:100%;height:100%;object-fit:cover;border-radius:50%;}
-.rname{text-align:center;font-size:15px;color:#e0d0a8;font-weight:bold;}
-.rtitle{text-align:center;font-size:11px;color:#6a8aaa;margin-top:3px;}
-.irow{display:flex;justify-content:space-between;font-size:12px;padding:5px 0;border-bottom:1px solid #0e1a26;color:#8aaabb;}
-.irow .k{color:#3a5a78;}
-.govbadge{background:#0c1820;border:1px solid #1a3050;border-radius:3px;padding:7px 10px;margin-top:10px;font-size:12px;color:#c0b070;text-align:center;}
-.cbtn{width:100%;background:#0c1820;border:1px solid #1a2e44;color:#6a8aaa;font-size:11px;padding:7px 10px;text-align:left;cursor:pointer;border-radius:3px;margin-top:8px;font-family:Georgia,serif;transition:background .15s;}
-.cbtn:hover{background:#111e2e;}
+
+/* PORTRAIT BLOCK */
+.portrait-block{position:relative;width:100%;background:#1a2030;}
+.portrait-img{
+  width:100%;
+  aspect-ratio:3/4;
+  object-fit:cover;
+  display:block;
+  filter:sepia(20%) contrast(95%);
+}
+.portrait-emoji{
+  width:100%;aspect-ratio:3/4;background:#1e2a3a;
+  display:flex;align-items:center;justify-content:center;font-size:72px;
+}
+/* Hover overlay — показывается при наведении */
+.portrait-hover{
+  position:absolute;inset:0;
+  background:linear-gradient(180deg, rgba(10,16,26,0.92) 0%, rgba(10,16,26,0.70) 100%);
+  opacity:0;transition:opacity .2s;
+  display:flex;flex-direction:column;justify-content:center;
+  padding:16px;gap:5px;
+}
+.portrait-block:hover .portrait-hover{opacity:1;}
+.ph-row{display:flex;justify-content:space-between;font-size:11px;padding:3px 0;border-bottom:1px solid rgba(255,255,255,0.07);color:#90b0c8;}
+.ph-row .k{color:#506878;}
+
+/* PORTRAIT CAPTION — имя и должность под портретом */
+.portrait-caption{padding:10px 14px 8px;background:#1e2530;border-bottom:1px solid #1a2030;}
+.pc-name{font-size:14px;color:#e8d8a8;font-weight:bold;}
+.pc-title{font-size:11px;color:#5a7890;margin-top:2px;}
+.govbadge{margin:8px 14px;background:#1a2230;border:1px solid #253040;border-radius:3px;padding:6px 10px;font-size:11px;color:#b0a060;text-align:center;}
+
+/* COLLAPSIBLES */
+.psec{border-bottom:1px solid #1a2030;padding:10px 14px;}
+.phdr{font-size:10px;text-transform:uppercase;letter-spacing:.1em;color:#3a5070;margin-bottom:8px;}
+.cbtn{width:100%;background:#1e2a38;border:1px solid #253040;color:#5a7890;font-size:11px;padding:7px 10px;text-align:left;cursor:pointer;border-radius:3px;margin-top:6px;font-family:Georgia,serif;transition:background .15s;}
+.cbtn:hover{background:#223040;}
 .ccont{display:none;margin-top:8px;}
 .ccont.open{display:block;}
-.portrait-sm{width:54px;height:54px;border-radius:50%;background:#1a2d42;border:2px solid #2a4560;display:flex;align-items:center;justify-content:center;font-size:22px;margin:0 auto 6px;overflow:hidden;}
-.portrait-sm img{width:100%;height:100%;object-fit:cover;border-radius:50%;}
-.state-text{font-size:12px;color:#7a9aaa;line-height:1.7;margin-top:4px;}
-#map-wrap{position:absolute;top:84px;left:280px;right:0;bottom:0;cursor:grab;overflow:hidden;background:#1a3a5a;}
+.irow{display:flex;justify-content:space-between;font-size:12px;padding:4px 0;border-bottom:1px solid #1a2030;color:#7a9aaa;}
+.irow .k{color:#3a5070;}
+.state-text{font-size:11px;color:#6a8a9a;line-height:1.75;margin-top:4px;}
+
+/* MAP */
+#map-wrap{position:absolute;top:80px;left:290px;right:0;bottom:0;cursor:grab;overflow:hidden;background:#4a7aaa;}
 #map-wrap:active{cursor:grabbing;}
 #map-svg{width:100%;height:100%;}
-#tooltip{position:absolute;background:rgba(8,14,22,.96);border:1px solid #1e3a50;border-radius:4px;padding:8px 12px;font-size:12px;color:#c0d8e8;pointer-events:none;z-index:200;display:none;max-width:200px;}
-#tooltip .tn{font-size:13px;color:#f0e6c8;font-weight:bold;margin-bottom:4px;}
-#tooltip .tr{color:#5a7a90;margin-top:2px;}
-#diplo-pop,#adv-pop{position:absolute;top:92px;background:rgba(7,12,20,.98);border:1px solid #1e3a50;border-radius:6px;z-index:200;display:none;}
-#diplo-pop{left:300px;width:320px;}
-#adv-pop{left:300px;width:260px;}
-.pop-hdr{background:#0c1820;padding:9px 14px;border-bottom:1px solid #1a2e44;font-size:13px;color:#b0a060;display:flex;justify-content:space-between;align-items:center;border-radius:6px 6px 0 0;}
-.pop-body{padding:12px 14px;}
-.dta{width:100%;background:#08100c;border:1px solid #1a2e44;color:#b0c8d0;padding:8px;border-radius:3px;resize:none;font-family:Georgia,serif;font-size:12px;height:70px;}
-.dsend{margin-top:8px;background:#1a3a5a;border:1px solid #2a5a80;color:#80c0e0;padding:6px 16px;border-radius:3px;cursor:pointer;font-size:12px;font-family:Georgia,serif;}
-.dsend:hover{background:#1e4a70;}
-.xbtn{cursor:pointer;color:#3a5a78;font-size:15px;}
+
+/* TOOLTIP */
+#tooltip{position:absolute;background:rgba(18,24,34,.96);border:1px solid #2a4060;border-radius:4px;padding:7px 11px;font-size:12px;color:#b0d0e0;pointer-events:none;z-index:200;display:none;max-width:190px;}
+#tooltip .tn{font-size:13px;color:#f0e6c8;font-weight:bold;margin-bottom:3px;}
+#tooltip .tr{color:#4a6a80;margin-top:2px;}
+
+/* POPUPS */
+#diplo-pop,#adv-pop{position:absolute;top:88px;background:rgba(18,24,34,.98);border:1px solid #2a4060;border-radius:5px;z-index:200;display:none;}
+#diplo-pop{left:310px;width:310px;}
+#adv-pop{left:310px;width:255px;}
+.pop-hdr{background:#1a2230;padding:9px 13px;border-bottom:1px solid #253040;font-size:13px;color:#a09050;display:flex;justify-content:space-between;align-items:center;border-radius:5px 5px 0 0;}
+.pop-body{padding:12px 13px;}
+.dta{width:100%;background:#0e1620;border:1px solid #253040;color:#a0c0cc;padding:8px;border-radius:3px;resize:none;font-family:Georgia,serif;font-size:12px;height:68px;}
+.dsend{margin-top:8px;background:#1a3050;border:1px solid #2a5080;color:#70b0d8;padding:6px 14px;border-radius:3px;cursor:pointer;font-size:12px;font-family:Georgia,serif;}
+.dsend:hover{background:#1e3a60;}
+.xbtn{cursor:pointer;color:#3a5070;font-size:14px;line-height:1;}
 .xbtn:hover{color:#7aaabb;}
-.notif{position:absolute;top:92px;right:14px;background:rgba(6,18,10,.95);border:1px solid #1a4028;color:#70b880;font-size:12px;padding:6px 12px;border-radius:4px;z-index:300;animation:fn 3s forwards;pointer-events:none;}
+
+/* NOTIFICATION */
+.notif{position:absolute;top:88px;right:14px;background:rgba(10,26,16,.95);border:1px solid #1a4030;color:#60a870;font-size:12px;padding:6px 12px;border-radius:4px;z-index:300;animation:fn 3s forwards;pointer-events:none;}
 @keyframes fn{0%{opacity:1}70%{opacity:1}100%{opacity:0}}
+
+/* SCROLLBAR */
 #left-panel::-webkit-scrollbar{width:3px;}
-#left-panel::-webkit-scrollbar-thumb{background:#1a2e44;border-radius:2px;}
+#left-panel::-webkit-scrollbar-thumb{background:#1a2a3a;border-radius:2px;}
 </style>
 </head>
 <body>
@@ -86,37 +127,56 @@ body{background:#1a2330;color:#e8dcc8;font-family:Georgia,serif;overflow:hidden;
 
 <!-- LEFT PANEL -->
 <div id="left-panel">
-  <div class="psec">
-    <div class="phdr">Глава государства</div>
-    <!-- Сюда потом добавить: <img src="portraits/napoleon.jpg"> внутри .portrait -->
-    <div class="portrait">👑</div>
-    <div class="rname">Луи-Наполеон Бонапарт</div>
-    <div class="rtitle">Президент Французской республики</div>
-    <div style="margin-top:12px">
-      <div class="irow"><span class="k">Правит с</span><span>1848 г.</span></div>
-      <div class="irow"><span class="k">Партия</span><span>Бонапартисты</span></div>
-      <div class="irow"><span class="k">Популярность</span><span>74%</span></div>
-      <div class="irow"><span class="k">Харизма</span><span>Высокая</span></div>
-      <div class="irow"><span class="k">Военный талант</span><span>Средний</span></div>
-    </div>
-    <div class="govbadge">🏛 Президентская республика</div>
-  </div>
 
+  <!-- ПОРТРЕТ ГЛАВЫ ГОСУДАРСТВА -->
+  <div class="portrait-block">
+    <img class="portrait-img"
+      src="https://upload.wikimedia.org/wikipedia/commons/thumb/b/b4/Portrait_de_Louis-Napoléon_Bonaparte_%283x4_cropped%29.jpg/400px-Portrait_de_Louis-Napoléon_Bonaparte_%283x4_cropped%29.jpg"
+      onerror="this.style.display='none';this.nextElementSibling.style.display='flex';"
+      alt="Луи-Наполеон Бонапарт">
+    <div class="portrait-emoji" style="display:none">👑</div>
+    <!-- Инфо появляется при наведении -->
+    <div class="portrait-hover">
+      <div class="ph-row"><span class="k">Правит с</span><span>1848 г.</span></div>
+      <div class="ph-row"><span class="k">Партия</span><span>Бонапартисты</span></div>
+      <div class="ph-row"><span class="k">Популярность</span><span>74%</span></div>
+      <div class="ph-row"><span class="k">Харизма</span><span>Высокая</span></div>
+      <div class="ph-row"><span class="k">Военный талант</span><span>Средний</span></div>
+      <div class="ph-row"><span class="k">Дипломатия</span><span>Высокая</span></div>
+      <div class="ph-row"><span class="k">Управление</span><span>Среднее</span></div>
+    </div>
+  </div>
+  <div class="portrait-caption">
+    <div class="pc-name">Луи-Наполеон Бонапарт</div>
+    <div class="pc-title">Президент Французской республики</div>
+  </div>
+  <div class="govbadge">🏛 Президентская республика</div>
+
+  <!-- ГЛАВА ПРАВИТЕЛЬСТВА -->
   <div class="psec">
     <button class="cbtn" onclick="toggle('pm')">▶ Глава правительства</button>
     <div class="ccont" id="pm">
-      <!-- Сюда потом добавить портрет премьера -->
-      <div class="portrait-sm">🎩</div>
-      <div class="rname" style="font-size:13px">Эжен Руэр</div>
-      <div class="rtitle">Министр-президент</div>
-      <div style="margin-top:8px">
-        <div class="irow"><span class="k">Партия</span><span>Бонапартисты</span></div>
-        <div class="irow"><span class="k">Влияние</span><span>Среднее</span></div>
-        <div class="irow"><span class="k">Экономика</span><span>+12%</span></div>
+      <div class="portrait-block" style="max-height:220px;overflow:hidden;">
+        <img class="portrait-img" style="max-height:220px;"
+          src="https://upload.wikimedia.org/wikipedia/commons/thumb/6/6e/Eug%C3%A8ne_Rouher_Pierson_%28cropped%29.jpg/400px-Eug%C3%A8ne_Rouher_Pierson_%28cropped%29.jpg"
+          onerror="this.style.display='none';this.nextElementSibling.style.display='flex';"
+          alt="Эжен Руэр">
+        <div class="portrait-emoji" style="display:none;font-size:48px;aspect-ratio:auto;height:120px;">🎩</div>
+        <div class="portrait-hover">
+          <div class="ph-row"><span class="k">Партия</span><span>Бонапартисты</span></div>
+          <div class="ph-row"><span class="k">Влияние</span><span>Среднее</span></div>
+          <div class="ph-row"><span class="k">Экономика</span><span>+12%</span></div>
+          <div class="ph-row"><span class="k">Лояльность</span><span>Высокая</span></div>
+        </div>
+      </div>
+      <div class="portrait-caption">
+        <div class="pc-name" style="font-size:13px">Эжен Руэр</div>
+        <div class="pc-title">Министр-президент</div>
       </div>
     </div>
   </div>
 
+  <!-- ПАРЛАМЕНТ -->
   <div class="psec">
     <button class="cbtn" onclick="toggle('parl')">▶ Законодательное собрание</button>
     <div class="ccont" id="parl">
@@ -128,12 +188,13 @@ body{background:#1a2330;color:#e8dcc8;font-family:Georgia,serif;overflow:hidden;
     </div>
   </div>
 
+  <!-- ДАННЫЕ СТРАНЫ -->
   <div class="psec">
     <button class="cbtn" onclick="toggle('country')">▶ Данные страны</button>
     <div class="ccont" id="country">
       <div class="irow"><span class="k">Население</span><span>35.8 млн</span></div>
       <div class="irow"><span class="k">Площадь</span><span>551 000 км²</span></div>
-      <div class="irow"><span class="k">Провинций</span><span>12</span></div>
+      <div class="irow"><span class="k">Провинций</span><span>13</span></div>
       <div class="irow"><span class="k">Религия</span><span>Католицизм</span></div>
       <div class="irow"><span class="k">Столица</span><span>Париж</span></div>
       <div class="irow"><span class="k">ВВП</span><span>~14 млрд фр.</span></div>
@@ -141,18 +202,18 @@ body{background:#1a2330;color:#e8dcc8;font-family:Georgia,serif;overflow:hidden;
     </div>
   </div>
 
+  <!-- ПОЛОЖЕНИЕ -->
   <div class="psec">
     <div class="phdr">Положение страны</div>
-    <div class="state-text">
-      Франция в 1852 году переживает переходный период. После переворота 2 декабря 1851 года Луи-Наполеон Бонапарт сосредоточил власть в своих руках и готовится провозгласить Вторую империю. Экономика растёт — железные дороги расширяются, промышленность Лиона и Марселя набирает силу. Однако политическое напряжение высоко: республиканская оппозиция подавлена, тысячи противников высланы в Алжир. На международной арене Франция усиливает позиции в Средиземноморье.
-    </div>
+    <div class="state-text">Франция в 1852 году переживает переходный период. После переворота 2 декабря 1851 года Луи-Наполеон сосредоточил власть в своих руках и готовится провозгласить Вторую империю. Экономика растёт — железные дороги расширяются, промышленность Лиона и Марселя набирает силу. Однако политическое напряжение высоко: республиканская оппозиция подавлена, тысячи противников высланы в Алжир.</div>
   </div>
+
 </div>
 
 <!-- MAP -->
 <div id="map-wrap">
   <svg id="map-svg" viewBox="0 0 960 560" xmlns="http://www.w3.org/2000/svg">
-    <rect width="960" height="560" fill="#1a3a5a"/>
+    <rect width="960" height="560" fill="#4a7aaa"/>
     <g id="world-g"></g>
     <g id="france-g"></g>
   </svg>
@@ -164,34 +225,33 @@ body{background:#1a2330;color:#e8dcc8;font-family:Georgia,serif;overflow:hidden;
   <div class="tr" id="t-info">—</div>
 </div>
 
-<!-- DIPLOMACY POPUP -->
+<!-- DIPLOMACY -->
 <div id="diplo-pop">
   <div class="pop-hdr">
     <span>📜 Дипломатическое послание</span>
     <span class="xbtn" onclick="document.getElementById('diplo-pop').style.display='none'">✕</span>
   </div>
   <div class="pop-body">
-    <div style="font-size:11px;color:#3a5a78;margin-bottom:6px">От: Французская Республика · Кому: Всем</div>
+    <div style="font-size:11px;color:#3a5070;margin-bottom:6px">От: Французская Республика · Кому: Всем</div>
     <textarea class="dta" id="diplo-txt" placeholder="Введите послание миру..."></textarea>
     <button class="dsend" onclick="sendMsg()">Отправить</button>
   </div>
 </div>
 
-<!-- ADVISOR POPUP -->
+<!-- ADVISOR -->
 <div id="adv-pop">
   <div class="pop-hdr">
     <span>🎭 Советник</span>
     <span class="xbtn" onclick="document.getElementById('adv-pop').style.display='none'">✕</span>
   </div>
   <div class="pop-body">
-    <div style="font-size:12px;color:#8aaabb;line-height:1.6" id="adv-txt">
-      Ваше Превосходительство! 1852 год — решающий. Казна в порядке. Рекомендую следить за стабильностью и развитием промышленности. Нажмите «Следующий месяц» чтобы продвинуть время вперёд.
+    <div style="font-size:12px;color:#7a9aaa;line-height:1.65">
+      Ваше Превосходительство! 1852 год — решающий. Казна в порядке. Рекомендую следить за стабильностью и развитием промышленности.
     </div>
-    <div style="font-size:11px;color:#3a5a78;margin-top:8px;font-style:italic">— Главный советник</div>
+    <div style="font-size:11px;color:#3a5070;margin-top:8px;font-style:italic">— Главный советник</div>
   </div>
 </div>
 
-<!-- D3 + TopoJSON -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/topojson/3.0.2/topojson.min.js"></script>
 <script src="map.js"></script>

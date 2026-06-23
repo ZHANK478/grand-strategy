@@ -1,41 +1,39 @@
 // ============================================================
-// GAME.JS — игровая логика: ходы, время, казна
+// GAME.JS — ходы, казна, время
 // ============================================================
 
-let turn     = 1;
-let month    = 0;   // 0 = Январь
-let year     = 1852;
-let treasury = 4200;
-let incomePerMonth = 580;
+let turn = 1, month = 0, year = 1852, treasury = 4200, incomePerMonth = 580;
+const months = ['Январь','Февраль','Март','Апрель','Май','Июнь','Июль','Август','Сентябрь','Октябрь','Ноябрь','Декабрь'];
 
-const months = [
-  'Январь','Февраль','Март','Апрель','Май','Июнь',
-  'Июль','Август','Сентябрь','Октябрь','Ноябрь','Декабрь'
-];
+async function nextTurn() {
+  const btn = document.querySelector('.next-btn');
+  btn.disabled = true;
+  btn.textContent = '⏳ Симуляция...';
 
-function nextTurn() {
-  turn++;
-  month++;
+  turn++; month++;
   if (month >= 12) { month = 0; year++; }
-
   treasury += incomePerMonth;
 
-  // Обновляем UI
-  document.getElementById('treasury').textContent  = treasury.toLocaleString('ru') + ' фр.';
+  document.getElementById('treasury').textContent = treasury.toLocaleString('ru') + ' фр.';
   document.getElementById('date-disp').textContent = months[month] + ' ' + year + ' г.';
   document.getElementById('turn-info').textContent = 'Ход ' + turn;
 
-  showNotif('📅 ' + months[month] + ' ' + year + ' — новый месяц');
+  // Запускаем ИИ-события
+  await onTurnEnd();
 
-  // Здесь в будущем: триггеры ИИ, события, изменения на карте
-  runAITriggers();
+  btn.disabled = false;
+  btn.textContent = 'Следующий месяц ▶';
 }
 
-// ---- Заглушка для будущих ИИ-триггеров ----
-function runAITriggers() {
-  // Пример: каждые 12 ходов что-то происходит
-  if (turn % 12 === 0) {
-    showNotif('📰 Прошёл год. Мир меняется...');
+// Изменить показатели (вызывается из ИИ-триггеров в будущем)
+function changeGameStat(stat, delta) {
+  if (stat === 'treasury') { treasury += delta; document.getElementById('treasury').textContent = treasury.toLocaleString('ru') + ' фр.'; }
+  if (stat === 'army') {
+    const cur = parseInt(document.getElementById('army').textContent.replace(/\s/g,''));
+    document.getElementById('army').textContent = (cur + delta).toLocaleString('ru');
   }
-  // Здесь будут вызовы: changeCountryColor(), createMapEntity(), etc.
+  if (stat === 'stability') {
+    const cur = parseInt(document.getElementById('stab').textContent);
+    document.getElementById('stab').textContent = Math.max(0, Math.min(100, cur + delta));
+  }
 }

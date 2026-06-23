@@ -6,7 +6,7 @@ let panelOpen = true;
 
 function togglePanel() {
   panelOpen = !panelOpen;
-  const p = document.getElementById('left-panel');
+  const p = document.getElementById('left-panel'); 
   const t = document.getElementById('toggle-btn');
   const m = document.getElementById('map-wrap');
   if (panelOpen) { p.classList.remove('hidden'); t.style.left='290px'; t.textContent='◀'; m.style.left='290px'; }

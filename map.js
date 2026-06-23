@@ -1,154 +1,183 @@
 // ============================================================
-// MAP.JS — карта мира, провинции Франции, зум и перетаскивание
+// MAP.JS v3 — реальная карта, GeoJSON Франции, портреты
 // ============================================================
 
 const W = 960, H = 560;
 const proj = d3.geoNaturalEarth1().scale(153).translate([W / 2, H / 2]);
 const pathGen = d3.geoPath(proj);
 
-const svgEl = document.getElementById('map-svg');
+const svgEl  = document.getElementById('map-svg');
 const mapWrap = document.getElementById('map-wrap');
 const tooltip = document.getElementById('tooltip');
-const svg = d3.select('#map-svg');
-const worldG = svg.select('#world-g');
+const svg     = d3.select('#map-svg');
+const worldG  = svg.select('#world-g');
 const franceG = svg.select('#france-g');
 
-// Провинции Франции — координаты (упрощённые, будут заменены на GeoJSON)
-const franceProvinces = [
-  { name: 'Нормандия',         color: '#2e7040', hcolor: '#3a9050', pop: '1.4 млн', income: '240 фр./мес', coords: [[[-1.5,49.5],[-1,49.7],[0.2,49.9],[1.8,49.6],[1.5,49.1],[0.5,48.8],[-0.5,48.5],[-1.5,48.8],[-1.5,49.5]]] },
-  { name: 'Иль-де-Франс',      color: '#348a48', hcolor: '#42aa58', pop: '2.1 млн', income: '620 фр./мес', coords: [[[1.5,49.1],[3.4,49.2],[3.2,48.3],[2.0,48.0],[1.2,48.3],[1.5,49.1]]] },
-  { name: 'Шампань',           color: '#2a7838', hcolor: '#349848', pop: '0.8 млн', income: '180 фр./мес', coords: [[[3.4,49.2],[5.4,49.6],[5.8,48.6],[4.8,48.0],[3.2,48.3],[3.4,49.2]]] },
-  { name: 'Эльзас-Лотарингия', color: '#267038', hcolor: '#309048', pop: '1.2 млн', income: '210 фр./мес', coords: [[[5.4,49.6],[8.2,48.9],[7.6,47.6],[5.8,47.2],[5.8,48.6],[5.4,49.6]]] },
-  { name: 'Бретань',           color: '#2a6835', hcolor: '#348645', pop: '2.0 млн', income: '160 фр./мес', coords: [[ [-5.1,48.5],[-1.5,48.8],[-1.5,47.0],[-4.8,47.3],[-5.1,48.5] ]] },
-  { name: 'Долина Луары',      color: '#307840', hcolor: '#3c9850', pop: '1.6 млн', income: '200 фр./мес', coords: [[ [-1.5,47.0],[1.5,47.2],[2.0,46.2],[0.5,45.8],[-0.5,45.5],[-1.5,46.0],[-1.5,47.0] ]] },
-  { name: 'Пуату',             color: '#267038', hcolor: '#309048', pop: '0.9 млн', income: '130 фр./мес', coords: [[ [-2.5,47.0],[-1.5,47.0],[-1.5,46.0],[-0.5,45.5],[-1.5,45.2],[-2.5,45.5],[-2.5,47.0] ]] },
-  { name: 'Гасконь',           color: '#248030', hcolor: '#2ea040', pop: '1.5 млн', income: '150 фр./мес', coords: [[ [-2.5,45.5],[-1.5,45.2],[0.0,44.8],[0.0,43.3],[-1.8,43.3],[-2.5,44.0],[-2.5,45.5] ]] },
-  { name: 'Лангедок',          color: '#2a7030', hcolor: '#349040', pop: '1.3 млн', income: '160 фр./мес', coords: [[ [0.0,43.3],[0.0,44.8],[3.0,44.5],[4.8,43.7],[3.2,43.1],[0.0,43.3] ]] },
-  { name: 'Прованс',           color: '#267238', hcolor: '#309248', pop: '0.7 млн', income: '140 фр./мес', coords: [[ [4.8,43.7],[7.6,43.8],[7.6,43.3],[6.0,42.8],[4.8,43.0],[4.8,43.7] ]] },
-  { name: 'Бургундия',         color: '#2e7840', hcolor: '#389850', pop: '1.1 млн', income: '190 фр./мес', coords: [[ [2.0,48.0],[4.8,48.0],[5.0,46.8],[4.0,45.8],[2.5,45.8],[2.0,46.2],[2.0,48.0] ]] },
-  { name: 'Овернь',            color: '#288040', hcolor: '#32a050', pop: '1.0 млн', income: '110 фр./мес', coords: [[ [2.5,45.8],[4.0,45.8],[4.0,44.8],[3.0,44.5],[2.0,44.8],[2.0,45.5],[2.5,45.8] ]] },
+// Цвета провинций Франции (голубые оттенки)
+const FRANCE_COLORS = [
+  '#4a90c4','#5aa0d4','#3a80b4','#6ab0d4','#4a98cc',
+  '#3888bc','#5a9ccc','#4a8cbc','#5aa4d0','#3a84b8',
+  '#4e94c8','#5aa8d4','#3c82b0','#4896c0','#569ed0'
 ];
 
-function updateLabelVisibility() {
-  const scale = vb.w / W;
-  // Названия появляются только при достаточном приближении
-  const show = scale < 0.55;
-  franceG.selectAll('.prov-label').attr('visibility', show ? 'hidden' : 'visible');
-}
+// Информация о провинциях (по регионам)
+const PROVINCE_INFO = {
+  'Île-de-France':        { pop: '2.1 млн', income: '620 фр./мес' },
+  'Normandie':            { pop: '1.4 млн', income: '240 фр./мес' },
+  'Bretagne':             { pop: '2.0 млн', income: '160 фр./мес' },
+  'Pays de la Loire':     { pop: '1.6 млн', income: '200 фр./мес' },
+  'Centre-Val de Loire':  { pop: '1.1 млн', income: '150 фр./мес' },
+  'Bourgogne-Franche-Comté': { pop: '1.1 млн', income: '190 фр./мес' },
+  'Grand Est':            { pop: '1.4 млн', income: '210 фр./мес' },
+  'Hauts-de-France':      { pop: '1.0 млн', income: '180 фр./мес' },
+  'Auvergne-Rhône-Alpes': { pop: '1.8 млн', income: '230 фр./мес' },
+  "Provence-Alpes-Côte d'Azur": { pop: '0.8 млн', income: '140 фр./мес' },
+  'Occitanie':            { pop: '1.4 млн', income: '155 фр./мес' },
+  'Nouvelle-Aquitaine':   { pop: '2.1 млн', income: '170 фр./мес' },
+  'Corse':                { pop: '0.2 млн', income:  '60 фр./мес' },
+};
 
 function drawMap() {
-  d3.json('https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json').then(world => {
-    const countries = topojson.feature(world, world.objects.countries);
+  // Загружаем мировую карту и регионы Франции параллельно
+  Promise.all([
+    d3.json('https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json'),
+    d3.json('https://raw.githubusercontent.com/gregoiredavid/france-geojson/master/regions-version-simplifiee.geojson')
+  ]).then(([world, franceGeo]) => {
 
-    // Мировые страны — тёмно-серые
+    // --- МИР: бело-серые страны ---
+    const countries = topojson.feature(world, world.objects.countries);
     worldG.selectAll('path.country')
       .data(countries.features).join('path')
       .attr('class', 'country')
       .attr('d', pathGen)
-      .attr('fill', '#1e2e3e')
-      .attr('stroke', '#2a3e54')
-      .attr('stroke-width', '0.5')
+      .attr('fill', '#d8d4cc')
+      .attr('stroke', '#555')
+      .attr('stroke-width', '0.25')
       .on('mouseover', (e, d) => {
-        d3.select(e.currentTarget).attr('fill', '#263848');
+        d3.select(e.currentTarget).attr('fill', '#c8c4bc');
         tooltip.style.display = 'block';
-        document.getElementById('t-name').textContent = 'Неизвестная страна';
+        document.getElementById('t-name').textContent = 'Страна';
         document.getElementById('t-info').textContent = 'Данные не определены';
       })
-      .on('mousemove', e => {
-        const r = mapWrap.getBoundingClientRect();
-        tooltip.style.left = (e.clientX - r.left + 12) + 'px';
-        tooltip.style.top  = (e.clientY - r.top  - 55) + 'px';
-      })
+      .on('mousemove', e => positionTooltip(e))
       .on('mouseleave', e => {
-        d3.select(e.currentTarget).attr('fill', '#1e2e3e');
+        d3.select(e.currentTarget).attr('fill', '#d8d4cc');
         tooltip.style.display = 'none';
       });
 
-    // Провинции Франции
-    franceProvinces.forEach(prov => {
-      const geo = { type: 'Feature', geometry: { type: 'Polygon', coordinates: prov.coords } };
-      const p = pathGen(geo);
-      if (!p) return;
+    // --- ФРАНЦИЯ: реальные регионы, голубые ---
+    franceGeo.features.forEach((feature, i) => {
+      const name  = feature.properties.nom;
+      const info  = PROVINCE_INFO[name] || { pop: '—', income: '—' };
+      const color = FRANCE_COLORS[i % FRANCE_COLORS.length];
+      const hcolor = lighten(color);
 
-      franceG.append('path').datum(prov)
-        .attr('d', p)
-        .attr('fill', prov.color)
-        .attr('stroke', '#0a1a10')
-        .attr('stroke-width', '1')
+      franceG.append('path')
+        .datum(feature)
+        .attr('d', pathGen)
+        .attr('fill', color)
+        .attr('stroke', '#1a3a5a')
+        .attr('stroke-width', '0.8')
         .style('cursor', 'pointer')
-        .on('mouseover', function(e, d) {
-          d3.select(this).attr('fill', d.hcolor);
+        .on('mouseover', function(e) {
+          d3.select(this).attr('fill', hcolor);
           tooltip.style.display = 'block';
-          document.getElementById('t-name').textContent = d.name;
-          document.getElementById('t-info').textContent = '👥 ' + d.pop + ' · 💰 ' + d.income;
+          document.getElementById('t-name').textContent = name;
+          document.getElementById('t-info').textContent =
+            '👥 ' + info.pop + ' · 💰 ' + info.income;
         })
-        .on('mousemove', e => {
-          const r = mapWrap.getBoundingClientRect();
-          tooltip.style.left = (e.clientX - r.left + 12) + 'px';
-          tooltip.style.top  = (e.clientY - r.top  - 55) + 'px';
-        })
-        .on('mouseleave', function(e, d) {
-          d3.select(this).attr('fill', d.color);
+        .on('mousemove', e => positionTooltip(e))
+        .on('mouseleave', function() {
+          d3.select(this).attr('fill', color);
           tooltip.style.display = 'none';
         });
 
-      const c = pathGen.centroid(geo);
+      // Подпись региона
+      const c = pathGen.centroid(feature);
       if (c && !isNaN(c[0])) {
         franceG.append('text')
           .attr('class', 'prov-label')
           .attr('x', c[0]).attr('y', c[1])
           .attr('text-anchor', 'middle')
           .attr('dominant-baseline', 'middle')
-          .attr('font-size', '8')
-          .attr('fill', '#c0e0c0')
+          .attr('font-size', '6.5')
+          .attr('fill', '#fff')
           .attr('pointer-events', 'none')
-          .text(prov.name);
+          .attr('font-family', 'Georgia, serif')
+          .text(name);
       }
     });
 
     // Маркер Парижа
-    const parisXY = proj([2.35, 48.85]);
+    const parisXY = proj([2.3488, 48.8534]);
     franceG.append('circle')
       .attr('cx', parisXY[0]).attr('cy', parisXY[1]).attr('r', 3)
-      .attr('fill', '#f0c040').attr('stroke', '#907010').attr('stroke-width', '1')
+      .attr('fill', '#f0c040').attr('stroke', '#805000').attr('stroke-width', '1')
       .attr('pointer-events', 'none');
     franceG.append('text')
       .attr('x', parisXY[0] + 5).attr('y', parisXY[1] - 3)
       .attr('font-size', '8').attr('fill', '#f0c040')
+      .attr('font-family', 'Georgia, serif')
       .attr('pointer-events', 'none').text('★ Париж');
 
-    updateLabelVisibility();
+    updateLabels();
 
-  }).catch(() => {
+  }).catch(err => {
+    console.error(err);
     svg.append('text').attr('x', W/2).attr('y', H/2)
-      .attr('text-anchor', 'middle').attr('font-size', '14')
-      .attr('fill', '#5a8aaa').text('Ошибка загрузки карты. Проверьте соединение.');
+      .attr('text-anchor', 'middle').attr('font-size', '13')
+      .attr('fill', '#888').text('Ошибка загрузки карты');
   });
 }
 
-// ---- Зум и перетаскивание ----
+function lighten(hex) {
+  const n = parseInt(hex.slice(1), 16);
+  const r = Math.min(255, ((n >> 16) & 0xff) + 40);
+  const g = Math.min(255, ((n >>  8) & 0xff) + 40);
+  const b = Math.min(255, ( n        & 0xff) + 40);
+  return '#' + [r,g,b].map(v => v.toString(16).padStart(2,'0')).join('');
+}
+
+function positionTooltip(e) {
+  const r = mapWrap.getBoundingClientRect();
+  tooltip.style.left = (e.clientX - r.left + 14) + 'px';
+  tooltip.style.top  = (e.clientY - r.top  - 58) + 'px';
+}
+
+function updateLabels() {
+  const scale = vb.w / W;
+  // Показываем подписи только при достаточном приближении
+  franceG.selectAll('.prov-label').attr('visibility', scale < 0.6 ? 'hidden' : 'visible');
+}
+
+// ---- ЗУМ и перетаскивание ----
 let dragging = false, ds = { x: 0, y: 0 };
 let vb = { x: 0, y: 0, w: 960, h: 560 };
 
-mapWrap.addEventListener('mousedown', e => { dragging = true; ds = { x: e.clientX, y: e.clientY }; });
+mapWrap.addEventListener('mousedown', e => {
+  dragging = true;
+  ds = { x: e.clientX, y: e.clientY };
+});
 window.addEventListener('mousemove', e => {
   if (!dragging) return;
   const scale = vb.w / mapWrap.offsetWidth;
   vb.x -= (e.clientX - ds.x) * scale;
   vb.y -= (e.clientY - ds.y) * scale;
-  vb.x = Math.max(-400, Math.min(600, vb.x));
-  vb.y = Math.max(-200, Math.min(400, vb.y));
+  // Широкие лимиты чтобы можно было путешествовать по карте
+  vb.x = Math.max(-600, Math.min(800, vb.x));
+  vb.y = Math.max(-400, Math.min(600, vb.y));
   svgEl.setAttribute('viewBox', `${vb.x} ${vb.y} ${vb.w} ${vb.h}`);
   ds = { x: e.clientX, y: e.clientY };
-  updateLabelVisibility();
+  updateLabels();
 });
 window.addEventListener('mouseup', () => dragging = false);
 
 mapWrap.addEventListener('wheel', e => {
   e.preventDefault();
-  const f = e.deltaY > 0 ? 1.15 : 0.87;
-  const nw = Math.max(80, Math.min(1800, vb.w * f));
-  const nh = Math.max(45, Math.min(1100, vb.h * f));
+  const f = e.deltaY > 0 ? 1.12 : 0.89;
+  // Убираем ограничение снизу — можно приближать очень сильно
+  const nw = Math.max(30, Math.min(1800, vb.w * f));
+  const nh = Math.max(18, Math.min(1100, vb.h * f));
   const rect = mapWrap.getBoundingClientRect();
   const mx = (e.clientX - rect.left) / rect.width;
   const my = (e.clientY - rect.top)  / rect.height;
@@ -156,8 +185,8 @@ mapWrap.addEventListener('wheel', e => {
   vb.y += vb.h * my - nh * my;
   vb.w = nw; vb.h = nh;
   svgEl.setAttribute('viewBox', `${vb.x} ${vb.y} ${vb.w} ${vb.h}`);
-  updateLabelVisibility();
+  updateLabels();
 }, { passive: false });
 
-// Запускаем карту
 drawMap();
+

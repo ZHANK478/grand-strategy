@@ -2,12 +2,10 @@
 <html lang="ru">
 <head>
 <meta charset="utf-8">
-<title>Grand Strategy — 1852</title> 
+<title>Grand Strategy — 1852</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box;}
 body{background:#f0ede8;color:#111;font-family:Georgia,serif;overflow:hidden;height:100vh;position:relative;user-select:none;}
-
-/* TOP BAR — чёрно-белый */
 #topbar{position:absolute;top:0;left:0;right:0;height:42px;background:#fff;border-bottom:2px solid #222;display:flex;align-items:center;z-index:100;}
 .top-stat{display:flex;align-items:center;gap:7px;padding:0 14px;height:100%;border-right:1px solid #ddd;}
 .top-stat .icon{font-size:14px;}
@@ -15,81 +13,92 @@ body{background:#f0ede8;color:#111;font-family:Georgia,serif;overflow:hidden;hei
 .top-stat .lbl{font-size:10px;color:#666;text-transform:uppercase;letter-spacing:.05em;}
 .stat-b{display:flex;flex-direction:column;}
 #date-disp{margin-left:auto;padding:0 16px;font-size:13px;color:#333;font-style:italic;}
-
-/* ACTION BAR — чёрно-белый */
 #actionbar{position:absolute;top:42px;left:0;right:0;height:38px;background:#f8f8f8;border-bottom:1px solid #ccc;display:flex;align-items:center;gap:8px;padding:0 12px;z-index:99;}
-.abtn{display:flex;align-items:center;gap:5px;background:#fff;border:1px solid #aaa;color:#222;font-size:12px;padding:5px 12px;border-radius:3px;cursor:pointer;transition:all .15s;font-family:Georgia,serif;}
-.abtn:hover{background:#eee;border-color:#666;}
+.abtn{display:flex;align-items:center;gap:5px;background:#fff;border:1px solid #aaa;color:#222;font-size:12px;padding:5px 12px;border-radius:3px;cursor:pointer;font-family:Georgia,serif;transition:all .15s;}
+.abtn:hover{background:#eee;}
 .next-btn{background:#222;border-color:#000;color:#fff;font-weight:bold;margin-left:auto;}
 .next-btn:hover{background:#444;}
+.next-btn:disabled{background:#888;cursor:not-allowed;}
+.action-btn{background:#1a4a1a;border-color:#0a2a0a;color:#fff;}
+.action-btn:hover{background:#2a6a2a;}
 .turn-lbl{font-size:11px;color:#888;}
-
-/* LEFT PANEL — белый */
 #left-panel{position:absolute;top:80px;left:0;width:290px;bottom:0;background:#fff;border-right:2px solid #ccc;z-index:90;overflow-y:auto;transition:transform .25s;}
 #left-panel.hidden{transform:translateX(-290px);}
 #toggle-btn{position:absolute;top:88px;left:290px;width:20px;height:44px;background:#fff;border:1px solid #ccc;border-left:none;border-radius:0 4px 4px 0;cursor:pointer;z-index:91;display:flex;align-items:center;justify-content:center;color:#555;font-size:11px;transition:left .25s;}
 #toggle-btn.closed{left:0;}
-#toggle-btn:hover{background:#f0f0f0;}
-
-/* PORTRAIT */
 .portrait-block{position:relative;width:100%;background:#e8e4dc;}
 .portrait-img{width:100%;aspect-ratio:3/4;object-fit:cover;display:block;filter:sepia(10%) contrast(95%);}
 .portrait-emoji{width:100%;aspect-ratio:3/4;background:#e8e4dc;display:flex;align-items:center;justify-content:center;font-size:72px;}
-.portrait-hover{
-  position:absolute;inset:0;
-  background:rgba(0,0,0,0.75);
-  opacity:0;transition:opacity .2s;
-  display:flex;flex-direction:column;justify-content:center;
-  padding:16px;gap:4px;
-}
+.portrait-hover{position:absolute;inset:0;background:rgba(0,0,0,0.78);opacity:0;transition:opacity .2s;display:flex;flex-direction:column;justify-content:center;padding:16px;gap:4px;}
 .portrait-block:hover .portrait-hover{opacity:1;}
 .ph-row{display:flex;justify-content:space-between;font-size:11px;padding:3px 0;border-bottom:1px solid rgba(255,255,255,0.1);color:#ddd;}
 .ph-row .k{color:#aaa;}
-
-/* CAPTION */
 .portrait-caption{padding:10px 14px 8px;background:#fff;border-bottom:1px solid #e0e0e0;}
 .pc-name{font-size:14px;color:#111;font-weight:bold;}
 .pc-title{font-size:11px;color:#666;margin-top:2px;}
 .govbadge{margin:8px 14px;background:#f4f4f4;border:1px solid #ddd;border-radius:3px;padding:6px 10px;font-size:11px;color:#333;text-align:center;}
-
-/* COLLAPSIBLES */
 .psec{border-bottom:1px solid #e8e8e8;padding:10px 14px;}
 .phdr{font-size:10px;text-transform:uppercase;letter-spacing:.1em;color:#888;margin-bottom:8px;}
-.cbtn{width:100%;background:#f8f8f8;border:1px solid #ddd;color:#333;font-size:11px;padding:7px 10px;text-align:left;cursor:pointer;border-radius:3px;margin-top:6px;font-family:Georgia,serif;transition:background .15s;}
+.cbtn{width:100%;background:#f8f8f8;border:1px solid #ddd;color:#333;font-size:11px;padding:7px 10px;text-align:left;cursor:pointer;border-radius:3px;margin-top:6px;font-family:Georgia,serif;}
 .cbtn:hover{background:#eee;}
 .ccont{display:none;margin-top:8px;}
 .ccont.open{display:block;}
 .irow{display:flex;justify-content:space-between;font-size:12px;padding:4px 0;border-bottom:1px solid #f0f0f0;color:#333;}
 .irow .k{color:#888;}
 .state-text{font-size:11px;color:#555;line-height:1.75;margin-top:4px;}
-
-/* MAP */
 #map-wrap{position:absolute;top:80px;left:290px;right:0;bottom:0;cursor:grab;overflow:hidden;background:#4a7aaa;}
 #map-wrap:active{cursor:grabbing;}
 #map-svg{width:100%;height:100%;}
-
-/* TOOLTIP */
 #tooltip{position:absolute;background:rgba(255,255,255,.97);border:1px solid #bbb;border-radius:4px;padding:7px 11px;font-size:12px;color:#222;pointer-events:none;z-index:200;display:none;max-width:190px;box-shadow:0 2px 8px rgba(0,0,0,0.15);}
 #tooltip .tn{font-size:13px;color:#111;font-weight:bold;margin-bottom:3px;}
 #tooltip .tr{color:#666;margin-top:2px;}
 
-/* POPUPS */
-#diplo-pop,#adv-pop{position:absolute;top:88px;background:#fff;border:1px solid #bbb;border-radius:5px;z-index:200;display:none;box-shadow:0 4px 16px rgba(0,0,0,0.15);}
-#diplo-pop{left:310px;width:310px;}
-#adv-pop{left:310px;width:255px;}
-.pop-hdr{background:#f4f4f4;padding:9px 13px;border-bottom:1px solid #ddd;font-size:13px;color:#222;display:flex;justify-content:space-between;align-items:center;border-radius:5px 5px 0 0;}
-.pop-body{padding:12px 13px;}
-.dta{width:100%;background:#fafafa;border:1px solid #ddd;color:#222;padding:8px;border-radius:3px;resize:none;font-family:Georgia,serif;font-size:12px;height:68px;}
-.dsend{margin-top:8px;background:#222;border:1px solid #000;color:#fff;padding:6px 14px;border-radius:3px;cursor:pointer;font-size:12px;font-family:Georgia,serif;}
-.dsend:hover{background:#444;}
-.xbtn{cursor:pointer;color:#888;font-size:14px;line-height:1;}
-.xbtn:hover{color:#222;}
+/* СОБЫТИЯ */
+#events-box{position:absolute;top:88px;right:14px;width:300px;background:#fff;border:1px solid #bbb;border-radius:5px;z-index:200;display:none;box-shadow:0 4px 16px rgba(0,0,0,0.15);max-height:320px;overflow-y:auto;}
+.events-hdr{background:#f4f4f4;padding:9px 13px;border-bottom:1px solid #ddd;font-size:13px;color:#222;display:flex;justify-content:space-between;align-items:center;border-radius:5px 5px 0 0;position:sticky;top:0;}
+.ev-item{padding:7px 13px;font-size:12px;color:#333;border-bottom:1px solid #f0f0f0;line-height:1.5;}
+.ev-loading{padding:12px 13px;font-size:12px;color:#888;font-style:italic;}
 
-/* NOTIFICATION */
+/* ДЕЙСТВИЯ */
+#actions-panel{position:absolute;top:88px;left:310px;width:320px;background:#fff;border:1px solid #bbb;border-radius:5px;z-index:200;display:none;box-shadow:0 4px 16px rgba(0,0,0,0.15);}
+.actions-hdr{background:#1a4a1a;color:#fff;padding:9px 13px;border-radius:5px 5px 0 0;font-size:13px;display:flex;justify-content:space-between;align-items:center;}
+.actions-body{padding:12px 13px;}
+#actions-list{margin-bottom:10px;max-height:160px;overflow-y:auto;}
+.action-item{display:flex;justify-content:space-between;align-items:center;font-size:12px;padding:5px 0;border-bottom:1px solid #f0f0f0;color:#333;}
+.rm-btn{background:none;border:none;color:#c00;cursor:pointer;font-size:14px;padding:0 4px;}
+#action-input{width:100%;background:#fafafa;border:1px solid #ddd;color:#222;padding:8px;border-radius:3px;font-family:Georgia,serif;font-size:12px;resize:none;height:60px;}
+.add-action-btn{margin-top:8px;background:#1a4a1a;border:1px solid #0a2a0a;color:#fff;padding:6px 14px;border-radius:3px;cursor:pointer;font-size:12px;font-family:Georgia,serif;width:100%;}
+.add-action-btn:hover{background:#2a6a2a;}
+
+/* СОВЕТНИК ЧАТ */
+#adv-pop{position:absolute;top:88px;left:310px;width:300px;background:#fff;border:1px solid #bbb;border-radius:5px;z-index:200;display:none;box-shadow:0 4px 16px rgba(0,0,0,0.15);}
+.pop-hdr{background:#f4f4f4;padding:9px 13px;border-bottom:1px solid #ddd;font-size:13px;color:#222;display:flex;justify-content:space-between;align-items:center;border-radius:5px 5px 0 0;}
+.xbtn{cursor:pointer;color:#888;font-size:14px;}
+.xbtn:hover{color:#222;}
+#adv-messages{height:180px;overflow-y:auto;padding:10px 13px;display:flex;flex-direction:column;gap:6px;}
+.adv-msg{font-size:12px;line-height:1.5;padding:6px 9px;border-radius:4px;max-width:90%;}
+.adv-msg.player{background:#e8f0e8;align-self:flex-end;color:#1a3a1a;}
+.adv-msg.advisor{background:#f0f0f0;align-self:flex-start;color:#333;}
+.chat-input-row{display:flex;gap:6px;padding:10px 13px;border-top:1px solid #eee;}
+.chat-input{flex:1;background:#fafafa;border:1px solid #ddd;color:#222;padding:7px;border-radius:3px;font-family:Georgia,serif;font-size:12px;}
+.chat-send{background:#222;border:none;color:#fff;padding:7px 12px;border-radius:3px;cursor:pointer;font-size:12px;}
+.chat-send:hover{background:#444;}
+
+/* ДИПЛОМАТИЯ */
+#diplo-pop{position:absolute;top:88px;left:310px;width:320px;background:#fff;border:1px solid #bbb;border-radius:5px;z-index:200;display:none;box-shadow:0 4px 16px rgba(0,0,0,0.15);}
+#diplo-countries{padding:12px 13px;display:flex;flex-direction:column;gap:6px;}
+.country-btn{background:#f8f8f8;border:1px solid #ddd;color:#222;padding:8px 12px;border-radius:3px;cursor:pointer;font-size:13px;font-family:Georgia,serif;text-align:left;}
+.country-btn:hover{background:#eee;border-color:#aaa;}
+#diplo-chat{display:none;}
+.diplo-chat-hdr{background:#1a2a4a;color:#fff;padding:8px 13px;font-size:12px;display:flex;justify-content:space-between;align-items:center;}
+.back-btn{background:none;border:none;color:#aac;cursor:pointer;font-size:11px;}
+#diplo-messages{height:180px;overflow-y:auto;padding:10px 13px;display:flex;flex-direction:column;gap:6px;}
+.diplo-msg{font-size:12px;line-height:1.5;padding:6px 9px;border-radius:4px;max-width:92%;}
+.diplo-msg.france{background:#ddeeff;align-self:flex-end;color:#002244;}
+.diplo-msg.ai{background:#f0f0f0;align-self:flex-start;color:#333;}
+
 .notif{position:absolute;top:88px;right:14px;background:#fff;border:1px solid #bbb;color:#333;font-size:12px;padding:6px 12px;border-radius:4px;z-index:300;animation:fn 3s forwards;pointer-events:none;box-shadow:0 2px 8px rgba(0,0,0,0.1);}
 @keyframes fn{0%{opacity:1}70%{opacity:1}100%{opacity:0}}
-
-/* SCROLLBAR */
 #left-panel::-webkit-scrollbar{width:3px;}
 #left-panel::-webkit-scrollbar-thumb{background:#ddd;border-radius:2px;}
 </style>
@@ -105,6 +114,7 @@ body{background:#f0ede8;color:#111;font-family:Georgia,serif;overflow:hidden;hei
 </div>
 
 <div id="actionbar">
+  <button class="abtn action-btn" onclick="openActionsPanel()">⚡ Действия</button>
   <button class="abtn" onclick="togglePop('diplo-pop','adv-pop')">📜 Дипломатия</button>
   <button class="abtn" onclick="togglePop('adv-pop','diplo-pop')">🎭 Советник</button>
   <span class="turn-lbl" id="turn-info">Ход 1</span>
@@ -114,13 +124,10 @@ body{background:#f0ede8;color:#111;font-family:Georgia,serif;overflow:hidden;hei
 <button id="toggle-btn" onclick="togglePanel()">◀</button>
 
 <div id="left-panel">
-
-  <!-- ГЛАВА ГОСУДАРСТВА -->
   <div class="portrait-block">
     <img class="portrait-img"
       src="https://upload.wikimedia.org/wikipedia/commons/thumb/b/b4/Portrait_de_Louis-Napoléon_Bonaparte_%283x4_cropped%29.jpg/400px-Portrait_de_Louis-Napoléon_Bonaparte_%283x4_cropped%29.jpg"
-      onerror="this.style.display='none';this.nextElementSibling.style.display='flex';"
-      alt="Луи-Наполеон">
+      onerror="this.style.display='none';this.nextElementSibling.style.display='flex';" alt="Луи-Наполеон">
     <div class="portrait-emoji" style="display:none">👑</div>
     <div class="portrait-hover">
       <div class="ph-row"><span class="k">Правит с</span><span>1848 г.</span></div>
@@ -137,20 +144,17 @@ body{background:#f0ede8;color:#111;font-family:Georgia,serif;overflow:hidden;hei
   </div>
   <div class="govbadge">🏛 Президентская республика</div>
 
-  <!-- ГЛАВА ПРАВИТЕЛЬСТВА -->
   <div class="psec">
     <button class="cbtn" onclick="toggle('pm')">▶ Глава правительства</button>
     <div class="ccont" id="pm">
       <div class="portrait-block">
         <img class="portrait-img"
           src="https://upload.wikimedia.org/wikipedia/commons/thumb/6/6e/Eug%C3%A8ne_Rouher_Pierson_%28cropped%29.jpg/400px-Eug%C3%A8ne_Rouher_Pierson_%28cropped%29.jpg"
-          onerror="this.style.display='none';this.nextElementSibling.style.display='flex';"
-          alt="Эжен Руэр">
+          onerror="this.style.display='none';this.nextElementSibling.style.display='flex';" alt="Руэр">
         <div class="portrait-emoji" style="display:none;font-size:48px;">🎩</div>
         <div class="portrait-hover">
           <div class="ph-row"><span class="k">Партия</span><span>Бонапартисты</span></div>
           <div class="ph-row"><span class="k">Влияние</span><span>Среднее</span></div>
-          <div class="ph-row"><span class="k">Экономика</span><span>+12%</span></div>
           <div class="ph-row"><span class="k">Лояльность</span><span>Высокая</span></div>
         </div>
       </div>
@@ -161,81 +165,105 @@ body{background:#f0ede8;color:#111;font-family:Georgia,serif;overflow:hidden;hei
     </div>
   </div>
 
-  <!-- ПАРЛАМЕНТ -->
   <div class="psec">
     <button class="cbtn" onclick="toggle('parl')">▶ Законодательное собрание</button>
     <div class="ccont" id="parl">
       <div class="irow"><span class="k">Тип</span><span>Однопалатное</span></div>
-      <div class="irow"><span class="k">Мест всего</span><span>750</span></div>
+      <div class="irow"><span class="k">Мест</span><span>750</span></div>
       <div class="irow"><span class="k">Бонапартисты</span><span>67%</span></div>
       <div class="irow"><span class="k">Республиканцы</span><span>18%</span></div>
       <div class="irow"><span class="k">Монархисты</span><span>15%</span></div>
     </div>
   </div>
 
-  <!-- ДАННЫЕ СТРАНЫ -->
   <div class="psec">
     <button class="cbtn" onclick="toggle('country')">▶ Данные страны</button>
     <div class="ccont" id="country">
       <div class="irow"><span class="k">Население</span><span>35.8 млн</span></div>
       <div class="irow"><span class="k">Площадь</span><span>551 000 км²</span></div>
-      <div class="irow"><span class="k">Провинций</span><span>13</span></div>
-      <div class="irow"><span class="k">Религия</span><span>Католицизм</span></div>
       <div class="irow"><span class="k">Столица</span><span>Париж</span></div>
       <div class="irow"><span class="k">ВВП</span><span>~14 млрд фр.</span></div>
-      <div class="irow"><span class="k">Индустриализация</span><span>42%</span></div>
     </div>
   </div>
 
-  <!-- ПОЛОЖЕНИЕ -->
   <div class="psec">
     <div class="phdr">Положение страны</div>
-    <div class="state-text">Франция в 1852 году переживает переходный период. После переворота 2 декабря 1851 года Луи-Наполеон сосредоточил власть в своих руках и готовится провозгласить Вторую империю. Экономика растёт — железные дороги расширяются, промышленность Лиона и Марселя набирает силу. Политическое напряжение высоко: республиканская оппозиция подавлена, тысячи противников высланы в Алжир.</div>
+    <div class="state-text">Франция в 1852 году переживает переходный период. Луи-Наполеон готовится провозгласить Вторую империю. Экономика растёт, но политическое напряжение высоко.</div>
   </div>
-
 </div>
 
 <div id="map-wrap">
   <svg id="map-svg" viewBox="0 0 960 560" xmlns="http://www.w3.org/2000/svg">
     <rect width="960" height="560" fill="#4a7aaa"/>
     <g id="world-g"></g>
+    <g id="spain-g"></g>
     <g id="france-g"></g>
   </svg>
 </div>
 
-<div id="tooltip">
-  <div class="tn" id="t-name">—</div>
-  <div class="tr" id="t-info">—</div>
+<div id="tooltip"><div class="tn" id="t-name">—</div><div class="tr" id="t-info">—</div></div>
+
+<!-- СОБЫТИЯ -->
+<div id="events-box">
+  <div class="events-hdr">
+    <span>📰 События месяца</span>
+    <span class="xbtn" onclick="document.getElementById('events-box').style.display='none'">✕</span>
+  </div>
+  <div id="events-list"></div>
 </div>
 
-<div id="diplo-pop">
-  <div class="pop-hdr">
-    <span>📜 Дипломатическое послание</span>
-    <span class="xbtn" onclick="document.getElementById('diplo-pop').style.display='none'">✕</span>
+<!-- ДЕЙСТВИЯ -->
+<div id="actions-panel">
+  <div class="actions-hdr">
+    <span>⚡ Действия на этот ход</span>
+    <span class="xbtn" style="color:#aaa" onclick="document.getElementById('actions-panel').style.display='none'">✕</span>
   </div>
-  <div class="pop-body">
-    <div style="font-size:11px;color:#888;margin-bottom:6px">От: Французская Республика · Кому: Всем</div>
-    <textarea class="dta" id="diplo-txt" placeholder="Введите послание миру..."></textarea>
-    <button class="dsend" onclick="sendMsg()">Отправить</button>
+  <div class="actions-body">
+    <div id="actions-list"><div style="color:#888;font-size:11px;font-style:italic">Нет действий на этот ход</div></div>
+    <textarea id="action-input" placeholder="Опишите действие Франции... (например: отправить войска в Алжир)"></textarea>
+    <button class="add-action-btn" onclick="addAction()">+ Добавить действие</button>
   </div>
 </div>
 
+<!-- СОВЕТНИК -->
 <div id="adv-pop">
   <div class="pop-hdr">
     <span>🎭 Советник</span>
     <span class="xbtn" onclick="document.getElementById('adv-pop').style.display='none'">✕</span>
   </div>
-  <div class="pop-body">
-    <div style="font-size:12px;color:#444;line-height:1.65">
-      Ваше Превосходительство! 1852 год — решающий. Казна в порядке. Рекомендую следить за стабильностью и развитием промышленности.
+  <div id="adv-messages">
+    <div class="adv-msg advisor">🎭 Ваше Превосходительство, готов отвечать на ваши вопросы о положении Франции.</div>
+  </div>
+  <div class="chat-input-row">
+    <input class="chat-input" id="adv-input" placeholder="Спросите советника..." onkeydown="advisorKeydown(event)">
+    <button class="chat-send" onclick="sendAdvisorMessage()">→</button>
+  </div>
+</div>
+
+<!-- ДИПЛОМАТИЯ -->
+<div id="diplo-pop">
+  <div class="pop-hdr">
+    <span>📜 Дипломатия</span>
+    <span class="xbtn" onclick="document.getElementById('diplo-pop').style.display='none'">✕</span>
+  </div>
+  <div id="diplo-countries"></div>
+  <div id="diplo-chat">
+    <div class="diplo-chat-hdr">
+      <span>Переговоры: <strong id="diplo-target"></strong></span>
+      <button class="back-btn" onclick="backToCountries()">← Назад</button>
     </div>
-    <div style="font-size:11px;color:#888;margin-top:8px;font-style:italic">— Главный советник</div>
+    <div id="diplo-messages"></div>
+    <div class="chat-input-row">
+      <input class="chat-input" id="diplo-input" placeholder="Ваше послание..." onkeydown="diploKeydown(event)">
+      <button class="chat-send" onclick="sendDiploMessage()">→</button>
+    </div>
   </div>
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/topojson/3.0.2/topojson.min.js"></script>
 <script src="map.js"></script>
+<script src="ai.js"></script>
 <script src="game.js"></script>
 <script src="ui.js"></script>
 </body>

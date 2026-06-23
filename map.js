@@ -1,4 +1,4 @@
-// MAP.JS v4
+// MAP.JS v4 (исправленный)
 const W = 960, H = 560;
 const proj = d3.geoNaturalEarth1().scale(153).translate([W/2, H/2]); 
 const pathGen = d3.geoPath(proj);
@@ -9,7 +9,6 @@ const svg     = d3.select('#map-svg');
 const worldG  = svg.select('#world-g');
 const franceG = svg.select('#france-g');
 
-// Голубые оттенки провинций
 const FRANCE_COLORS = [
   '#3a7ab8','#4a8ac8','#2e6aa8','#5a98cc','#3a80bc',
   '#2868a0','#4a90c4','#3878b0','#5294c8','#2c6aaa',
@@ -17,29 +16,28 @@ const FRANCE_COLORS = [
 ];
 
 const PROVINCE_INFO = {
-  'Île-de-France':               { pop:'2.1 млн', income:'620 фр./мес' },
-  'Normandie':                   { pop:'1.4 млн', income:'240 фр./мес' },
-  'Bretagne':                    { pop:'2.0 млн', income:'160 фр./мес' },
-  'Pays de la Loire':            { pop:'1.6 млн', income:'200 фр./мес' },
-  'Centre-Val de Loire':         { pop:'1.1 млн', income:'150 фр./мес' },
-  'Bourgogne-Franche-Comté':     { pop:'1.1 млн', income:'190 фр./мес' },
-  'Grand Est':                   { pop:'1.4 млн', income:'210 фр./мес' },
-  'Hauts-de-France':             { pop:'1.0 млн', income:'180 фр./мес' },
-  'Auvergne-Rhône-Alpes':        { pop:'1.8 млн', income:'230 фр./мес' },
-  "Provence-Alpes-Côte d'Azur":  { pop:'0.8 млн', income:'140 фр./мес' },
-  'Occitanie':                   { pop:'1.4 млн', income:'155 фр./мес' },
-  'Nouvelle-Aquitaine':          { pop:'2.1 млн', income:'170 фр./мес' },
-  'Corse':                       { pop:'0.2 млн', income:'60 фр./мес'  },
+  'Île-de-France':                { pop:'2.1 млн', income:'620 фр./мес' },
+  'Normandie':                    { pop:'1.4 млн', income:'240 фр./мес' },
+  'Bretagne':                     { pop:'2.0 млн', income:'160 фр./мес' },
+  'Pays de la Loire':             { pop:'1.6 млн', income:'200 фр./мес' },
+  'Centre-Val de Loire':          { pop:'1.1 млн', income:'150 фр./мес' },
+  'Bourgogne-Franche-Comté':      { pop:'1.1 млн', income:'190 фр./мес' },
+  'Grand Est':                    { pop:'1.4 млн', income:'210 фр./мес' },
+  'Hauts-de-France':              { pop:'1.0 млн', income:'180 фр./мес' },
+  'Auvergne-Rhône-Alpes':         { pop:'1.8 млн', income:'230 фр./мес' },
+  "Provence-Alpes-Côte d'Azur":   { pop:'0.8 млн', income:'140 фр./мес' },
+  'Occitanie':                    { pop:'1.4 млн', income:'155 фр./мес' },
+  'Nouvelle-Aquitaine':           { pop:'2.1 млн', income:'170 фр./мес' },
+  'Corse':                        { pop:'0.2 млн', income:'60 фр./мес'  },
 };
 
-// ID Франции в world-atlas (250 = France)
 const FRANCE_ID = '250';
 
 function lighten(hex) {
   const n = parseInt(hex.slice(1),16);
   const r = Math.min(255,((n>>16)&0xff)+35);
   const g = Math.min(255,((n>>8) &0xff)+35);
-  const b = Math.min(255,( n     &0xff)+35);
+  const b = Math.min(255,( n      &0xff)+35);
   return '#'+[r,g,b].map(v=>v.toString(16).padStart(2,'0')).join('');
 }
 
@@ -49,15 +47,13 @@ function positionTooltip(e) {
   tooltip.style.top  = (e.clientY - r.top  - 58)+'px';
 }
 
-// Парижский маркер — масштабируется с зумом
 let parisXY = null;
 function updateParis() {
   if (!parisXY) return;
-  // Размер маркера зависит от zoom: чем ближе (меньше vb.w) тем больше
-  const zoom = W / vb.w;           // 1 = весь мир, 10 = сильно приближено
+  const zoom = W / vb.w;
   const r    = Math.max(1.5, Math.min(8, zoom * 2.5));
   const fs   = Math.max(5,   Math.min(16, zoom * 4));
-  const show = zoom > 1.8;         // показываем только при приближении
+  const show = zoom > 3.5; // ПРАВКА 2: Париж виден при большем зуме
 
   svg.select('#paris-dot')
     .attr('r', r)
@@ -73,10 +69,8 @@ function drawMap() {
     d3.json('https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json'),
     d3.json('https://raw.githubusercontent.com/gregoiredavid/france-geojson/master/regions-version-simplifiee.geojson')
   ]).then(([world, franceGeo]) => {
-
     const countries = topojson.feature(world, world.objects.countries);
 
-    // Мировые страны — пропускаем Францию (её рисуем отдельно точнее)
     worldG.selectAll('path.country')
       .data(countries.features.filter(d => String(d.id) !== FRANCE_ID))
       .join('path')
@@ -97,7 +91,6 @@ function drawMap() {
         tooltip.style.display='none';
       });
 
-    // Регионы Франции — реальный GeoJSON поверх
     franceGeo.features.forEach((feature, i) => {
       const name   = feature.properties.nom;
       const info   = PROVINCE_INFO[name] || { pop:'—', income:'—' };
@@ -108,8 +101,8 @@ function drawMap() {
         .datum(feature)
         .attr('d', pathGen)
         .attr('fill', color)
-        .attr('stroke','#6a9ac0')   // серо-голубая граница
-        .attr('stroke-width','0.4')
+        .attr('stroke','#1a3a60') // ПРАВКА 3: новые границы
+        .attr('stroke-width','0.3')
         .style('cursor','pointer')
         .on('mouseover', function(e){
           d3.select(this).attr('fill', hcolor);
@@ -122,24 +115,8 @@ function drawMap() {
           d3.select(this).attr('fill', color);
           tooltip.style.display='none';
         });
-
-      // Подпись региона
-      const c = pathGen.centroid(feature);
-      if (c && !isNaN(c[0])) {
-        franceG.append('text')
-          .attr('class','prov-label')
-          .attr('x', c[0]).attr('y', c[1])
-          .attr('text-anchor','middle')
-          .attr('dominant-baseline','middle')
-          .attr('font-size','6.5')
-          .attr('fill','#ddeeff')
-          .attr('pointer-events','none')
-          .attr('font-family','Georgia,serif')
-          .text(name);
-      }
     });
 
-    // Маркер Парижа — масштабируемый
     parisXY = proj([2.3488, 48.8534]);
     franceG.append('circle')
       .attr('id','paris-dot')
@@ -157,23 +134,10 @@ function drawMap() {
       .attr('visibility','hidden')
       .text('★ Париж');
 
-    updateLabels();
-
-  }).catch(err=>{
-    console.error(err);
-    svg.append('text').attr('x',W/2).attr('y',H/2)
-      .attr('text-anchor','middle').attr('font-size','13')
-      .attr('fill','#888').text('Ошибка загрузки карты');
-  });
+    updateParis();
+  }).catch(err => console.error(err));
 }
 
-function updateLabels() {
-  const zoom = W / vb.w;
-  franceG.selectAll('.prov-label').attr('visibility', zoom > 2.5 ? 'visible' : 'hidden');
-  updateParis();
-}
-
-// ---- ЗУМ и перетаскивание ----
 let dragging = false, ds = {x:0,y:0};
 let vb = {x:0, y:0, w:960, h:560};
 
@@ -187,7 +151,7 @@ window.addEventListener('mousemove', e=>{
   vb.y = Math.max(-400, Math.min(600, vb.y));
   svgEl.setAttribute('viewBox',`${vb.x} ${vb.y} ${vb.w} ${vb.h}`);
   ds = {x:e.clientX, y:e.clientY};
-  updateLabels();
+  updateParis();
 });
 window.addEventListener('mouseup', ()=>dragging=false);
 
@@ -203,7 +167,7 @@ mapWrap.addEventListener('wheel', e=>{
   vb.y += vb.h*my - nh*my;
   vb.w=nw; vb.h=nh;
   svgEl.setAttribute('viewBox',`${vb.x} ${vb.y} ${vb.w} ${vb.h}`);
-  updateLabels();
+  updateParis();
 },{passive:false});
 
 drawMap();

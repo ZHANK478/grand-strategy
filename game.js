@@ -6,7 +6,7 @@ let turn = 1, month = 0, year = 1852, treasury = 4200, incomePerMonth = 580;
 const months = ['Январь','Февраль','Март','Апрель','Май','Июнь','Июль','Август','Сентябрь','Октябрь','Ноябрь','Декабрь'];
 
 async function nextTurn() {
-  const btn = document.querySelector('.next-btn');
+  const btn = document.querySelector('.next-btn'); 
   btn.disabled = true;
   btn.textContent = '⏳ Симуляция...';
 

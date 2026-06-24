@@ -53,21 +53,23 @@ function positionTooltip(e) {
 let parisXY = null;
 function updateParis() {
   if (!parisXY) return;
-  // Размер маркера зависит от zoom: чем ближе (меньше vb.w) тем больше
-  const zoom = W / vb.w;           // 1 = весь мир, 10 = сильно приближено
-  const r    = Math.max(1.5, Math.min(8, zoom * 2.5));
-  const fs   = Math.max(5,   Math.min(16, zoom * 4));
-  const show = zoom > 1.8;         // показываем только при приближении
+  const zoom = W / vb.w;
+  const r  = 2 / zoom;
+  const fs = 7 / zoom;
+  const show = zoom > 3;
 
   svg.select('#paris-dot')
     .attr('r', r)
     .attr('visibility', show ? 'visible' : 'hidden');
   svg.select('#paris-label')
     .attr('font-size', fs)
-    .attr('x', parisXY[0] + r + 2)
+    .attr('x', parisXY[0] + r + 0.5/zoom)
+    .attr('y', parisXY[1] + 0.5/zoom)
     .attr('visibility', show ? 'visible' : 'hidden');
-}
 
+  d3.selectAll('.spain-label').attr('visibility', zoom > 2 ? 'visible' : 'hidden');
+  d3.selectAll('.prov-label').attr('visibility', zoom > 3.5 ? 'visible' : 'hidden');
+}
 function drawMap() {
   Promise.all([
     d3.json('https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json'),
@@ -249,8 +251,8 @@ function drawSpain() {
     // Подпись
     const c = pathGen.centroid(spain);
     if (c && !isNaN(c[0])) {
-      spainG.append('text')
-        .attr('class', 'country-label')
+    spainG.append('text')
+        .attr('class', 'spain-label')
         .attr('x', c[0]).attr('y', c[1])
         .attr('text-anchor', 'middle').attr('dominant-baseline', 'middle')
         .attr('font-size', '7').attr('fill', '#3a2800')

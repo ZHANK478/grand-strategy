@@ -2,8 +2,8 @@
 // AI.JS — Gemini интеграция: события, советник, дипломатия
 // ============================================================
 
-const GEMINI_API_KEY = '';
-const GEMINI_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-04-17:generateContent?key=' + GEMINI_API_KEY;
+const GEMINI_API_KEY = 'AQ.Ab8RN6JuniyKVMVNObZ6909DuAkoNZ7eShl0lTpC-o4lZd6DWQ';
+const GEMINI_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=' + GEMINI_API_KEY;
 
 // Текущие действия игрока за ход
 let playerActions = [];

@@ -29,15 +29,20 @@ async function askGemini(prompt, maxTokens = 400) {
   try {
     const response = await fetch(GEMINI_URL, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + GEMINI_API_KEY
+      },
       body: JSON.stringify({
-        contents: [{ parts: [{ text: prompt }] }],
-        generationConfig: { maxOutputTokens: maxTokens, temperature: 0.8 }
+        model: MODEL,
+        messages: [{ role: 'user', content: prompt }],
+        max_tokens: maxTokens,
+        temperature: 0.8
       })
     });
     const data = await response.json();
-    if (data.candidates && data.candidates[0]) {
-      return data.candidates[0].content.parts[0].text;
+    if (data.choices && data.choices[0]) {
+      return data.choices[0].message.content;
     }
     return 'ИИ не ответил. Проверьте API ключ.';
   } catch (e) {

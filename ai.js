@@ -2,9 +2,10 @@
 // AI.JS — Gemini интеграция: события, советник, дипломатия
 // ============================================================
 
-const GEMINI_API_KEY = localStorage.getItem('gemini_key') || '';
-if (!GEMINI_API_KEY) { const k = prompt('Введите Gemini API ключ:'); if(k) { localStorage.setItem('gemini_key', k); location.reload(); } }
-const GEMINI_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key=' + GEMINI_API_KEY;
+const GEMINI_API_KEY = localStorage.getItem('openrouter_key') || '';
+if (!GEMINI_API_KEY) { const k = prompt('Введите OpenRouter API ключ:'); if(k) { localStorage.setItem('openrouter_key', k); location.reload(); } }
+const GEMINI_URL = 'https://openrouter.ai/api/v1/chat/completions';
+const MODEL = 'google/gemini-3.1-flash-lite';
 // Текущие действия игрока за ход
 let playerActions = [];
 

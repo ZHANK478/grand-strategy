@@ -4,8 +4,7 @@
 
 const GEMINI_API_KEY = localStorage.getItem('gemini_key') || '';
 if (!GEMINI_API_KEY) { const k = prompt('Введите Gemini API ключ:'); if(k) { localStorage.setItem('gemini_key', k); location.reload(); } }
-const GEMINI_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite-preview-06-17:generateContent?key=' + GEMINI_API_KEY;
-
+const GEMINI_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key=' + GEMINI_API_KEY;
 // Текущие действия игрока за ход
 let playerActions = [];
 

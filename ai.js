@@ -1,5 +1,5 @@
 // ============================================================
-// AI.JS v2 — состояние мира, разделение власти, фильтр реализма
+// AI.JS v3 — состояние мира, JSON-эффекты, полная память
 // ============================================================
 
 const GEMINI_API_KEY = localStorage.getItem('openrouter_key') || '';
@@ -8,7 +8,7 @@ const GEMINI_URL = 'https://openrouter.ai/api/v1/chat/completions';
 const MODEL = 'google/gemini-3.1-flash-lite';
 
 // ============================================================
-// СОСТОЯНИЕ МИРА — числа которые ИИ обязан учитывать
+// СОСТОЯНИЕ МИРА
 // ============================================================
 let worldState = {
   relations: {
@@ -18,21 +18,20 @@ let worldState = {
     'Австрия': -5,
     'Пруссия': 15
   },
-  atWarWith: [],       // страны с которыми идёт война
-  alliedWith: [],       // союзники
-  pastEvents: [],       // история последних событий (память мира)
-  diploLog: []          // лог всех дипломатических переговоров
+  atWarWith: [],
+  alliedWith: [],
+  pastEvents: [],   // вся хроника новостей — видят советник, дипломаты, генератор
+  diploLog: []      // лог переговоров этого хода
 };
 
 let playerActions = [];
 
-// ---- Изменить отношения со страной ----
 function changeRelations(country, delta) {
   if (worldState.relations[country] === undefined) worldState.relations[country] = 0;
   worldState.relations[country] = Math.max(-100, Math.min(100, worldState.relations[country] + delta));
+  if (typeof updateRelationsPanel === 'function') updateRelationsPanel();
 }
 
-// ---- Получить состояние игры ----
 function getGameState() {
   return {
     date: document.getElementById('date-disp').textContent,
@@ -47,25 +46,25 @@ function getGameState() {
   };
 }
 
-// ---- Текстовое описание состояния мира для промта ----
+// Полное описание мира — общее для всех ИИ-каналов
 function describeWorldState() {
   const relText = Object.entries(worldState.relations)
-    .map(([c, v]) => `${c}: ${v} (${v > 30 ? 'дружелюбные' : v < -30 ? 'враждебные' : 'нейтральные'})`)
+    .map(([c, v]) => `${c}: ${v > 0 ? '+' : ''}${v} (${v > 30 ? 'дружелюбные' : v < -30 ? 'враждебные' : 'нейтральные'})`)
     .join(', ');
   const warText = worldState.atWarWith.length > 0
-    ? `ВОЙНА с: ${worldState.atWarWith.join(', ')}.`
+    ? `⚔️ ВОЙНА с: ${worldState.atWarWith.join(', ')}.`
     : 'Войн нет.';
   const allyText = worldState.alliedWith.length > 0
     ? `Союзники: ${worldState.alliedWith.join(', ')}.`
     : '';
-  const memoryText = worldState.pastEvents.length > 0
-    ? 'Произошло ранее: ' + worldState.pastEvents.slice(-8).join(' | ')
+  const newsText = worldState.pastEvents.length > 0
+    ? 'ПОСЛЕДНИЕ НОВОСТИ:\n' + worldState.pastEvents.slice(-10).map((e, i) => `${i + 1}. ${e}`).join('\n')
     : 'Игра только началась, прошлых событий нет.';
 
-  return `Отношения Франции со странами: ${relText}.\n${warText} ${allyText}\n${memoryText}`;
+  return `Отношения Франции со странами: ${relText}.\n${warText} ${allyText}\n\n${newsText}`;
 }
 
-// ---- Базовый запрос к ИИ ----
+// Базовый запрос к ИИ
 async function askGemini(prompt, maxTokens = 400) {
   try {
     const response = await fetch(GEMINI_URL, {
@@ -92,18 +91,62 @@ async function askGemini(prompt, maxTokens = 400) {
 }
 
 // ============================================================
-// ПРАВИЛА РЕАЛИЗМА — общие для всех промтов
+// ПРАВИЛА РЕАЛИЗМА
 // ============================================================
 const REALISM_RULES = `
 СТРОГИЕ ПРАВИЛА:
-1. Действие происходит ТОЛЬКО в реальной истории 1852 года. Никакой фантастики, никакого современного оружия, никаких анахронизмов (ядерное оружие, инопланетяне, технологии будущего).
-2. Игрок управляет ТОЛЬКО Францией. Он не может напрямую убивать, назначать или контролировать правителей других стран — такие "приказы" от игрока считаются его желанием или попыткой влияния, а не свершившимся фактом. Другие страны реагируют исходя из СВОЕЙ логики и интересов, а не подчиняются написанному игроком.
-3. Если действие игрока выглядит нереалистичным, абсурдным или невозможным для эпохи — опиши САРКАСТИЧНУЮ или ПРОВАЛЬНУЮ попытку, а не успех.
-4. Войны не должны заканчиваться одними переговорами — если отношения очень плохие (ниже -50) и есть провокация, военные действия (бои, потери, захват территорий) должны реально начинаться, а не откладываться бесконечно.
+1. Действие происходит ТОЛЬКО в реальной истории 1852 года. Никакой фантастики, никаких анахронизмов.
+2. Игрок управляет ТОЛЬКО Францией. Другие страны реагируют исходя из СВОЕЙ логики и интересов.
+3. Если действие игрока нереалистично — опиши провальную или саркастичную попытку.
+4. Войны не откладываются бесконечно: если отношения ниже -50 и есть провокация — бои реально начинаются.
 `;
 
 // ============================================================
-// 1. СОБЫТИЯ ПОСЛЕ ХОДА
+// ПАРСИНГ И ПРИМЕНЕНИЕ JSON-ЭФФЕКТОВ ОТ ИИ
+// ============================================================
+function parseAndApplyEffects(text) {
+  try {
+    const match = text.match(/EFFECTS:\s*(\{[\s\S]*?\})/);
+    if (!match) return;
+    const effects = JSON.parse(match[1]);
+
+    if (effects.treasury_delta && effects.treasury_delta !== 0)
+      changeGameStat('treasury', effects.treasury_delta);
+    if (effects.army_delta && effects.army_delta !== 0)
+      changeGameStat('army', effects.army_delta);
+    if (effects.stability_delta && effects.stability_delta !== 0)
+      changeGameStat('stability', effects.stability_delta);
+
+    if (effects.relations) {
+      Object.entries(effects.relations).forEach(([country, delta]) => {
+        if (delta && delta !== 0) changeRelations(country, delta);
+      });
+    }
+
+    if (effects.war_declared && Array.isArray(effects.war_declared)) {
+      effects.war_declared.forEach(c => {
+        if (!worldState.atWarWith.includes(c)) worldState.atWarWith.push(c);
+        changeRelations(c, -50);
+        showNotif(`⚔️ Война объявлена: ${c}!`);
+      });
+    }
+
+    if (effects.peace_made && Array.isArray(effects.peace_made)) {
+      effects.peace_made.forEach(c => {
+        worldState.atWarWith = worldState.atWarWith.filter(x => x !== c);
+        changeRelations(c, 20);
+        showNotif(`🕊️ Мир заключён с ${c}`);
+      });
+    }
+
+    if (typeof updateRelationsPanel === 'function') updateRelationsPanel();
+  } catch (e) {
+    console.log('EFFECTS parse error:', e.message);
+  }
+}
+
+// ============================================================
+// 1. СОБЫТИЯ ПОСЛЕ ХОДА — 7 новостей + JSON-эффекты
 // ============================================================
 async function generateEvents() {
   const state = getGameState();
@@ -122,23 +165,40 @@ ${REALISM_RULES}
 Действия игрока в этом месяце:
 ${actions}
 
-Напиши РОВНО 6 коротких новостных событий которые произошли в этом месяце в мире, с учётом текущих отношений и состояния войны/мира.
-Каждое событие — одно предложение, максимум 20 слов.
-Формат — просто список, каждое событие с новой строки, без нумерации и лишних символов.
-Пиши на русском языке.`;
+Напиши РОВНО 7 коротких новостных событий, которые произошли в этом месяце. Учитывай текущие отношения, войны, дипломатические переговоры и действия игрока. Торговля с Испанией должна отражаться в новостях. Войны — в потерях и захватах.
+Каждое событие — одно предложение, максимум 25 слов. Каждое с новой строки, без нумерации и символов.
+Пиши на русском языке.
 
-  const result = await askGemini(prompt, 400);
-  const events = result.trim().split('\n').filter(l => l.trim().length > 0).slice(0, 6);
+После 7 событий напиши ровно одну строку в таком формате (JSON, без переносов):
+EFFECTS:{"treasury_delta":0,"army_delta":0,"stability_delta":0,"relations":{"Испания":0,"Великобритания":0,"Россия":0,"Австрия":0,"Пруссия":0},"war_declared":[],"peace_made":[]}
 
-  // Сохраняем в память мира
+Заполни числами только те поля, которые логически следуют из событий:
+- treasury_delta: торговля, налоги, расходы на войну (в франках, например +500 или -1000)
+- army_delta: потери или пополнение армии (в солдатах, например -2000 или +5000)
+- stability_delta: восстания, реформы (от -5 до +5)
+- relations: изменение отношений со странами (от -20 до +20 за ход)
+- war_declared: список стран, с которыми началась война (пустой массив если войны нет)
+- peace_made: список стран, с которыми заключён мир`;
+
+  const result = await askGemini(prompt, 700);
+
+  // Отделяем события от EFFECTS
+  const effectsIndex = result.indexOf('EFFECTS:');
+  const eventsText = effectsIndex > -1 ? result.slice(0, effectsIndex) : result;
+  const events = eventsText.trim().split('\n').filter(l => l.trim().length > 2).slice(0, 7);
+
+  // Применяем числовые эффекты
+  parseAndApplyEffects(result);
+
+  // Сохраняем в хронику мира
   worldState.pastEvents.push(...events);
-  if (worldState.pastEvents.length > 20) worldState.pastEvents = worldState.pastEvents.slice(-20);
+  if (worldState.pastEvents.length > 30) worldState.pastEvents = worldState.pastEvents.slice(-30);
 
   return events;
 }
 
 // ============================================================
-// 2. СОВЕТНИК — чат
+// 2. СОВЕТНИК — видит все новости и историю мира
 // ============================================================
 let advisorHistory = [];
 
@@ -152,19 +212,21 @@ ${describeWorldState()}
 
 ${REALISM_RULES}
 
-Отвечай кратко, по делу, от лица советника эпохи 1852 года. Максимум 80 слов.`;
+Отвечай кратко, по делу, от лица советника эпохи 1852 года. Ты знаешь все последние новости и события. Максимум 100 слов.`;
 
   advisorHistory.push({ role: 'user', text: userMessage });
-  const historyText = advisorHistory.slice(-6).map(m => `${m.role === 'user' ? 'Игрок' : 'Советник'}: ${m.text}`).join('\n');
+  const historyText = advisorHistory.slice(-6).map(m =>
+    `${m.role === 'user' ? 'Игрок' : 'Советник'}: ${m.text}`
+  ).join('\n');
 
   const prompt = `${systemContext}\n\nИстория разговора:\n${historyText}\n\nОтвет советника:`;
-  const response = await askGemini(prompt, 220);
+  const response = await askGemini(prompt, 280);
   advisorHistory.push({ role: 'advisor', text: response });
   return response;
 }
 
 // ============================================================
-// 3. ДИПЛОМАТИЯ — чат со страной, влияет на отношения и попадает в события
+// 3. ДИПЛОМАТИЯ — страна видит новости и переговоры
 // ============================================================
 const diplomacyHistories = {};
 const leaders = {
@@ -182,36 +244,50 @@ async function sendDiplomacy(targetCountry, message) {
   const leader = leaders[targetCountry] || 'правитель ' + targetCountry;
   const relation = worldState.relations[targetCountry] || 0;
   const isWar = worldState.atWarWith.includes(targetCountry);
+  const isAlly = worldState.alliedWith.includes(targetCountry);
+
+  // Последние новости — дипломат знает о них
+  const recentNews = worldState.pastEvents.length > 0
+    ? 'Последние известия в мире: ' + worldState.pastEvents.slice(-5).join(' | ')
+    : '';
 
   diplomacyHistories[targetCountry].push({ role: 'france', text: message });
   const historyText = diplomacyHistories[targetCountry].slice(-6)
     .map(m => `${m.role === 'france' ? 'Франция' : targetCountry}: ${m.text}`).join('\n');
 
+  const relLabel = relation > 30 ? 'дружелюбные' : relation < -30 ? 'враждебные' : 'нейтральные';
+  const warLine = isWar ? 'ВЫ СЕЙЧАС В СОСТОЯНИИ ВОЙНЫ С ФРАНЦИЕЙ.' : '';
+  const allyLine = isAlly ? 'Вы союзники с Францией.' : '';
+
   const prompt = `Ты — ${leader} страны ${targetCountry} в ${state.date}.
-Текущие отношения с Францией: ${relation} (от -100 враждебно до +100 дружелюбно). ${isWar ? 'ВЫ СЕЙЧАС В СОСТОЯНИИ ВОЙНЫ.' : ''}
+Текущие отношения с Францией: ${relation} (${relLabel}). ${warLine} ${allyLine}
 Ты ведёшь дипломатические переговоры с Францией (правитель: ${state.ruler}).
+${recentNews}
 
 ${REALISM_RULES}
 
-Отвечай от первого лица, как этот исторический персонаж, исходя из текущих отношений. Если игрок угрожает или объявляет войну — реагируй соответственно серьёзно, не игнорируй угрозу. Кратко, 60 слов максимум.
+Отвечай от первого лица, как этот исторический персонаж. Реагируй на содержание послания серьёзно. Если Франция угрожает — отвечай твёрдо. Если предлагает выгодную торговлю — рассматривай заинтересованно. Кратко, 80 слов максимум.
 
 История переговоров:
 ${historyText}
 
 Ответ ${targetCountry}:`;
 
-  const response = await askGemini(prompt, 200);
+  const response = await askGemini(prompt, 230);
   diplomacyHistories[targetCountry].push({ role: targetCountry, text: response });
 
-  // Простая эвристика — если игрок написал "война" или похожее, понижаем отношения и помечаем войну
+  // Реакция на ключевые слова
   const lower = message.toLowerCase();
-  if (lower.includes('войн') || lower.includes('атак') || lower.includes('напад')) {
+  if (lower.includes('войн') || lower.includes('атак') || lower.includes('напад') || lower.includes('ультиматум')) {
     changeRelations(targetCountry, -40);
     if (!worldState.atWarWith.includes(targetCountry)) worldState.atWarWith.push(targetCountry);
+    showNotif(`⚔️ Отношения с ${targetCountry} резко ухудшились!`);
+  } else if (lower.includes('торговл') || lower.includes('союз') || lower.includes('мир') || lower.includes('договор')) {
+    changeRelations(targetCountry, 5);
   }
 
-  // Записываем переговоры в общий лог чтобы события месяца их учитывали
-  worldState.diploLog.push(`Переговоры Франции с ${targetCountry}: игрок сказал "${message}", ответ — "${response.slice(0, 80)}..."`);
+  // Записываем в лог хода
+  worldState.diploLog.push(`Переговоры с ${targetCountry}: "${message.slice(0, 60)}" → "${response.slice(0, 80)}"`);
   if (worldState.diploLog.length > 10) worldState.diploLog = worldState.diploLog.slice(-10);
 
   return response;
@@ -224,6 +300,7 @@ function openActionsPanel() {
   document.getElementById('actions-panel').style.display = 'block';
   document.getElementById('diplo-pop').style.display = 'none';
   document.getElementById('adv-pop').style.display = 'none';
+  document.getElementById('relations-panel').style.display = 'none';
   renderActionsList();
 }
 
@@ -257,7 +334,7 @@ function renderActionsList() {
 }
 
 // ============================================================
-// Интеграция с nextTurn — теперь включает лог дипломатии в события
+// Конец хода — включает дипломатический лог в события
 // ============================================================
 async function onTurnEnd() {
   const eventsBox = document.getElementById('events-box');
@@ -266,9 +343,8 @@ async function onTurnEnd() {
   eventsBox.style.display = 'block';
   eventsList.innerHTML = '<div class="ev-loading">⏳ ИИ симулирует мир...</div>';
 
-  // Если были дипломатические переговоры — добавляем их в действия игрока
   if (worldState.diploLog.length > 0) {
-    playerActions.push('Дипломатические события: ' + worldState.diploLog.join('; '));
+    playerActions.push('Дипломатические события этого хода: ' + worldState.diploLog.join('; '));
   }
 
   const events = await generateEvents();
@@ -276,7 +352,6 @@ async function onTurnEnd() {
     `<div class="ev-item">📰 ${e}</div>`
   ).join('');
 
-  // Сброс на новый ход
   playerActions = [];
   worldState.diploLog = [];
   renderActionsList();

@@ -1,5 +1,13 @@
-// MAP.JS v4
+// MAP.JS v5
 const W = 960, H = 560;
+
+// Известные страны: ID в world-atlas → название (для кликов и тултипов)
+const KNOWN_COUNTRIES = {
+  '826': { name: 'Великобритания', label: '👑 Премьер-министр лорд Абердин' },
+  '643': { name: 'Россия',         label: '👑 Царь Николай I' },
+  '40':  { name: 'Австрия',        label: '👑 Император Франц Иосиф I' },
+  '276': { name: 'Пруссия',        label: '👑 Король Фридрих Вильгельм IV' },
+};
 const proj = d3.geoNaturalEarth1().scale(153).translate([W/2, H/2]);
 const pathGen = d3.geoPath(proj);
 const svgEl   = document.getElementById('map-svg');
@@ -84,19 +92,36 @@ function drawMap() {
       .join('path')
       .attr('class','country')
       .attr('d', pathGen)
-      .attr('fill','#e8e4dc')
+      .attr('fill', d => KNOWN_COUNTRIES[String(d.id)] ? '#c8b870' : '#e8e4dc')
       .attr('stroke','#888')
       .attr('stroke-width','0.25')
+      .style('cursor', d => KNOWN_COUNTRIES[String(d.id)] ? 'pointer' : 'default')
       .on('mouseover',(e,d)=>{
-        d3.select(e.currentTarget).attr('fill','#d8d4cc');
+        const known = KNOWN_COUNTRIES[String(d.id)];
+        d3.select(e.currentTarget).attr('fill', known ? '#e0d080' : '#d8d4cc');
         tooltip.style.display='block';
-        document.getElementById('t-name').textContent='Страна';
-        document.getElementById('t-info').textContent='Данные не определены';
+        if (known) {
+          const rel = (typeof worldState !== 'undefined') ? (worldState.relations[known.name] || 0) : 0;
+          const relStr = (rel > 0 ? '+' : '') + rel;
+          const war = (typeof worldState !== 'undefined') && worldState.atWarWith.includes(known.name) ? ' ⚔️ ВОЙНА' : '';
+          document.getElementById('t-name').textContent = known.name + war;
+          document.getElementById('t-info').textContent = known.label + ' · Отношения: ' + relStr;
+        } else {
+          document.getElementById('t-name').textContent='Страна';
+          document.getElementById('t-info').textContent='Нет данных';
+        }
       })
       .on('mousemove', e => positionTooltip(e))
-      .on('mouseleave', e=>{
-        d3.select(e.currentTarget).attr('fill','#e8e4dc');
+      .on('mouseleave', (e,d)=>{
+        const known = KNOWN_COUNTRIES[String(d.id)];
+        d3.select(e.currentTarget).attr('fill', known ? '#c8b870' : '#e8e4dc');
         tooltip.style.display='none';
+      })
+      .on('click', (e, d) => {
+        const known = KNOWN_COUNTRIES[String(d.id)];
+        if (known && typeof openCountryRelations === 'function') {
+          openCountryRelations(known.name);
+        }
       });
 
     // Регионы Франции — реальный GeoJSON поверх
@@ -232,8 +257,10 @@ function drawSpain() {
       .on('mouseover', function(e) {
         d3.select(this).attr('fill', '#e0b850');
         tooltip.style.display = 'block';
-        document.getElementById('t-name').textContent = 'Испания';
-        document.getElementById('t-info').textContent = '👑 Королева Изабелла II · 🏛 Конституционная монархия';
+        const rel = (typeof worldState !== 'undefined') ? (worldState.relations['Испания'] || 0) : 0;
+        const war = (typeof worldState !== 'undefined') && worldState.atWarWith.includes('Испания') ? ' ⚔️ ВОЙНА' : '';
+        document.getElementById('t-name').textContent = 'Испания' + war;
+        document.getElementById('t-info').textContent = '👑 Королева Изабелла II · Отношения: ' + (rel > 0 ? '+' : '') + rel;
       })
       .on('mousemove', e => positionTooltip(e))
       .on('mouseleave', function() {
@@ -241,11 +268,7 @@ function drawSpain() {
         tooltip.style.display = 'none';
       })
       .on('click', function() {
-        // Открыть дипломатию с Испанией
-        document.getElementById('diplo-pop').style.display = 'block';
-        document.getElementById('adv-pop').style.display = 'none';
-        document.getElementById('actions-panel').style.display = 'none';
-        selectCountry('Испания');
+        if (typeof openCountryRelations === 'function') openCountryRelations('Испания');
       });
 
     // Подпись

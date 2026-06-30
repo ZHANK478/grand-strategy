@@ -101,6 +101,20 @@ body{background:#f0ede8;color:#111;font-family:Georgia,serif;overflow:hidden;hei
 @keyframes fn{0%{opacity:1}70%{opacity:1}100%{opacity:0}}
 #left-panel::-webkit-scrollbar{width:3px;}
 #left-panel::-webkit-scrollbar-thumb{background:#ddd;border-radius:2px;}
+
+/* ПАНЕЛЬ ОТНОШЕНИЙ */
+#relations-panel{position:absolute;top:88px;left:310px;width:280px;background:#fff;border:1px solid #bbb;border-radius:5px;z-index:200;display:none;box-shadow:0 4px 16px rgba(0,0,0,0.18);}
+.rel-hdr{background:#2a2a3a;color:#fff;padding:9px 13px;border-radius:5px 5px 0 0;font-size:13px;display:flex;justify-content:space-between;align-items:center;}
+.rel-body{padding:14px 13px;}
+.rel-leader{font-size:11px;color:#666;margin-bottom:12px;font-style:italic;}
+.rel-bar-track{background:#eee;border-radius:4px;height:10px;margin-bottom:6px;position:relative;overflow:hidden;}
+.rel-bar{height:100%;border-radius:4px;transition:width .4s,background .4s;}
+.rel-bar-labels{display:flex;justify-content:space-between;font-size:9px;color:#aaa;margin-bottom:8px;}
+.rel-value-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;}
+.rel-value{font-size:22px;font-weight:bold;color:#333;}
+.rel-status{font-size:13px;font-weight:bold;}
+.rel-diplo-btn{width:100%;margin-top:12px;background:#1a2a4a;border:none;color:#fff;padding:8px;border-radius:3px;cursor:pointer;font-size:12px;font-family:Georgia,serif;}
+.rel-diplo-btn:hover{background:#2a3a5a;}
 </style>
 </head>
 <body>
@@ -237,6 +251,26 @@ body{background:#f0ede8;color:#111;font-family:Georgia,serif;overflow:hidden;hei
   <div class="chat-input-row">
     <input class="chat-input" id="adv-input" placeholder="Спросите советника..." onkeydown="advisorKeydown(event)">
     <button class="chat-send" onclick="sendAdvisorMessage()">→</button>
+  </div>
+</div>
+
+<!-- ПАНЕЛЬ ОТНОШЕНИЙ -->
+<div id="relations-panel">
+  <div class="rel-hdr">
+    <span id="rel-country-name">Страна</span>
+    <span class="xbtn" onclick="closeRelationsPanel()">✕</span>
+  </div>
+  <div class="rel-body">
+    <div class="rel-leader" id="rel-leader"></div>
+    <div class="rel-bar-track">
+      <div class="rel-bar" id="rel-bar" style="width:50%;background:#8a7a20;"></div>
+    </div>
+    <div class="rel-bar-labels"><span>-100 Враг</span><span>0</span><span>+100 Союзник</span></div>
+    <div class="rel-value-row">
+      <div class="rel-value" id="rel-value">0</div>
+      <div class="rel-status" id="rel-status">Нейтральные</div>
+    </div>
+    <button class="rel-diplo-btn" id="rel-diplo-btn">📜 Открыть переговоры</button>
   </div>
 </div>
 

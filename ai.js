@@ -5,7 +5,7 @@
 const GEMINI_API_KEY = localStorage.getItem('openrouter_key') || '';
 if (!GEMINI_API_KEY) { const k = prompt('Введите OpenRouter API ключ:'); if(k) { localStorage.setItem('openrouter_key', k); location.reload(); } }
 const GEMINI_URL = 'https://openrouter.ai/api/v1/chat/completions';
-const MODEL = 'google/gemini-2.5-flash';
+const MODEL = 'google/gemini-2.0-flash-001';
 
 // ============================================================
 // СОСТОЯНИЕ МИРА
@@ -105,7 +105,10 @@ const REALISM_RULES = `
 // ============================================================
 function parseAndApplyEffects(text) {
   try {
-    const match = text.match(/EFFECTS:\s*(\{[\s\S]*?\})/);
+    // Ищем EFFECTS на одной строке (AI должен писать JSON без переносов)
+    const match = text.match(/EFFECTS:\s*(\{[^\n}]*(?:\}[^\n}]*)*\})/);
+    console.log('[EFFECTS] raw:', text.slice(-600));
+    console.log('[EFFECTS] match:', match ? match[1] : 'НЕ НАЙДЕНО');
     if (!match) return;
     const effects = JSON.parse(match[1]);
 
@@ -232,7 +235,7 @@ ${describeWorldState()}
 
 ${REALISM_RULES}
 
-Отвечай кратко, по делу, от лица советника эпохи 1852 года. Ты знаешь все последние новости и события. Максимум 120 слов.`;
+Отвечай кратко, по делу, от лица советника эпохи 1852 года. ОБЯЗАТЕЛЬНО упомяни 1-2 конкретных события из хроники в своём ответе если они есть — покажи что ты в курсе. Максимум 120 слов.`;
 
   advisorHistory.push({ role: 'user', text: userMessage });
   const historyText = advisorHistory.slice(-10).map(m =>

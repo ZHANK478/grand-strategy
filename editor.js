@@ -4,6 +4,31 @@
 // Свой собственный <svg id="editor-svg">, не связан с игровой картой — изменения тут
 // НИКАК не влияют на игру. Провинции — просто фигуры с именем, без привязки к странам.
 
+// ---- Ленивая загрузка turf.js (нужен только для склейки нескольких кусков границ в одну
+// провинцию) — грузим по требованию, с перебором нескольких CDN на случай блокировки. ----
+let turfLoadPromise = null;
+function ensureTurfLoaded() {
+  if (typeof turf !== 'undefined') return Promise.resolve();
+  if (turfLoadPromise) return turfLoadPromise;
+  const sources = [
+    'https://cdn.jsdelivr.net/npm/@turf/turf@6/turf.min.js',
+    'https://unpkg.com/@turf/turf@6/turf.min.js',
+    'https://cdnjs.cloudflare.com/ajax/libs/Turf.js/6.5.0/turf.min.js'
+  ];
+  function tryLoad(i) {
+    if (i >= sources.length) return Promise.reject(new Error('Не удалось загрузить turf.js ни с одного источника'));
+    return new Promise((resolve, reject) => {
+      const tag = document.createElement('script');
+      tag.src = sources[i];
+      tag.onload = resolve;
+      tag.onerror = reject;
+      document.head.appendChild(tag);
+    }).catch(() => tryLoad(i + 1));
+  }
+  turfLoadPromise = tryLoad(0);
+  return turfLoadPromise;
+}
+
 const editorSvgEl = document.getElementById('editor-svg');
 const editorSvg = d3.select('#editor-svg');
 const editorBgG = editorSvg.select('#editor-bg-g');
@@ -235,6 +260,10 @@ function enterDrawView() {
   document.getElementById('editor-show-labels').checked = showProvinceLabels;
   document.getElementById('editor-label-scale-slider').value = provinceLabelScale;
   document.getElementById('editor-label-scale-val').textContent = provinceLabelScale.toFixed(1) + '×';
+  document.getElementById('nuts-level-switcher').style.display = currentMapTemplate === 'nuts-europe' ? 'block' : 'none';
+  activeNutsOverrideLevel = null;
+  selectedProvinceIds.clear();
+  updateMergeButtonState();
   renderMapProvinces();
   renderEditorProvinceList();
 }
@@ -372,6 +401,127 @@ async function fetchNutsData() {
 
   nutsCombinedCache = combined;
   drawProvinceFeatures(combined);
+}
+
+// Активный уровень детализации для ручного переключения (по умолчанию — до первого клика
+// показываем результат обычной автоматической сборки по COUNTRY_NUTS_LEVEL выше).
+let activeNutsOverrideLevel = null;
+
+// Ручное переключение уровня: перерисовывает ФОН (доступные для импорта границы) с нужной
+// детализацией по ВСЕМ 5 странам сразу — не только выбранной стране. Так можно, например,
+// сперва импортировать всё крупно (уровень 1), а затем переключиться на уровень 3 и рядом
+// с уже импортированными провинциями доимпортировать более мелкие куски в нужном месте —
+// уже импортированные провинции при этом никуда не пропадают (mapProvinces не трогаем).
+async function switchNutsLevel(level) {
+  activeNutsOverrideLevel = level;
+  ['1', '2', '3'].forEach(l => document.getElementById('nuts-lvl-' + l + '-btn').classList.toggle('active', Number(l) === level));
+
+  if (nutsLevelCache[level]) {
+    const feats = nutsLevelCache[level].filter(f => {
+      const id = f.id || (f.properties && f.properties.id) || '';
+      return Object.keys(COUNTRY_NUTS_LEVEL).includes(String(id).slice(0, 2));
+    });
+    drawProvinceFeatures(feats);
+    return;
+  }
+
+  editorBgG.selectAll('*').remove();
+  editorBgG.append('text')
+    .attr('id', 'editor-loading-txt')
+    .attr('x', 480).attr('y', 280)
+    .attr('text-anchor', 'middle').attr('font-size', 13)
+    .attr('fill', '#fff').attr('font-family', 'Georgia,serif')
+    .text(`⏳ Загрузка регионов Европы (NUTS${level})...`);
+
+  try {
+    nutsLevelCache[level] = await fetchNutsLevel(level);
+  } catch (err) {
+    editorBgG.select('#editor-loading-txt').text('⚠️ Не удалось загрузить NUTS' + level + ': ' + err.message);
+    return;
+  }
+  const feats = nutsLevelCache[level].filter(f => {
+    const id = f.id || (f.properties && f.properties.id) || '';
+    return Object.keys(COUNTRY_NUTS_LEVEL).includes(String(id).slice(0, 2));
+  });
+  drawProvinceFeatures(feats);
+}
+
+// ============================================================
+// ОБЪЕДИНЕНИЕ НЕСКОЛЬКИХ ПРОВИНЦИЙ В ОДНУ (склейка через turf.js)
+// Нужно, когда границы из статистики нарезаны "как попало" относительно того, что игроку
+// нужно как единая провинция — например, объединить два соседних мелких куска NUTS3 в один
+// осмысленный регион, или склеить полосу вдоль границы двух стран в одну историческую область.
+// ============================================================
+let selectedProvinceIds = new Set();
+
+function toggleProvinceSelection(id, checked) {
+  if (checked) selectedProvinceIds.add(id); else selectedProvinceIds.delete(id);
+  updateMergeButtonState();
+}
+
+function updateMergeButtonState() {
+  const btn = document.getElementById('merge-selected-btn');
+  const countEl = document.getElementById('merge-selected-count');
+  countEl.textContent = selectedProvinceIds.size;
+  btn.style.display = selectedProvinceIds.size >= 2 ? 'block' : 'none';
+}
+
+async function mergeSelectedProvinces() {
+  const ids = Array.from(selectedProvinceIds);
+  if (ids.length < 2) return;
+  const provinces = ids.map(id => mapProvinces.find(p => p.id === id)).filter(Boolean);
+  if (provinces.length < 2) return;
+
+  const withoutGeometry = provinces.filter(p => !p.geometry && !(p.points && p.points.length >= 3));
+  if (withoutGeometry.length) {
+    showNotif('⚠️ Не удалось объединить: у некоторых выбранных провинций нет корректных границ');
+    return;
+  }
+
+  showNotif('⏳ Загружаю инструмент склейки (turf.js)...');
+  try {
+    await ensureTurfLoaded();
+  } catch (err) {
+    showNotif('⚠️ ' + err.message);
+    return;
+  }
+
+  // Провинции, нарисованные вручную (точки в экранных координатах), для turf.js нужно
+  // сперва превратить в geo-геометрию (turf работает с географическими координатами,
+  // а не с пикселями холста) — переводим через editorProj.invert().
+  function toGeoJsonGeometry(p) {
+    if (p.geometry) return p.geometry;
+    const ring = p.points.map(pt => editorProj.invert(pt)).filter(Boolean);
+    ring.push(ring[0]);
+    return { type: 'Polygon', coordinates: [ring] };
+  }
+
+  let merged;
+  try {
+    merged = turf.feature(toGeoJsonGeometry(provinces[0]));
+    for (let i = 1; i < provinces.length; i++) {
+      const next = turf.feature(toGeoJsonGeometry(provinces[i]));
+      merged = turf.union(merged, next);
+      if (!merged) throw new Error('turf.union вернул пустой результат');
+    }
+  } catch (err) {
+    showNotif('⚠️ Не удалось объединить границы: ' + err.message);
+    return;
+  }
+
+  const name = prompt('Название объединённой провинции:', provinces[0].name);
+  if (!name) return;
+
+  const newId = 'merged_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
+  mapProvinces = mapProvinces.filter(p => !ids.includes(p.id));
+  mapProvinces.push({ id: newId, name: name.trim(), geometry: merged.geometry });
+
+  selectedProvinceIds.clear();
+  updateMergeButtonState();
+  renderMapProvinces();
+  renderEditorProvinceList();
+  buildSnapIndex();
+  showNotif('✅ Объединено провинций: ' + provinces.length + ' → «' + name.trim() + '»');
 }
 
 // Основной источник — файл, лежащий прямо в репозитории игры (10m, полное покрытие стран,
@@ -806,7 +956,10 @@ function renderEditorProvinceList() {
   }
   list.innerHTML = mapProvinces.map(p => `
     <div class="eprov-item">
-      <div class="eprov-name">${p.name}</div>
+      <label style="display:flex;align-items:center;gap:5px;flex:1;cursor:pointer">
+        <input type="checkbox" ${selectedProvinceIds.has(p.id) ? 'checked' : ''} onchange="toggleProvinceSelection('${p.id}', this.checked)">
+        <span class="eprov-name">${p.name}</span>
+      </label>
       <div class="eprov-actions">
         <button onclick="renameMapProvince('${p.id}')">✏️</button>
         <button onclick="deleteMapProvince('${p.id}')">🗑</button>

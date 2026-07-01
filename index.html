@@ -284,6 +284,16 @@ body.menu-mode .game-ui{display:none !important;}
         <div class="editor-hint">Клик по готовой границе на карте — сразу импортирует её как провинцию (границы уже готовые данные, не рисунок). Для новых фигур: клик — точка («Точки»), зажать и вести мышь — линия («Карандаш»). Новые линии липнут к существующим границам.</div>
         <button class="editor-btn ghost" onclick="importVisibleFeatures()">📥 Импортировать видимые</button>
         <button class="editor-btn ghost" onclick="importWholeMapFork()" style="margin-bottom:10px">🍴 Форкнуть карту целиком</button>
+        <div id="nuts-level-switcher" style="display:none;margin-bottom:10px">
+          <div style="font-size:10px;text-transform:uppercase;color:#999;letter-spacing:.05em;margin-bottom:5px">Детализация границ (NUTS)</div>
+          <div class="editor-mode-row">
+            <button class="editor-btn" id="nuts-lvl-1-btn" onclick="switchNutsLevel(1)" style="font-size:11px">Крупно (1)</button>
+            <button class="editor-btn" id="nuts-lvl-2-btn" onclick="switchNutsLevel(2)" style="font-size:11px">Средне (2)</button>
+            <button class="editor-btn" id="nuts-lvl-3-btn" onclick="switchNutsLevel(3)" style="font-size:11px">Мелко (3)</button>
+          </div>
+          <div style="font-size:10px;color:#888;margin-top:4px;line-height:1.4">Переключайте уровень, чтобы в одном месте карты импортировать крупные регионы, а в другом — мелкие. Уже импортированные провинции не пропадают.</div>
+        </div>
+        <button class="editor-btn ghost" id="merge-selected-btn" onclick="mergeSelectedProvinces()" style="display:none;margin-bottom:10px">🔗 Объединить выбранные (<span id="merge-selected-count">0</span>)</button>
         <div class="setting-row" style="margin-bottom:6px">
           <label style="display:flex;align-items:center;gap:6px">
             <input type="checkbox" id="editor-show-labels" checked onchange="onToggleProvinceLabels(this.checked)">
@@ -552,11 +562,11 @@ body.menu-mode .game-ui{display:none !important;}
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/topojson/3.0.2/topojson.min.js"></script>
-<script src="map.js?v=16"></script>
-<script src="ai.js?v=16"></script>
-<script src="game.js?v=16"></script>
-<script src="ui.js?v=16"></script>
-<script src="editor.js?v=16"></script>
+<script src="map.js?v=17"></script>
+<script src="ai.js?v=17"></script>
+<script src="game.js?v=17"></script>
+<script src="ui.js?v=17"></script>
+<script src="editor.js?v=17"></script>
 <script>initMenu();</script>
 </body>
 </html>

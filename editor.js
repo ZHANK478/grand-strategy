@@ -275,7 +275,7 @@ function renderBackground(template) {
 // упрощённый через mapshaper). Никаких внешних зеркал — грузится с того же сайта, что и игра.
 // Внешние источники оставлены запасным вариантом на случай, если локальный файл вдруг уберут.
 const ADMIN1_SOURCES = [
-  'admin1.geojson.json',
+  'admin1.geojson.json?v=2',
   'https://cdn.jsdelivr.net/gh/nvkelso/natural-earth-vector@master/geojson/ne_50m_admin_1_states_provinces.geojson',
   'https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson/ne_50m_admin_1_states_provinces.geojson'
 ];

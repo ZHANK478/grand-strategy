@@ -29,6 +29,12 @@ const COUNTRY_COLORS = {
   'Испания':        '#c8a040'
 };
 
+// Цвет страны с учётом переопределения игроком за текущую партию (countryColorOverrides из game.js)
+function getCountryColor(name) {
+  if (typeof countryColorOverrides !== 'undefined' && countryColorOverrides[name]) return countryColorOverrides[name];
+  return COUNTRY_COLORS[name] || '#c8b870';
+}
+
 const PROVINCE_INFO = {
   'Île-de-France':               { pop:'2.1 млн', income:'620 фр./мес' },
   'Normandie':                   { pop:'1.4 млн', income:'240 фр./мес' },
@@ -176,7 +182,7 @@ function drawMap() {
         const known = KNOWN_COUNTRIES[String(d.id)];
         if (!known) return '#e8e4dc';
         const owner = (typeof territoryOwnerOf === 'function') ? territoryOwnerOf(known.name) : known.name;
-        return COUNTRY_COLORS[owner] || '#c8b870';
+        return getCountryColor(owner);
       })
       .attr('stroke','#888')
       .attr('stroke-width','0.25')
@@ -224,7 +230,7 @@ function drawMap() {
       const name   = feature.properties.nom;
       const info   = PROVINCE_INFO[name] || { pop:'—', income:'—' };
       const owner  = (typeof territoryOwnerOf === 'function') ? territoryOwnerOf('Франция') : 'Франция';
-      const color  = COUNTRY_COLORS[owner] || COUNTRY_COLORS['Франция'];
+      const color  = getCountryColor(owner);
       const hcolor = lighten(color);
 
       franceG.append('path')
@@ -297,12 +303,12 @@ function renderTerritoryColors() {
     const name = d3.select(this).attr('data-country');
     if (!name) return;
     const owner = territoryOwnerOf(name);
-    d3.select(this).attr('fill', COUNTRY_COLORS[owner] || '#c8b870');
+    d3.select(this).attr('fill', getCountryColor(owner));
   });
   const franceOwner = territoryOwnerOf('Франция');
-  franceG.selectAll('.france-province').attr('fill', COUNTRY_COLORS[franceOwner] || COUNTRY_COLORS['Франция']);
+  franceG.selectAll('.france-province').attr('fill', getCountryColor(franceOwner));
   const spainOwner = territoryOwnerOf('Испания');
-  spainG.selectAll('.spain-territory').attr('fill', COUNTRY_COLORS[spainOwner] || COUNTRY_COLORS['Испания']);
+  spainG.selectAll('.spain-territory').attr('fill', getCountryColor(spainOwner));
 }
 
 // Выбор играбельной страны кликом по карте в главном меню
@@ -363,7 +369,7 @@ function drawSpain() {
       .attr('d', pathGen)
       .attr('fill', () => {
         const owner = (typeof territoryOwnerOf === 'function') ? territoryOwnerOf('Испания') : 'Испания';
-        return COUNTRY_COLORS[owner] || COUNTRY_COLORS['Испания'];
+        return getCountryColor(owner);
       })
       .attr('stroke', '#7a5a10')
       .attr('stroke-width', '0.5')
@@ -406,9 +412,9 @@ const OWNER_COLORS = { rebel: '#7a1a1a', foreign: '#8a1a1a' };
 
 function ownerColor(owner) {
   const pc = (typeof playerCountry !== 'undefined') ? playerCountry : 'Франция';
-  if (owner === pc) return COUNTRY_COLORS[pc] || '#1a3a8a';
+  if (owner === pc) return getCountryColor(pc);
   if (owner === 'Бунтовщики' || owner === 'Мятежники') return OWNER_COLORS.rebel;
-  return COUNTRY_COLORS[owner] || OWNER_COLORS.foreign;
+  return getCountryColor(owner) || OWNER_COLORS.foreign;
 }
 
 // Суммарные войска игрока, уже размещённые на карте (для проверки лимита общей армии)

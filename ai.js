@@ -218,6 +218,13 @@ function parseAndApplyEffects(text) {
       turnChanges.push({ label: '🏳️ Название страны', value: old + ' → ' + effects.country_name, sign: 0 });
     }
 
+    // Смена цвета территории на карте (только в рамках текущей партии)
+    if (effects.country_color && effects.country_color.country && effects.country_color.color && typeof setCountryColor === 'function') {
+      const country = normalizeCountryName(effects.country_color.country);
+      setCountryColor(country, effects.country_color.color);
+      turnChanges.push({ label: '🎨 Цвет территории', value: country + ': ' + effects.country_color.color, sign: 0 });
+    }
+
     // Смена власти в ЧУЖИХ странах (например поставленный марионеточный правитель в захваченной территории)
     if (effects.foreign_leader_change && Array.isArray(effects.foreign_leader_change) && typeof setForeignRuler === 'function') {
       effects.foreign_leader_change.forEach(f => {
@@ -321,10 +328,13 @@ ${getRealismRules()}
 Действия игрока в этом месяце:
 ${actions}
 
-Напиши РОВНО 7 новостных событий этого месяца. Каждое событие — 2-3 предложения (40-60 слов), содержательно и с деталями. Отражай последствия действий игрока напрямую: если казнил — пиши о реакции армии и народа, если потратил деньги — пиши куда ушли, если оскорблял страну — пиши о дипломатическом кризисе, если действия ведут к перевороту или провозглашению империи — опиши это как реальное историческое событие. Каждое событие с новой строки, без нумерации и символов. Пиши на русском языке.
+Напиши РОВНО 10 новостных событий этого месяца. Каждое событие — 2-3 предложения (40-60 слов), содержательно и с деталями.
+- Минимум 4 из 10 событий ДОЛЖНЫ быть НЕ связаны напрямую с действиями игрока — это самостоятельные действия ДРУГИХ стран сценария (${ALL_COUNTRIES.filter(c => c !== state.country).join(', ')}): они сами воюют, торгуют, реформируются, плетут интриги, реагируют друг на друга — своя политика идёт независимо от игрока, даже если игрок в этом ходу ничего не предпринимал. Мир живёт сам по себе, не только реагирует на игрока.
+- Остальные события отражают последствия действий игрока напрямую: если казнил — пиши о реакции армии и народа, если потратил деньги — пиши куда ушли, если оскорблял страну — пиши о дипломатическом кризисе, если действия ведут к перевороту или провозглашению империи — опиши это как реальное историческое событие.
+Каждое событие с новой строки, без нумерации и символов. Пиши на русском языке.
 
-После 7 событий напиши ровно одну строку:
-EFFECTS:{"treasury_delta":0,"income_delta":0,"army_delta":0,"stability_delta":0,"relations":{${ALL_COUNTRIES.filter(c => c !== state.country).map(c => `"${c}":0`).join(',')}},"war_declared":[],"peace_made":[],"country_name":null,"ruler_name":null,"ruler_title":null,"government":null,"pm_name":null,"pm_title":null,"map_objects":[],"territory_transfer":[],"foreign_leader_change":[]}
+После 10 событий напиши ровно одну строку:
+EFFECTS:{"treasury_delta":0,"income_delta":0,"army_delta":0,"stability_delta":0,"relations":{${ALL_COUNTRIES.filter(c => c !== state.country).map(c => `"${c}":0`).join(',')}},"war_declared":[],"peace_made":[],"country_name":null,"country_color":null,"ruler_name":null,"ruler_title":null,"government":null,"pm_name":null,"pm_title":null,"map_objects":[],"territory_transfer":[],"foreign_leader_change":[]}
 
 КРИТИЧЕСКИ ВАЖНО — заполняй числа исходя из действий игрока, не ставь нули без причины:
 - Казнил/убил солдат или людей → army_delta отрицательный (−количество), stability_delta −3 до −8
@@ -338,6 +348,7 @@ EFFECTS:{"treasury_delta":0,"income_delta":0,"army_delta":0,"stability_delta":0,
 - Если игрок завёл дорогой постоянный проект (содержание новой армии, масштабная стройка, реформы) — это должно давать ТЕКУЩИЕ расходы через treasury_delta в этом И СЛЕДУЮЩИХ ходах (упоминай в новостях "содержание обходится казне в N франков ежемесячно"), а не через income_delta.
 - treasury_delta и income_delta в франках, army_delta в солдатах
 - country_name: название САМОЙ СТРАНЫ (не правительства). Указывай ТОЛЬКО если по сюжету происходит объединение/переименование государства (например "Пруссия" → "Германская империя" после объединения немецких земель, провозглашение империи меняет название страны). В обычных условиях оставляй null — название страны не должно меняться просто так.
+- country_color: {"country":"${state.country}","color":"#RRGGBB"} — если игрок явно попросил перекрасить свою территорию на карте (например "сделай мою страну синей на карте"), верни цвет в hex-формате. Действует только в этой партии. Если игрок не просил — оставляй null.
 - ruler_name/ruler_title/government/pm_name/pm_title: указывай значение ТОЛЬКО если в новостях произошёл реальный переворот, провозглашение империи/республики, отречение, введение чрезвычайного/временного правления, отставка премьера и т.п. Иначе оставляй null.
   - government — свободный текст названия формы правления, придумывай подходящее исторической логике (например: "Временное правительство", "Чрезвычайное правительство", "Президентская республика", "Империя", "Конституционная монархия", "Военная диктатура" — любое уместное название, не ограничивайся списком).
   - ruler_title — точный титул главы государства текстом, например "Император французов", "Президент Французской республики", "Председатель временного правительства". Меняй вместе с government, когда меняется форма правления.
@@ -368,11 +379,11 @@ ${worldState.mapObjects && worldState.mapObjects.length > 0
 - Удаление: {"action":"remove","id":"тот_же_id"} — когда армия полностью разбита/расформирована или штаб закрыт.
 Создавай map_objects ТОЛЬКО когда это явно следует из действий игрока или сюжета. Не создавай объекты просто так. Если ничего подобного не произошло — оставляй map_objects пустым массивом [].`;
 
-  const result = await askGemini(prompt, 1200);
+  const result = await askGemini(prompt, 1700);
 
   const effectsIndex = result.indexOf('EFFECTS:');
   const eventsText = effectsIndex > -1 ? result.slice(0, effectsIndex) : result;
-  const events = eventsText.trim().split('\n').filter(l => l.trim().length > 10).slice(0, 7);
+  const events = eventsText.trim().split('\n').filter(l => l.trim().length > 10).slice(0, 10);
 
   parseAndApplyEffects(result);
 

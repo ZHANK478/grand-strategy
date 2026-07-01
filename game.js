@@ -28,6 +28,16 @@ function renameCountry(newName) {
 // Меняется через аннексии/передачи территорий (EFFECTS.territory_transfer от ИИ).
 let territoryOwners = {};
 
+// Цвет территории — переопределяется только В РАМКАХ ТЕКУЩЕЙ ПАРТИИ (сбрасывается на новую игру,
+// сохраняется/загружается вместе с сохранением). Игрок может попросить ИИ перекрасить свою страну.
+let countryColorOverrides = {};
+
+function setCountryColor(country, hexColor) {
+  if (!country || !/^#[0-9a-fA-F]{6}$/.test(hexColor || '')) return;
+  countryColorOverrides[country] = hexColor;
+  if (typeof renderTerritoryColors === 'function') renderTerritoryColors();
+}
+
 // Стартовые данные каждой играбельной страны на 1852 год
 const COUNTRY_DEFAULTS = {
   'Франция':         { ruler:'Луи-Наполеон Бонапарт', rulerTitle:'Президент Французской республики', government:'Президентская республика', pm:'Эжен Руэр', pmTitle:'Министр-президент', treasury:4200, income:580, army:400000, stability:81,
@@ -198,6 +208,7 @@ function saveGame() {
       playerCountry,
       playerCountryDisplayName,
       territoryOwners,
+      countryColorOverrides,
       worldState,
       playerActions,
       advisorHistory: typeof advisorHistory !== 'undefined' ? advisorHistory : [],
@@ -221,6 +232,10 @@ function loadGameSlot(id) {
     playerCountry = d.playerCountry || 'Франция';
     playerCountryDisplayName = d.playerCountryDisplayName || playerCountry;
     territoryOwners = d.territoryOwners || {};
+    countryColorOverrides = d.countryColorOverrides || {};
+    if (typeof updateMapCountryLabel === 'function') {
+      ALL_COUNTRIES.forEach(c => updateMapCountryLabel(c, c === playerCountry ? playerCountryDisplayName : c));
+    }
     stateOfPower = d.stateOfPower || stateOfPower;
     if (!stateOfPower.rulerTitle) stateOfPower.rulerTitle = 'Президент Французской республики';
     if (!stateOfPower.pmTitle) stateOfPower.pmTitle = 'Министр-президент';
@@ -282,6 +297,13 @@ function resetGame(country) {
   treasury = d.treasury; incomePerMonth = d.income;
   stateOfPower = { ruler: d.ruler, rulerTitle: d.rulerTitle, government: d.government, pm: d.pm, pmTitle: d.pmTitle };
   territoryOwners = {};
+  countryColorOverrides = {};
+
+  // Сбрасываем подписи стран на карте к каноническим названиям — иначе переименование
+  // из ПРЕДЫДУЩЕЙ партии (например Пруссия → "Германская империя") оставалось видно и в новой игре
+  if (typeof updateMapCountryLabel === 'function') {
+    ALL_COUNTRIES.forEach(c => updateMapCountryLabel(c, c));
+  }
 
   // Отношения игрока со всеми остальными странами сценария
   const relations = {};

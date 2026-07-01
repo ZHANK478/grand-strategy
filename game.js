@@ -12,8 +12,10 @@ let currentSlotId = null;
 // Динамическое состояние власти — может меняться через события ИИ
 let stateOfPower = {
   ruler: 'Луи-Наполеон Бонапарт',
+  rulerTitle: 'Президент Французской республики',
   government: 'Президентская республика',
-  pm: 'Эжен Руэр'
+  pm: 'Эжен Руэр',
+  pmTitle: 'Министр-президент'
 };
 
 async function nextTurn() {
@@ -65,14 +67,22 @@ function changePowerState(field, value) {
   }
   if (field === 'government') {
     stateOfPower.government = value;
-    const titleEl = document.getElementById('ruler-title');
     const badgeEl = document.getElementById('govbadge-text');
-    if (titleEl) titleEl.textContent = value === 'Империя' ? 'Император французов' : 'Президент Французской республики';
     if (badgeEl) badgeEl.textContent = '🏛 ' + value;
+  }
+  if (field === 'rulerTitle') {
+    stateOfPower.rulerTitle = value;
+    const el = document.getElementById('ruler-title');
+    if (el) el.textContent = value;
   }
   if (field === 'pm') {
     stateOfPower.pm = value;
     const el = document.getElementById('pm-name');
+    if (el) el.textContent = value;
+  }
+  if (field === 'pmTitle') {
+    stateOfPower.pmTitle = value;
+    const el = document.getElementById('pm-title');
     if (el) el.textContent = value;
   }
 }
@@ -136,6 +146,8 @@ function loadGameSlot(id) {
     turn = d.turn; month = d.month; year = d.year;
     treasury = d.treasury; incomePerMonth = d.incomePerMonth;
     stateOfPower = d.stateOfPower || stateOfPower;
+    if (!stateOfPower.rulerTitle) stateOfPower.rulerTitle = 'Президент Французской республики';
+    if (!stateOfPower.pmTitle) stateOfPower.pmTitle = 'Министр-президент';
     worldState = d.worldState || worldState;
     if (!worldState.mapObjects) worldState.mapObjects = [];
     playerActions = d.playerActions || [];
@@ -153,8 +165,10 @@ function loadGameSlot(id) {
     document.getElementById('turn-info').textContent = 'Ход ' + turn;
 
     changePowerState('ruler', stateOfPower.ruler);
+    changePowerState('rulerTitle', stateOfPower.rulerTitle);
     changePowerState('government', stateOfPower.government);
     changePowerState('pm', stateOfPower.pm);
+    changePowerState('pmTitle', stateOfPower.pmTitle);
 
     renderActionsList();
     if (typeof renderMapObjects === 'function') renderMapObjects();
@@ -171,7 +185,7 @@ function deleteSave(id) {
 
 function resetGame() {
   turn = 1; month = 0; year = 1852; treasury = 4200; incomePerMonth = 580;
-  stateOfPower = { ruler: 'Луи-Наполеон Бонапарт', government: 'Президентская республика', pm: 'Эжен Руэр' };
+  stateOfPower = { ruler: 'Луи-Наполеон Бонапарт', rulerTitle: 'Президент Французской республики', government: 'Президентская республика', pm: 'Эжен Руэр', pmTitle: 'Министр-президент' };
   worldState = {
     relations: { 'Испания': 0, 'Великобритания': 10, 'Россия': 5, 'Австрия': -5, 'Пруссия': 15 },
     atWarWith: [], alliedWith: [], pastEvents: [], diploLog: [], mapObjects: []
@@ -188,8 +202,10 @@ function resetGame() {
   document.getElementById('turn-info').textContent = 'Ход ' + turn;
 
   changePowerState('ruler', stateOfPower.ruler);
+  changePowerState('rulerTitle', stateOfPower.rulerTitle);
   changePowerState('government', stateOfPower.government);
   changePowerState('pm', stateOfPower.pm);
+  changePowerState('pmTitle', stateOfPower.pmTitle);
 
   document.getElementById('events-box').style.display = 'none';
   document.getElementById('changes-box').style.display = 'none';

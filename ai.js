@@ -42,8 +42,10 @@ function getGameState() {
     stability: document.getElementById('stab').textContent,
     country: 'Франция',
     ruler: (typeof stateOfPower !== 'undefined') ? stateOfPower.ruler : 'Луи-Наполеон Бонапарт',
+    rulerTitle: (typeof stateOfPower !== 'undefined') ? stateOfPower.rulerTitle : 'Президент Французской республики',
     government: (typeof stateOfPower !== 'undefined') ? stateOfPower.government : 'Президентская республика',
     pm: (typeof stateOfPower !== 'undefined') ? stateOfPower.pm : 'Эжен Руэр',
+    pmTitle: (typeof stateOfPower !== 'undefined') ? stateOfPower.pmTitle : 'Министр-президент',
     year: 1852
   };
 }
@@ -164,12 +166,17 @@ function parseAndApplyEffects(text) {
       });
     }
 
-    // Смена власти: правитель, форма правления, премьер-министр
+    // Смена власти: правитель, его титул, форма правления, премьер-министр и его титул
     if (effects.ruler_name && typeof stateOfPower !== 'undefined' && effects.ruler_name !== stateOfPower.ruler) {
       const old = stateOfPower.ruler;
       changePowerState('ruler', effects.ruler_name);
       showNotif(`👑 Новый глава государства: ${effects.ruler_name}`);
       turnChanges.push({ label: '👑 Смена власти', value: old + ' → ' + effects.ruler_name, sign: 0 });
+    }
+    if (effects.ruler_title && typeof stateOfPower !== 'undefined' && effects.ruler_title !== stateOfPower.rulerTitle) {
+      const old = stateOfPower.rulerTitle;
+      changePowerState('rulerTitle', effects.ruler_title);
+      turnChanges.push({ label: '👑 Титул главы государства', value: old + ' → ' + effects.ruler_title, sign: 0 });
     }
     if (effects.government && typeof stateOfPower !== 'undefined' && effects.government !== stateOfPower.government) {
       const old = stateOfPower.government;
@@ -180,8 +187,13 @@ function parseAndApplyEffects(text) {
     if (effects.pm_name && typeof stateOfPower !== 'undefined' && effects.pm_name !== stateOfPower.pm) {
       const old = stateOfPower.pm;
       changePowerState('pm', effects.pm_name);
-      showNotif(`🎩 Новый премьер-министр: ${effects.pm_name}`);
-      turnChanges.push({ label: '🎩 Премьер-министр', value: old + ' → ' + effects.pm_name, sign: 0 });
+      showNotif(`🎩 Новый глава правительства: ${effects.pm_name}`);
+      turnChanges.push({ label: '🎩 Глава правительства', value: old + ' → ' + effects.pm_name, sign: 0 });
+    }
+    if (effects.pm_title && typeof stateOfPower !== 'undefined' && effects.pm_title !== stateOfPower.pmTitle) {
+      const old = stateOfPower.pmTitle;
+      changePowerState('pmTitle', effects.pm_title);
+      turnChanges.push({ label: '🎩 Титул главы правительства', value: old + ' → ' + effects.pm_title, sign: 0 });
     }
 
     if (typeof updateRelationsPanel === 'function') updateRelationsPanel();
@@ -227,7 +239,7 @@ async function generateEvents() {
     : 'Никаких особых действий не предпринималось.';
 
   const prompt = `Ты — нарратор исторической стратегической игры. Сейчас ${state.date}.
-Страна игрока: ${state.country}. Правитель: ${state.ruler}. Форма правления: ${state.government}. Премьер-министр: ${state.pm}.
+Страна игрока: ${state.country}. Правитель: ${state.ruler} (${state.rulerTitle}). Форма правления: ${state.government}. Глава правительства: ${state.pm} (${state.pmTitle}).
 Казна: ${state.treasury}. Доход: ${state.income}. Армия: ${state.army}. Стабильность: ${state.stability}.
 
 ${describeWorldState()}
@@ -240,7 +252,7 @@ ${actions}
 Напиши РОВНО 7 новостных событий этого месяца. Каждое событие — 2-3 предложения (40-60 слов), содержательно и с деталями. Отражай последствия действий игрока напрямую: если казнил — пиши о реакции армии и народа, если потратил деньги — пиши куда ушли, если оскорблял страну — пиши о дипломатическом кризисе, если действия ведут к перевороту или провозглашению империи — опиши это как реальное историческое событие. Каждое событие с новой строки, без нумерации и символов. Пиши на русском языке.
 
 После 7 событий напиши ровно одну строку:
-EFFECTS:{"treasury_delta":0,"income_delta":0,"army_delta":0,"stability_delta":0,"relations":{"Испания":0,"Великобритания":0,"Россия":0,"Австрия":0,"Пруссия":0},"war_declared":[],"peace_made":[],"ruler_name":null,"government":null,"pm_name":null,"map_objects":[]}
+EFFECTS:{"treasury_delta":0,"income_delta":0,"army_delta":0,"stability_delta":0,"relations":{"Испания":0,"Великобритания":0,"Россия":0,"Австрия":0,"Пруссия":0},"war_declared":[],"peace_made":[],"ruler_name":null,"ruler_title":null,"government":null,"pm_name":null,"pm_title":null,"map_objects":[]}
 
 КРИТИЧЕСКИ ВАЖНО — заполняй числа исходя из действий игрока, не ставь нули без причины:
 - Казнил/убил солдат или людей → army_delta отрицательный (−количество), stability_delta −3 до −8
@@ -253,7 +265,10 @@ EFFECTS:{"treasury_delta":0,"income_delta":0,"army_delta":0,"stability_delta":0,
 - income_delta — ИСПОЛЬЗУЙ РЕДКО, только для СТРУКТУРНЫХ изменений экономики: открытие/закрытие фабрик, разрушение инфраструктуры войной, изменение налоговой системы, потеря/приобретение территории. НЕ используй income_delta для разовых трат (наряды, пиры, взятки, разовое строительство) — те идут ТОЛЬКО в treasury_delta.
 - Если игрок завёл дорогой постоянный проект (содержание новой армии, масштабная стройка, реформы) — это должно давать ТЕКУЩИЕ расходы через treasury_delta в этом И СЛЕДУЮЩИХ ходах (упоминай в новостях "содержание обходится казне в N франков ежемесячно"), а не через income_delta.
 - treasury_delta и income_delta в франках, army_delta в солдатах
-- ruler_name/government/pm_name: указывай значение ТОЛЬКО если в новостях произошёл реальный переворот, провозглашение империи/республики, отречение или отставка премьера. Форма правления — одно из: "Президентская республика", "Империя", "Конституционная монархия". Иначе оставляй null.
+- ruler_name/ruler_title/government/pm_name/pm_title: указывай значение ТОЛЬКО если в новостях произошёл реальный переворот, провозглашение империи/республики, отречение или отставка премьера. Иначе оставляй null.
+  - government — одно из: "Президентская республика", "Империя", "Конституционная монархия".
+  - ruler_title — точный титул главы государства текстом, например "Император французов", "Президент Французской республики", "Король Франции". Меняй вместе с government, когда меняется форма правления.
+  - pm_name/pm_title — глава правительства может сохранять пост, но игрок или события могут переименовать его должность (например, из "Министр-президент" в "Премьер-министр" после провозглашения империи) — учитывай это как pm_title без обязательной смены pm_name.
 
 ОБЪЕКТЫ НА КАРТЕ (map_objects) — если игрок явно упомянул создание армии, штаба, флота, отправку делегации/персоны в другую страну и т.п., отрази это как объекты на карте:
 Разрешённые города (используй ТОЛЬКО эти названия для location/to): ${Object.keys(CITY_COORDS).join(', ')}.

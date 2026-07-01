@@ -269,6 +269,109 @@ function renderBackground(template) {
 
     fetchAdmin1Data();
   }
+
+  if (template === 'nuts-europe') {
+    if (nutsCombinedCache) {
+      drawProvinceFeatures(nutsCombinedCache);
+      return;
+    }
+
+    editorBgG.append('text')
+      .attr('id', 'editor-loading-txt')
+      .attr('x', 480).attr('y', 280)
+      .attr('text-anchor', 'middle').attr('font-size', 13)
+      .attr('fill', '#fff').attr('font-family', 'Georgia,serif')
+      .text('⏳ Загрузка регионов Европы (Eurostat NUTS)...');
+
+    fetchNutsData();
+  }
+}
+
+// ============================================================
+// EUROSTAT NUTS — регионы Европы с настраиваемым уровнем детализации ПО КАЖДОЙ СТРАНЕ.
+// В отличие от Natural Earth Admin-1 (неполное, случайное покрытие), NUTS покрывает все
+// страны ЕС/ЕАСТ равномерно, а уровень (NUTS1/NUTS2) выбирается вручную под реальный размер
+// регионов страны — так границы получаются осмысленными, а не "то густо, то пусто".
+// ВАЖНО: NUTS не покрывает Россию (не входит в ЕС/ЕАСТ) — для неё нужен другой источник.
+const COUNTRY_NUTS_LEVEL = { FR: 1, DE: 1, GB: 1, AT: 2, ES: 2 };
+const NUTS_LEVEL_SOURCES = {
+  1: [
+    'https://cdn.jsdelivr.net/gh/eurostat/Nuts2json@master/pub/v2/2021/4326/20M/1.json',
+    'https://raw.githubusercontent.com/eurostat/Nuts2json/master/pub/v2/2021/4326/20M/1.json'
+  ],
+  2: [
+    'https://cdn.jsdelivr.net/gh/eurostat/Nuts2json@master/pub/v2/2021/4326/20M/2.json',
+    'https://raw.githubusercontent.com/eurostat/Nuts2json/master/pub/v2/2021/4326/20M/2.json'
+  ]
+};
+let nutsLevelCache = {}; // level -> [features]
+let nutsCombinedCache = null;
+
+// Внутри TopoJSON-файла Nuts2json может быть несколько объектов (границы, точки, регионы) —
+// а точное имя объекта с полигонами не документировано стабильно, поэтому определяем его
+// автоматически по фактическому содержимому, а не гадаем название.
+function pickPolygonObjectKey(topo) {
+  for (const key in topo.objects) {
+    const obj = topo.objects[key];
+    if (obj.geometries && obj.geometries.some(g => g.type === 'Polygon' || g.type === 'MultiPolygon')) return key;
+  }
+  return Object.keys(topo.objects)[0];
+}
+
+function fetchNutsLevel(level, sourceIndex) {
+  sourceIndex = sourceIndex || 0;
+  const sources = NUTS_LEVEL_SOURCES[level];
+  if (sourceIndex >= sources.length) return Promise.reject(new Error('Все источники NUTS уровня ' + level + ' недоступны'));
+
+  return d3.json(sources[sourceIndex]).then(topo => {
+    if (!topo || !topo.objects) throw new Error('Пустой ответ');
+    const key = pickPolygonObjectKey(topo);
+    const collection = topojson.feature(topo, topo.objects[key]);
+    if (!collection.features || collection.features.length < 20) {
+      throw new Error('Получено подозрительно мало регионов (' + (collection.features ? collection.features.length : 0) + ')');
+    }
+    return collection.features;
+  }).catch(err => {
+    console.warn('NUTS уровень ' + level + ', источник ' + (sourceIndex + 1) + ' не сработал:', err.message);
+    return fetchNutsLevel(level, sourceIndex + 1);
+  });
+}
+
+async function fetchNutsData() {
+  const neededLevels = [...new Set(Object.values(COUNTRY_NUTS_LEVEL))];
+
+  try {
+    for (const level of neededLevels) {
+      if (!nutsLevelCache[level]) {
+        editorBgG.select('#editor-loading-txt').text(`⏳ Загрузка регионов Европы (NUTS${level})...`);
+        nutsLevelCache[level] = await fetchNutsLevel(level);
+      }
+    }
+  } catch (err) {
+    editorBgG.select('#editor-loading-txt')
+      .text('⚠️ Не удалось загрузить (' + err.message + ').')
+      .append('tspan').attr('x', 480).attr('dy', 16).text('Нажмите, чтобы попробовать снова.');
+    editorBgG.select('#editor-loading-txt').style('cursor', 'pointer').on('click', fetchNutsData);
+    return;
+  }
+
+  // Для каждой страны берём регионы ТОЛЬКО с её настроенного уровня, чтобы не задваивать
+  const combined = [];
+  Object.entries(COUNTRY_NUTS_LEVEL).forEach(([countryCode, level]) => {
+    const feats = (nutsLevelCache[level] || []).filter(f => {
+      const id = f.id || (f.properties && f.properties.id) || '';
+      return String(id).slice(0, 2) === countryCode;
+    });
+    combined.push(...feats);
+  });
+
+  if (combined.length === 0) {
+    editorBgG.select('#editor-loading-txt').text('⚠️ Не удалось найти нужные регионы в загруженных данных.');
+    return;
+  }
+
+  nutsCombinedCache = combined;
+  drawProvinceFeatures(combined);
 }
 
 // Основной источник — файл, лежащий прямо в репозитории игры (10m, полное покрытие стран,
@@ -507,11 +610,12 @@ window.addEventListener('mouseup', function() {
 
 function featureId(f) {
   const p = f.properties || {};
-  return 'imp_' + (p.adm1_code || p.iso_3166_2 || ((p.name || 'x') + '_' + (p.adm0_a3 || '')));
+  // p.na/f.id — формат NUTS (Eurostat), остальное — формат Natural Earth
+  return 'imp_' + (p.adm1_code || p.iso_3166_2 || f.id || p.id || ((p.name || p.na || 'x') + '_' + (p.adm0_a3 || '')));
 }
 function featureName(f) {
   const p = f.properties || {};
-  return p.name || p.NAME || p.name_en || p.admin || 'Без названия';
+  return p.name || p.NAME || p.name_en || p.admin || p.na || 'Без названия';
 }
 
 // Как и основная карта игры (map.js), храним у импортированных провинций ПОЛНУЮ geo-геометрию

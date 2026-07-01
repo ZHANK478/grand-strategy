@@ -310,10 +310,45 @@ function fetchAdmin1Data(sourceIndex) {
     });
 }
 
-function drawProvinceFeatures(features) {
-  console.log('[DEBUG] drawProvinceFeatures: получено объектов =', features.length);
-  console.log('[DEBUG] первый объект:', features[0]);
-  console.log('[DEBUG] пример path d= для первого объекта:', editorPathGen(features[0]));
+// У этого экспортированного файла почти в каждом объекте случайно приклеено лишнее кольцо —
+// контур ВСЕЙ проекции мира целиком (артефакт экспорта mapshaper). Оно у всех объектов одинаковое,
+// поэтому при наложении тысяч копий друг на друга получается один сплошной "блин" вместо стран.
+// Вырезаем такие аномально огромные кольца (шире 700 и выше 400 из полного холста 960×560).
+function stripFrameArtifactRings(geometry) {
+  if (!geometry) return geometry;
+  function ringBBox(ring) {
+    let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+    for (const c of ring) {
+      const p = editorProj(c);
+      if (!p) continue;
+      if (p[0] < minX) minX = p[0]; if (p[0] > maxX) maxX = p[0];
+      if (p[1] < minY) minY = p[1]; if (p[1] > maxY) maxY = p[1];
+    }
+    return { w: maxX - minX, h: maxY - minY };
+  }
+  function ringIsFrameArtifact(ring) {
+    const b = ringBBox(ring);
+    return b.w > 700 && b.h > 400;
+  }
+  if (geometry.type === 'Polygon') {
+    const rings = geometry.coordinates.filter(r => !ringIsFrameArtifact(r));
+    return rings.length ? { type: 'Polygon', coordinates: rings } : null;
+  }
+  if (geometry.type === 'MultiPolygon') {
+    const polys = geometry.coordinates
+      .map(poly => poly.filter(r => !ringIsFrameArtifact(r)))
+      .filter(poly => poly.length > 0);
+    if (polys.length === 0) return null;
+    return polys.length === 1 ? { type: 'Polygon', coordinates: polys[0] } : { type: 'MultiPolygon', coordinates: polys };
+  }
+  return geometry;
+}
+
+function drawProvinceFeatures(rawFeatures) {
+  const features = rawFeatures
+    .map(f => ({ ...f, geometry: stripFrameArtifactRings(f.geometry) }))
+    .filter(f => f.geometry);
+  console.log('[DEBUG] после вырезания рамки-артефакта осталось объектов =', features.length, '(было', rawFeatures.length, ')');
 
   // Отбрасываем объекты с геометрией, которую движок не может отрисовать (пустой/битый path) —
   // иначе они молча пропадают с карты без предупреждения, из-за чего казалось, что "куски карты" исчезли.

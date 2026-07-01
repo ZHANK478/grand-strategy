@@ -372,6 +372,20 @@ function drawProvinceFeatures(rawFeatures) {
 
   console.log('[DEBUG] реально нарисовано <path> элементов =', editorBgG.selectAll('path').size());
 
+  // Найдём объект с САМЫМ большим "экранным" контуром среди оставшихся — если после чистки
+  // рамки блин всё ещё виден, значит есть ЕЩЁ такой же по смыслу артефакт, просто чуть меньше порога.
+  let biggest = null, biggestArea = -1;
+  valid.forEach(f => {
+    const b = editorPathGen.bounds(f);
+    if (!b) return;
+    const area = (b[1][0] - b[0][0]) * (b[1][1] - b[0][1]);
+    if (area > biggestArea) { biggestArea = area; biggest = f; }
+  });
+  if (biggest) {
+    const b = editorPathGen.bounds(biggest);
+    console.log('[DEBUG] САМЫЙ большой объект на карте:', (biggest.properties && biggest.properties.name), 'bbox ширина/высота =', (b[1][0]-b[0][0]).toFixed(0), (b[1][1]-b[0][1]).toFixed(0));
+  }
+
   buildSnapIndex();
   showNotif(`🗺️ Загружено регионов: ${valid.length}` + (skipped ? ` (пропущено битых: ${skipped})` : ''));
 }

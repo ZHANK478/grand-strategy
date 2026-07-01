@@ -21,6 +21,7 @@ let pencilActive = false;      // мышь зажата в режиме кара
 // ---- Зум и панорамирование холста редактора (независимо от игровой карты) ----
 let edVb = { x: 0, y: 0, w: 960, h: 560 };
 let edPanning = false, edPanStart = { x: 0, y: 0 };
+let edDidPan = false; // отличаем настоящий клик от лёгкого сдвига при перетаскивании
 
 function applyEditorViewBox() {
   editorSvgEl.setAttribute('viewBox', `${edVb.x} ${edVb.y} ${edVb.w} ${edVb.h}`);
@@ -383,10 +384,12 @@ editorSvgEl.addEventListener('dblclick', function(e) {
 editorSvgEl.addEventListener('mousedown', function(e) {
   if (editorDrawing) return; // во время рисования перетаскивание отключено, чтобы не мешать карандашу/точкам
   edPanning = true;
+  edDidPan = false;
   edPanStart = { x: e.clientX, y: e.clientY };
 });
 window.addEventListener('mousemove', function(e) {
   if (!edPanning) return;
+  if (Math.hypot(e.clientX - edPanStart.x, e.clientY - edPanStart.y) > 3) edDidPan = true;
   const rect = editorSvgEl.getBoundingClientRect();
   const scale = edVb.w / rect.width;
   edVb.x -= (e.clientX - edPanStart.x) * scale;
@@ -397,6 +400,94 @@ window.addEventListener('mousemove', function(e) {
 window.addEventListener('mouseup', function() {
   edPanning = false;
 });
+
+// ============================================================
+// ИМПОРТ ГОТОВЫХ ГРАНИЦ КАК РЕАЛЬНЫХ ПРОВИНЦИЙ
+// Границы, которые видно на фоне (страны/Natural Earth), — не рисунок, а реальные фигуры.
+// Клик по такой области (вне режима рисования) сразу превращает её в провинцию со своими границами.
+// ============================================================
+function ringArea(ring) {
+  let a = 0;
+  for (let i = 0; i < ring.length - 1; i++) a += ring[i][0] * ring[i + 1][1] - ring[i + 1][0] * ring[i][1];
+  return Math.abs(a / 2);
+}
+
+function extractMainRing(geom) {
+  if (!geom) return null;
+  if (geom.type === 'Polygon') return geom.coordinates[0];
+  if (geom.type === 'MultiPolygon') {
+    let best = null, bestArea = -1;
+    geom.coordinates.forEach(poly => {
+      const ring = poly[0];
+      const a = ringArea(ring);
+      if (a > bestArea) { bestArea = a; best = ring; }
+    });
+    return best;
+  }
+  return null;
+}
+
+function featureId(f) {
+  const p = f.properties || {};
+  return 'imp_' + (p.adm1_code || p.iso_3166_2 || ((p.name || 'x') + '_' + (p.adm0_a3 || '')));
+}
+function featureName(f) {
+  const p = f.properties || {};
+  return p.name || p.NAME || p.name_en || p.admin || 'Без названия';
+}
+
+function importFeatureAsProvince(f) {
+  const fid = featureId(f);
+  if (mapProvinces.some(p => p.id === fid)) return false;
+  const ring = extractMainRing(f.geometry);
+  if (!ring) return false;
+  const points = ring.slice(0, ring.length - 1).map(c => editorProj(c)).filter(p => p && !isNaN(p[0]));
+  if (points.length < 3) return false;
+  mapProvinces.push({ id: fid, name: featureName(f), points });
+  return true;
+}
+
+function tryImportFeatureAt(xy) {
+  if (!currentBgFeatures.length) return;
+  const lonlat = editorProj.invert(xy);
+  if (!lonlat) return;
+  const feature = currentBgFeatures.find(f => f.geometry && d3.geoContains(f, lonlat));
+  if (!feature) { showNotif('⚠️ Здесь нет готовой границы для импорта'); return; }
+  const already = mapProvinces.some(p => p.id === featureId(feature));
+  if (already) { showNotif('ℹ️ Эта провинция уже импортирована — редактируйте её в списке слева'); return; }
+  if (importFeatureAsProvince(feature)) {
+    renderMapProvinces();
+    renderEditorProvinceList();
+    showNotif('✅ Импортировано: ' + featureName(feature));
+  }
+}
+
+// Клик по фону вне режима рисования — импортировать область под курсором как провинцию
+editorSvgEl.addEventListener('click', function(e) {
+  if (editorDrawing) return;
+  if (edDidPan) { edDidPan = false; return; } // это было перетаскивание карты, а не клик
+  if (currentMapTemplate === 'blank') return;
+  tryImportFeatureAt(editorMouseCoords(e));
+});
+
+// Импортировать разом все области, попадающие в текущий видимый кусок карты
+function importVisibleFeatures() {
+  if (!currentBgFeatures.length) { showNotif('⚠️ Нет фоновой карты для импорта'); return; }
+  let count = 0;
+  currentBgFeatures.forEach(f => {
+    if (mapProvinces.some(p => p.id === featureId(f))) return;
+    const bounds = d3.geoBounds(f);
+    const c1 = editorProj(bounds[0]), c2 = editorProj(bounds[1]);
+    if (!c1 || !c2) return;
+    const fx0 = Math.min(c1[0], c2[0]), fx1 = Math.max(c1[0], c2[0]);
+    const fy0 = Math.min(c1[1], c2[1]), fy1 = Math.max(c1[1], c2[1]);
+    if (fx1 < edVb.x || fx0 > edVb.x + edVb.w || fy1 < edVb.y || fy0 > edVb.y + edVb.h) return;
+    if (importFeatureAsProvince(f)) count++;
+  });
+  renderMapProvinces();
+  renderEditorProvinceList();
+  showNotif(count > 0 ? `✅ Импортировано провинций: ${count}` : 'ℹ️ Нечего импортировать в этой области');
+}
 
 // Режим "Карандаш": зажать и вести мышь — рисуется непрерывная линия (тоже липнет к границам)
 editorSvgEl.addEventListener('mousedown', function(e) {

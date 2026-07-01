@@ -275,7 +275,8 @@ body.menu-mode .game-ui{display:none !important;}
 
       <!-- Вкладка: рисование -->
       <div id="editor-view-draw" style="display:none">
-        <div class="editor-hint">Клик — точка (режим «Точки»). Зажать и вести мышь — линия (режим «Карандаш»).</div>
+        <div class="editor-hint">Клик по готовой границе на карте — сразу импортирует её как провинцию (границы уже готовые данные, не рисунок). Для новых фигур: клик — точка («Точки»), зажать и вести мышь — линия («Карандаш»). Новые линии липнут к существующим границам.</div>
+        <button class="editor-btn ghost" onclick="importVisibleFeatures()" style="margin-bottom:10px">📥 Импортировать все видимые</button>
         <div class="editor-mode-row">
           <button class="editor-btn active" id="mode-point-btn" onclick="setDrawMode('point')">• Точки</button>
           <button class="editor-btn" id="mode-pencil-btn" onclick="setDrawMode('pencil')">🖊 Карандаш</button>

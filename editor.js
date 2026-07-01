@@ -265,15 +265,17 @@ function renderBackground(template) {
       .attr('x', 480).attr('y', 280)
       .attr('text-anchor', 'middle').attr('font-size', 13)
       .attr('fill', '#fff').attr('font-family', 'Georgia,serif')
-      .text('⏳ Загрузка провинций (Natural Earth Admin-1 — есть детально не для всех стран)...');
+      .text('⏳ Загрузка провинций (Natural Earth Admin-1, ~17 МБ)...');
 
     fetchAdmin1Data();
   }
 }
 
-// Несколько источников одного и того же датасета — если jsDelivr отдал неполные данные
-// (бывает с большими файлами через зеркало GitHub), пробуем следующий по очереди.
+// Основной источник — файл, лежащий прямо в репозитории игры (10m, полное покрытие стран,
+// упрощённый через mapshaper). Никаких внешних зеркал — грузится с того же сайта, что и игра.
+// Внешние источники оставлены запасным вариантом на случай, если локальный файл вдруг уберут.
 const ADMIN1_SOURCES = [
+  'admin1.geojson.json',
   'https://cdn.jsdelivr.net/gh/nvkelso/natural-earth-vector@master/geojson/ne_50m_admin_1_states_provinces.geojson',
   'https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson/ne_50m_admin_1_states_provinces.geojson'
 ];

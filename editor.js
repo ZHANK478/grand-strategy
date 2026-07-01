@@ -464,16 +464,50 @@ function featureName(f) {
 // гигантская ложная полоса через всю карту вместо настоящей границы.
 const MAX_RING_JUMP = 250;
 
+// Страны/провинции возле 180° долготы (Россия, Аляска-США, Фиджи и т.п.) в этом источнике
+// иногда хранятся ОДНИМ контуром, перескакивающим через линию перемены даты. Вместо того чтобы
+// просто отказывать в импорте, разрезаем контур на куски в местах разрыва — каждый кусок
+// становится отдельной провинцией («часть 1», «часть 2»), без ложной полосы через карту.
+function splitRingAtJumps(points) {
+  const n = points.length;
+  const jumpIdx = [];
+  for (let i = 0; i < n; i++) {
+    const a = points[i], b = points[(i + 1) % n];
+    if (Math.hypot(a[0] - b[0], a[1] - b[1]) > MAX_RING_JUMP) jumpIdx.push(i);
+  }
+  if (jumpIdx.length === 0) return [points];
+
+  const chunks = [];
+  for (let k = 0; k < jumpIdx.length; k++) {
+    const start = (jumpIdx[k] + 1) % n;
+    const end = jumpIdx[(k + 1) % jumpIdx.length];
+    const chunk = [];
+    let idx = start, guard = 0;
+    while (guard++ <= n) {
+      chunk.push(points[idx]);
+      if (idx === end) break;
+      idx = (idx + 1) % n;
+    }
+    if (chunk.length >= 3) chunks.push(chunk);
+  }
+  return chunks;
+}
+
 function importFeatureAsProvince(f) {
   const fid = featureId(f);
-  if (mapProvinces.some(p => p.id === fid)) return 'dup';
+  if (mapProvinces.some(p => p.id === fid || p.id.indexOf(fid + '_p') === 0)) return 'dup';
   const points = extractMainRingProjected(f.geometry);
   if (!points || points.length < 3) return 'small';
-  for (let i = 0; i < points.length; i++) {
-    const a = points[i], b = points[(i + 1) % points.length];
-    if (Math.hypot(a[0] - b[0], a[1] - b[1]) > MAX_RING_JUMP) return 'dateline';
-  }
-  mapProvinces.push({ id: fid, name: featureName(f), points });
+
+  const pieces = splitRingAtJumps(points);
+  if (pieces.length === 0) return 'small';
+
+  const baseName = featureName(f);
+  pieces.forEach((pts, i) => {
+    const pid = pieces.length > 1 ? fid + '_p' + (i + 1) : fid;
+    const name = pieces.length > 1 ? baseName + ' (часть ' + (i + 1) + ')' : baseName;
+    mapProvinces.push({ id: pid, name, points: pts });
+  });
   return 'ok';
 }
 

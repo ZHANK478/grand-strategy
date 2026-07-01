@@ -351,7 +351,9 @@ function pauseExitToMenu() {
 // ============================================================
 function openSettings() {
   document.getElementById('settings-panel').style.display = 'flex';
-  document.getElementById('setting-show-countries').checked = showAllCountries;
+  document.getElementById('setting-show-countries').checked = showCountryLabels;
+  document.getElementById('setting-label-scale').value = countryLabelScale;
+  document.getElementById('setting-label-scale-val').textContent = countryLabelScale.toFixed(1) + '×';
   document.getElementById('setting-obj-scale').value = objectScale;
   document.getElementById('setting-obj-scale-val').textContent = objectScale.toFixed(1) + '×';
 }
@@ -361,7 +363,13 @@ function closeSettings() {
 }
 
 function onToggleShowCountries(checked) {
-  setShowAllCountries(checked);
+  setShowCountryLabels(checked);
+}
+
+function onChangeLabelScale(val) {
+  const v = parseFloat(val);
+  document.getElementById('setting-label-scale-val').textContent = v.toFixed(1) + '×';
+  setCountryLabelScale(v);
 }
 
 function onChangeObjectScale(val) {

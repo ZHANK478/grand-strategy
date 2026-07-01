@@ -232,8 +232,12 @@ body.menu-mode .game-ui{display:none !important;}
     <div class="setting-row">
       <label>
         <input type="checkbox" id="setting-show-countries" checked onchange="onToggleShowCountries(this.checked)">
-        Отображать все страны на карте
+        Показывать названия стран на карте
       </label>
+    </div>
+    <div class="setting-row">
+      <label>Размер названий стран<span class="setting-val" id="setting-label-scale-val">1.2×</span></label>
+      <input type="range" id="setting-label-scale" min="0.5" max="3" step="0.1" value="1.2" oninput="onChangeLabelScale(this.value)">
     </div>
     <div class="setting-row">
       <label>Размер отображения сущностей<span class="setting-val" id="setting-obj-scale-val">1.8×</span></label>
@@ -319,6 +323,7 @@ body.menu-mode .game-ui{display:none !important;}
     <g id="world-g"></g>
     <g id="spain-g"></g>
     <g id="france-g"></g>
+    <g id="labels-g"></g>
     <g id="objects-g"></g>
   </svg>
 </div>

@@ -16,6 +16,7 @@ const tooltip = document.getElementById('tooltip');
 const svg     = d3.select('#map-svg');
 const worldG  = svg.select('#world-g');
 const franceG = svg.select('#france-g');
+const labelsG = svg.select('#labels-g');
 const objectsG = svg.select('#objects-g');
 
 // Голубые оттенки провинций
@@ -45,19 +46,50 @@ const PROVINCE_INFO = {
 const FRANCE_ID = '250';
 
 // ---- НАСТРОЙКИ ОТОБРАЖЕНИЯ (сохраняются в localStorage) ----
-let showAllCountries = localStorage.getItem('gs1852_show_all') !== '0';
+// showCountryLabels — показывать ли подписи с названиями стран (сами страны/границы видны всегда, иначе по ним нельзя будет кликать)
+let showCountryLabels = localStorage.getItem('gs1852_show_labels') !== '0';
+let countryLabelScale = parseFloat(localStorage.getItem('gs1852_label_scale')) || 1.2;
 let objectScale = parseFloat(localStorage.getItem('gs1852_obj_scale')) || 1.8;
 
-function setShowAllCountries(v) {
-  showAllCountries = v;
-  localStorage.setItem('gs1852_show_all', v ? '1' : '0');
-  worldG.style('display', v ? null : 'none');
+function setShowCountryLabels(v) {
+  showCountryLabels = v;
+  localStorage.setItem('gs1852_show_labels', v ? '1' : '0');
+  labelsG.style('display', v ? null : 'none');
+}
+
+function setCountryLabelScale(v) {
+  countryLabelScale = v;
+  localStorage.setItem('gs1852_label_scale', v);
+  updateCountryLabels();
 }
 
 function setObjectScale(v) {
   objectScale = v;
   localStorage.setItem('gs1852_obj_scale', v);
   renderMapObjects();
+}
+
+// Подпись страны — константный размер на экране независимо от зума карты
+function addCountryLabel(name, coordsOrFeature, isFeature) {
+  const xy = isFeature ? pathGen.centroid(coordsOrFeature) : proj(coordsOrFeature);
+  if (!xy || isNaN(xy[0])) return;
+  labelsG.append('text')
+    .attr('class', 'country-label')
+    .attr('data-cx', xy[0]).attr('data-cy', xy[1])
+    .attr('x', xy[0]).attr('y', xy[1])
+    .attr('text-anchor', 'middle').attr('dominant-baseline', 'middle')
+    .attr('fill', '#2a2a2a').attr('font-family', 'Georgia,serif')
+    .attr('pointer-events', 'none')
+    .attr('paint-order', 'stroke')
+    .attr('stroke', '#fff').attr('stroke-width', 2.2)
+    .text(name);
+}
+
+function updateCountryLabels() {
+  const zoom = W / vb.w;
+  labelsG.selectAll('.country-label')
+    .attr('font-size', d => (9 * countryLabelScale) / zoom)
+    .attr('stroke-width', 2.2 / zoom);
 }
 
 // Известные города — координаты [lon, lat] для размещения объектов на карте.
@@ -163,6 +195,11 @@ function drawMap() {
         }
       });
 
+    // Подписи известных стран — отдельный слой, масштаб фиксирован на экране
+    countries.features
+      .filter(d => KNOWN_COUNTRIES[String(d.id)])
+      .forEach(d => addCountryLabel(KNOWN_COUNTRIES[String(d.id)].name, d, true));
+
     // Регионы Франции — реальный GeoJSON поверх
     franceGeo.features.forEach((feature, i) => {
       const name   = feature.properties.nom;
@@ -214,7 +251,8 @@ function drawMap() {
       .attr('visibility','hidden')
       .text('★ Париж');
 
-    worldG.style('display', showAllCountries ? null : 'none');
+    addCountryLabel('Франция', [2.3488, 46.6], false);
+    labelsG.style('display', showCountryLabels ? null : 'none');
     updateLabels();
     renderMapObjects();
 
@@ -228,6 +266,7 @@ function drawMap() {
 
 function updateLabels() {
   updateParis();
+  updateCountryLabels();
   updateObjectScale();
 }
 
@@ -305,7 +344,9 @@ function drawSpain() {
         }
         if (typeof openCountryRelations === 'function') openCountryRelations('Испания');
       });
-    // Название "ИСПАНИЯ" больше не рисуется постоянно — только тултип при наведении
+
+    addCountryLabel('Испания', spain, true);
+    updateCountryLabels();
   });
 }
 

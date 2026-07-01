@@ -44,6 +44,22 @@ const PROVINCE_INFO = {
 // ID Франции в world-atlas (250 = France)
 const FRANCE_ID = '250';
 
+// ---- НАСТРОЙКИ ОТОБРАЖЕНИЯ (сохраняются в localStorage) ----
+let showAllCountries = localStorage.getItem('gs1852_show_all') !== '0';
+let objectScale = parseFloat(localStorage.getItem('gs1852_obj_scale')) || 1.8;
+
+function setShowAllCountries(v) {
+  showAllCountries = v;
+  localStorage.setItem('gs1852_show_all', v ? '1' : '0');
+  worldG.style('display', v ? null : 'none');
+}
+
+function setObjectScale(v) {
+  objectScale = v;
+  localStorage.setItem('gs1852_obj_scale', v);
+  renderMapObjects();
+}
+
 // Известные города — координаты [lon, lat] для размещения объектов на карте.
 // ИИ ссылается на эти названия в EFFECTS.map_objects.
 const CITY_COORDS = {
@@ -198,6 +214,7 @@ function drawMap() {
       .attr('visibility','hidden')
       .text('★ Париж');
 
+    worldG.style('display', showAllCountries ? null : 'none');
     updateLabels();
     renderMapObjects();
 
@@ -395,16 +412,16 @@ function renderMapObjects() {
     const g = d3.select(this);
     g.select('.mo-dot')
       .attr('cx', xy[0]).attr('cy', xy[1])
-      .attr('r', 3 / zoom)
+      .attr('r', 3 * objectScale / zoom)
       .attr('fill', ownerColor(d.owner))
       .attr('stroke', '#fff').attr('stroke-width', 0.6 / zoom);
     g.select('.mo-icon')
-      .attr('x', xy[0]).attr('y', xy[1] - 5 / zoom)
-      .attr('font-size', 8 / zoom)
+      .attr('x', xy[0]).attr('y', xy[1] - (5 * objectScale) / zoom)
+      .attr('font-size', 8 * objectScale / zoom)
       .text(TYPE_ICONS[d.type] || '📍');
     g.select('.mo-label')
-      .attr('x', xy[0]).attr('y', xy[1] + 9 / zoom)
-      .attr('font-size', 5.5 / zoom)
+      .attr('x', xy[0]).attr('y', xy[1] + (9 * objectScale) / zoom)
+      .attr('font-size', 5.5 * objectScale / zoom)
       .attr('fill', '#222')
       .attr('font-family', 'Georgia,serif')
       .text(d.label + (d.troops ? ' «' + d.troops.toLocaleString('ru') + '»' : ''));

@@ -249,20 +249,71 @@ function startGame() {
   document.getElementById('main-menu').style.display = 'none';
 }
 
+// Клик по Франции на карте главного меню — сразу новая игра
 function newGame() {
-  if (hasSave() && !confirm('Начать новую игру? Текущее сохранение будет затёрто.')) return;
+  currentSlotId = 'slot_' + Date.now();
   resetGame();
+  saveGame();
   startGame();
   showNotif('🇫🇷 Новая игра началась');
 }
 
+// "Продолжить" в главном меню — грузит последнюю по времени партию
 function continueGame() {
-  if (!hasSave()) return;
-  loadGame();
+  const saves = listSaves();
+  if (!saves.length) return;
+  loadGameSlot(saves[0].id);
   startGame();
   showNotif('▶ Игра продолжена');
 }
 
+// ---- Экран "Загрузить игру" ----
+function openLoadMenu() {
+  renderSaveList();
+  document.getElementById('load-menu').style.display = 'flex';
+}
+
+function closeLoadMenu() {
+  document.getElementById('load-menu').style.display = 'none';
+}
+
+function renderSaveList() {
+  const list = document.getElementById('save-list');
+  const saves = listSaves();
+  if (saves.length === 0) {
+    list.innerHTML = '<div class="chg-empty">Нет сохранённых партий</div>';
+    return;
+  }
+  list.innerHTML = saves.map(s => {
+    const date = months[s.month] + ' ' + s.year + ' г.';
+    return `<div class="save-item">
+      <div class="save-info">
+        <div class="save-title">🇫🇷 ${s.country} — ${s.ruler || ''}</div>
+        <div class="save-sub">Ход ${s.turn} · ${date} · ${s.treasury.toLocaleString('ru')} фр.</div>
+      </div>
+      <div class="save-actions">
+        <button class="save-play-btn" onclick="loadSaveAndPlay('${s.id}')">▶</button>
+        <button class="save-del-btn" onclick="deleteSaveAndRefresh('${s.id}')">🗑</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function loadSaveAndPlay(id) {
+  loadGameSlot(id);
+  closeLoadMenu();
+  startGame();
+  showNotif('▶ Игра загружена');
+}
+
+function deleteSaveAndRefresh(id) {
+  if (!confirm('Удалить это сохранение?')) return;
+  deleteSave(id);
+  renderSaveList();
+  initMenu();
+}
+
+// ---- Меню паузы (внутри игры) ----
 function openPauseMenu() {
   document.getElementById('pause-menu').style.display = 'flex';
 }
@@ -272,8 +323,9 @@ function closePauseMenu() {
 }
 
 function pauseRestart() {
-  if (!confirm('Начать заново? Текущий прогресс будет потерян.')) return;
+  if (!confirm('Начать заново? Текущий прогресс этой партии будет потерян.')) return;
   resetGame();
+  saveGame();
   closePauseMenu();
   showNotif('🔄 Игра начата заново');
 }
@@ -282,6 +334,7 @@ function pauseExitToMenu() {
   saveGame();
   gameStarted = false;
   closePauseMenu();
+  closeSettings();
   document.getElementById('adv-pop').style.display = 'none';
   document.getElementById('diplo-pop').style.display = 'none';
   document.getElementById('actions-panel').style.display = 'none';
@@ -291,4 +344,28 @@ function pauseExitToMenu() {
   document.body.classList.add('menu-mode');
   document.getElementById('main-menu').style.display = 'flex';
   initMenu();
+}
+
+// ============================================================
+// НАСТРОЙКИ ОТОБРАЖЕНИЯ (внутриигровое меню → ⚙ Настройки)
+// ============================================================
+function openSettings() {
+  document.getElementById('settings-panel').style.display = 'flex';
+  document.getElementById('setting-show-countries').checked = showAllCountries;
+  document.getElementById('setting-obj-scale').value = objectScale;
+  document.getElementById('setting-obj-scale-val').textContent = objectScale.toFixed(1) + '×';
+}
+
+function closeSettings() {
+  document.getElementById('settings-panel').style.display = 'none';
+}
+
+function onToggleShowCountries(checked) {
+  setShowAllCountries(checked);
+}
+
+function onChangeObjectScale(val) {
+  const v = parseFloat(val);
+  document.getElementById('setting-obj-scale-val').textContent = v.toFixed(1) + '×';
+  setObjectScale(v);
 }

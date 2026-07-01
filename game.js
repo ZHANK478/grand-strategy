@@ -1,12 +1,13 @@
 // ============================================================
-// GAME.JS — ходы, казна, время, сохранения, меню
+// GAME.JS — ходы, казна, время, сохранения (слоты), меню
 // ============================================================
 
 let turn = 1, month = 0, year = 1852, treasury = 4200, incomePerMonth = 580;
 const months = ['Январь','Февраль','Март','Апрель','Май','Июнь','Июль','Август','Сентябрь','Октябрь','Ноябрь','Декабрь'];
 
 let gameStarted = false;
-const SAVE_KEY = 'gs1852_save';
+const SAVE_PREFIX = 'gs1852_save_';
+let currentSlotId = null;
 
 // Динамическое состояние власти — может меняться через события ИИ
 let stateOfPower = {
@@ -77,10 +78,37 @@ function changePowerState(field, value) {
 }
 
 // ============================================================
-// СОХРАНЕНИЕ / ЗАГРУЗКА
+// СОХРАНЕНИЯ — несколько слотов, каждый со своей партией
 // ============================================================
+function listSaves() {
+  const saves = [];
+  for (let i = 0; i < localStorage.length; i++) {
+    const k = localStorage.key(i);
+    if (k && k.startsWith(SAVE_PREFIX)) {
+      try {
+        const d = JSON.parse(localStorage.getItem(k));
+        saves.push({
+          id: k.slice(SAVE_PREFIX.length),
+          country: 'Франция',
+          ruler: d.stateOfPower ? d.stateOfPower.ruler : '',
+          turn: d.turn, year: d.year, month: d.month,
+          treasury: d.treasury,
+          savedAt: d.savedAt || 0
+        });
+      } catch (e) { /* повреждённый слот — пропускаем */ }
+    }
+  }
+  saves.sort((a, b) => b.savedAt - a.savedAt);
+  return saves;
+}
+
+function hasSave() {
+  return listSaves().length > 0;
+}
+
 function saveGame() {
   try {
+    if (!currentSlotId) currentSlotId = 'slot_' + Date.now();
     const army = document.getElementById('army').textContent.replace(/\s/g,'');
     const stab = document.getElementById('stab').textContent;
     const data = {
@@ -90,23 +118,21 @@ function saveGame() {
       worldState,
       playerActions,
       advisorHistory: typeof advisorHistory !== 'undefined' ? advisorHistory : [],
-      diplomacyHistories: typeof diplomacyHistories !== 'undefined' ? diplomacyHistories : {}
+      diplomacyHistories: typeof diplomacyHistories !== 'undefined' ? diplomacyHistories : {},
+      savedAt: Date.now()
     };
-    localStorage.setItem(SAVE_KEY, JSON.stringify(data));
+    localStorage.setItem(SAVE_PREFIX + currentSlotId, JSON.stringify(data));
   } catch (e) {
     console.log('Ошибка сохранения:', e.message);
   }
 }
 
-function hasSave() {
-  return !!localStorage.getItem(SAVE_KEY);
-}
-
-function loadGame() {
-  const raw = localStorage.getItem(SAVE_KEY);
+function loadGameSlot(id) {
+  const raw = localStorage.getItem(SAVE_PREFIX + id);
   if (!raw) return false;
   try {
     const d = JSON.parse(raw);
+    currentSlotId = id;
     turn = d.turn; month = d.month; year = d.year;
     treasury = d.treasury; incomePerMonth = d.incomePerMonth;
     stateOfPower = d.stateOfPower || stateOfPower;
@@ -114,7 +140,10 @@ function loadGame() {
     if (!worldState.mapObjects) worldState.mapObjects = [];
     playerActions = d.playerActions || [];
     if (typeof advisorHistory !== 'undefined') advisorHistory = d.advisorHistory || [];
-    if (typeof diplomacyHistories !== 'undefined') Object.assign(diplomacyHistories, d.diplomacyHistories || {});
+    if (typeof diplomacyHistories !== 'undefined') {
+      Object.keys(diplomacyHistories).forEach(k => delete diplomacyHistories[k]);
+      Object.assign(diplomacyHistories, d.diplomacyHistories || {});
+    }
 
     document.getElementById('treasury').textContent = treasury.toLocaleString('ru') + ' фр.';
     document.getElementById('income').textContent = (incomePerMonth >= 0 ? '+' : '') + incomePerMonth.toLocaleString('ru') + ' фр.';
@@ -136,8 +165,11 @@ function loadGame() {
   }
 }
 
+function deleteSave(id) {
+  localStorage.removeItem(SAVE_PREFIX + id);
+}
+
 function resetGame() {
-  localStorage.removeItem(SAVE_KEY);
   turn = 1; month = 0; year = 1852; treasury = 4200; incomePerMonth = 580;
   stateOfPower = { ruler: 'Луи-Наполеон Бонапарт', government: 'Президентская республика', pm: 'Эжен Руэр' };
   worldState = {

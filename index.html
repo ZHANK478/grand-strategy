@@ -146,6 +146,32 @@ body.menu-mode .game-ui{display:none !important;}
 .pause-box button.danger:hover{background:#a02525;}
 #menu-btn{background:#333;border-color:#111;color:#fff;}
 #menu-btn:hover{background:#555;}
+
+/* ЭКРАН ЗАГРУЗКИ ИГРЫ */
+#load-menu{position:absolute;inset:0;z-index:500;background:rgba(10,10,15,0.65);display:none;align-items:center;justify-content:center;}
+.load-box{background:#fff;border-radius:6px;padding:22px 24px;min-width:380px;max-width:460px;max-height:70vh;display:flex;flex-direction:column;box-shadow:0 8px 30px rgba(0,0,0,0.4);}
+.load-box h3{font-size:16px;color:#222;margin-bottom:14px;display:flex;justify-content:space-between;align-items:center;}
+#save-list{overflow-y:auto;margin-bottom:12px;}
+.save-item{display:flex;justify-content:space-between;align-items:center;padding:9px 10px;border:1px solid #e0e0e0;border-radius:4px;margin-bottom:7px;}
+.save-title{font-size:12px;color:#222;font-weight:bold;}
+.save-sub{font-size:11px;color:#777;margin-top:2px;}
+.save-actions{display:flex;gap:6px;}
+.save-play-btn,.save-del-btn{border:none;border-radius:3px;padding:6px 10px;cursor:pointer;font-size:13px;}
+.save-play-btn{background:#1a4a1a;color:#fff;}
+.save-play-btn:hover{background:#2a6a2a;}
+.save-del-btn{background:#7a1a1a;color:#fff;}
+.save-del-btn:hover{background:#a02525;}
+.load-close-btn{background:#333;border:none;color:#fff;padding:9px;border-radius:3px;cursor:pointer;font-size:13px;font-family:Georgia,serif;}
+.load-close-btn:hover{background:#555;}
+
+/* НАСТРОЙКИ ОТОБРАЖЕНИЯ */
+#settings-panel{position:absolute;inset:0;z-index:500;background:rgba(10,10,15,0.65);display:none;align-items:center;justify-content:center;}
+.settings-box{background:#fff;border-radius:6px;padding:24px 26px;min-width:300px;box-shadow:0 8px 30px rgba(0,0,0,0.4);}
+.settings-box h3{font-size:16px;color:#222;margin-bottom:16px;}
+.setting-row{margin-bottom:16px;}
+.setting-row label{font-size:12px;color:#333;display:flex;align-items:center;gap:8px;}
+.setting-row input[type=range]{width:100%;margin-top:6px;}
+.setting-row .setting-val{font-size:11px;color:#888;float:right;}
 </style>
 </head>
 <body class="menu-mode">
@@ -172,9 +198,19 @@ body.menu-mode .game-ui{display:none !important;}
 <!-- ГЛАВНОЕ МЕНЮ -->
 <div id="main-menu">
   <div class="menu-title">GRAND STRATEGY — 1852</div>
-  <div class="menu-hint">Нажмите на Францию на карте, чтобы начать игру</div>
+  <div class="menu-hint">Нажмите на Францию на карте, чтобы начать новую игру</div>
   <div class="menu-btns">
     <button id="continue-btn" class="menu-btn" onclick="continueGame()" style="display:none">▶ Продолжить</button>
+    <button class="menu-btn" onclick="openLoadMenu()">🗂 Загрузить игру</button>
+  </div>
+</div>
+
+<!-- ЭКРАН ЗАГРУЗКИ ИГРЫ -->
+<div id="load-menu">
+  <div class="load-box">
+    <h3><span>🗂 Загрузить игру</span><span class="xbtn" onclick="closeLoadMenu()">✕</span></h3>
+    <div id="save-list"></div>
+    <button class="load-close-btn" onclick="closeLoadMenu()">Закрыть</button>
   </div>
 </div>
 
@@ -183,8 +219,28 @@ body.menu-mode .game-ui{display:none !important;}
   <div class="pause-box">
     <h3>⏸ Меню</h3>
     <button onclick="closePauseMenu()">▶ Продолжить</button>
+    <button onclick="openSettings()">⚙ Настройки</button>
     <button class="danger" onclick="pauseRestart()">🔄 Начать заново</button>
     <button onclick="pauseExitToMenu()">🚪 Выйти в меню</button>
+  </div>
+</div>
+
+<!-- НАСТРОЙКИ ОТОБРАЖЕНИЯ -->
+<div id="settings-panel">
+  <div class="settings-box">
+    <h3>⚙ Настройки отображения</h3>
+    <div class="setting-row">
+      <label>
+        <input type="checkbox" id="setting-show-countries" checked onchange="onToggleShowCountries(this.checked)">
+        Отображать все страны на карте
+      </label>
+    </div>
+    <div class="setting-row">
+      <label>Размер отображения сущностей<span class="setting-val" id="setting-obj-scale-val">1.8×</span></label>
+      <div style="font-size:10px;color:#999;margin-top:2px">Армии, делегации, штабы и другие объекты на карте</div>
+      <input type="range" id="setting-obj-scale" min="0.5" max="3" step="0.1" value="1.8" oninput="onChangeObjectScale(this.value)">
+    </div>
+    <button class="load-close-btn" onclick="closeSettings()">Закрыть</button>
   </div>
 </div>
 

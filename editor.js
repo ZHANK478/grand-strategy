@@ -245,24 +245,13 @@ function renderBackground(template) {
   if (template === 'world') {
     d3.json('https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json').then(world => {
       const countries = topojson.feature(world, world.objects.countries);
-      currentBgFeatures = countries.features;
-      editorBgG.selectAll('path')
-        .data(countries.features)
-        .join('path')
-        .attr('d', editorPathGen)
-        .attr('fill', '#e8e4dc')
-        .attr('stroke', '#888')
-        .attr('stroke-width', 0.25)
-        .attr('pointer-events', 'none');
-      buildSnapIndex();
+      drawProvinceFeatures(countries.features);
     });
   }
 
   if (template === 'provinces') {
     if (neAdmin1Cache) {
-      currentBgFeatures = neAdmin1Cache.features;
       drawProvinceFeatures(neAdmin1Cache.features);
-      buildSnapIndex();
       return;
     }
 
@@ -281,32 +270,45 @@ function fetchAdmin1Data() {
   // Natural Earth Admin-1 (штаты/провинции/области всех стран мира), через jsDelivr зеркало GitHub
   d3.json('https://cdn.jsdelivr.net/gh/nvkelso/natural-earth-vector@master/geojson/ne_50m_admin_1_states_provinces.geojson')
     .then(data => {
+      if (!data || !Array.isArray(data.features) || data.features.length < 1000) {
+        // Файл пришёл, но подозрительно мало объектов — источник отдал неполные/битые данные
+        throw new Error('Получено ' + (data && data.features ? data.features.length : 0) + ' объектов вместо ожидаемых ~4600 — данные неполные');
+      }
       neAdmin1Cache = data; // кэшируем в памяти на всю сессию — повторно грузить не будем
       editorBgG.select('#editor-loading-txt').remove();
-      currentBgFeatures = data.features;
       drawProvinceFeatures(data.features);
-      buildSnapIndex();
     })
     .catch(err => {
       console.error(err);
       editorBgG.select('#editor-loading-txt')
-        .text('⚠️ Не удалось загрузить. ')
-        .append('tspan').attr('x', 480).attr('dy', 16).text('Нажмите, чтобы повторить попытку.')
-        .attr('cursor', 'pointer');
+        .text('⚠️ Не удалось загрузить (' + err.message + ').')
+        .append('tspan').attr('x', 480).attr('dy', 16).text('Нажмите, чтобы повторить попытку.');
       editorBgG.select('#editor-loading-txt').style('cursor', 'pointer').on('click', fetchAdmin1Data);
     });
 }
 
 function drawProvinceFeatures(features) {
+  // Отбрасываем объекты с геометрией, которую движок не может отрисовать (пустой/битый path) —
+  // иначе они молча пропадают с карты без предупреждения, из-за чего казалось, что "куски карты" исчезли.
+  const valid = features.filter(f => {
+    const d = editorPathGen(f);
+    return d && d.length > 0;
+  });
+  const skipped = features.length - valid.length;
+  currentBgFeatures = valid;
+
   editorBgG.selectAll('path').remove();
   editorBgG.selectAll('path')
-    .data(features)
+    .data(valid)
     .join('path')
     .attr('d', editorPathGen)
     .attr('fill', '#e8e4dc')
     .attr('stroke', '#999')
     .attr('stroke-width', 0.2)
     .attr('pointer-events', 'none');
+
+  buildSnapIndex();
+  showNotif(`🗺️ Загружено регионов: ${valid.length}` + (skipped ? ` (пропущено битых: ${skipped})` : ''));
 }
 
 // ============================================================
@@ -423,25 +425,28 @@ window.addEventListener('mouseup', function() {
 // Границы, которые видно на фоне (страны/Natural Earth), — не рисунок, а реальные фигуры.
 // Клик по такой области (вне режима рисования) сразу превращает её в провинцию со своими границами.
 // ============================================================
-function ringArea(ring) {
+function planarArea(pts) {
   let a = 0;
-  for (let i = 0; i < ring.length - 1; i++) a += ring[i][0] * ring[i + 1][1] - ring[i + 1][0] * ring[i][1];
+  for (let i = 0; i < pts.length - 1; i++) a += pts[i][0] * pts[i + 1][1] - pts[i + 1][0] * pts[i][1];
   return Math.abs(a / 2);
 }
 
-function extractMainRing(geom) {
+// Выбираем главное кольцо контура по площади В ПРОЕЦИРОВАННЫХ координатах (не в сырых lon/lat —
+// у стран возле полюсов и с большим охватом по долготе (Канада, Россия) формула площади в градусах
+// сильно искажена и выбирала не тот кусок геометрии).
+function extractMainRingProjected(geom) {
   if (!geom) return null;
-  if (geom.type === 'Polygon') return geom.coordinates[0];
-  if (geom.type === 'MultiPolygon') {
-    let best = null, bestArea = -1;
-    geom.coordinates.forEach(poly => {
-      const ring = poly[0];
-      const a = ringArea(ring);
-      if (a > bestArea) { bestArea = a; best = ring; }
-    });
-    return best;
-  }
-  return null;
+  const rings = geom.type === 'Polygon' ? [geom.coordinates[0]]
+    : geom.type === 'MultiPolygon' ? geom.coordinates.map(poly => poly[0])
+    : [];
+  let best = null, bestArea = -1;
+  rings.forEach(ring => {
+    const pts = ring.map(c => editorProj(c)).filter(p => p && !isNaN(p[0]));
+    if (pts.length < 3) return;
+    const a = planarArea(pts);
+    if (a > bestArea) { bestArea = a; best = pts; }
+  });
+  return best;
 }
 
 function featureId(f) {
@@ -462,24 +467,35 @@ const MAX_RING_JUMP = 250;
 function importFeatureAsProvince(f) {
   const fid = featureId(f);
   if (mapProvinces.some(p => p.id === fid)) return 'dup';
-  const ring = extractMainRing(f.geometry);
-  if (!ring) return 'small';
-  const points = ring.slice(0, ring.length - 1).map(c => editorProj(c));
-  if (points.some(p => !p || isNaN(p[0]))) return 'small';
+  const points = extractMainRingProjected(f.geometry);
+  if (!points || points.length < 3) return 'small';
   for (let i = 0; i < points.length; i++) {
     const a = points[i], b = points[(i + 1) % points.length];
     if (Math.hypot(a[0] - b[0], a[1] - b[1]) > MAX_RING_JUMP) return 'dateline';
   }
-  if (points.length < 3) return 'small';
   mapProvinces.push({ id: fid, name: featureName(f), points });
   return 'ok';
 }
 
+// Ищем объект под курсором через реальную отрисованную геометрию SVG (isPointInFill) —
+// надёжнее, чем обратное проецирование координат, которое сильно врёт возле полюсов
+// (поэтому Канада/Россия/северные страны не находились кликом).
+function findFeatureAt(xy) {
+  const paths = editorBgG.selectAll('path').nodes();
+  if (!paths.length) return null;
+  const pt = editorSvgEl.createSVGPoint();
+  pt.x = xy[0]; pt.y = xy[1];
+  for (let i = 0; i < paths.length; i++) {
+    try {
+      if (paths[i].isPointInFill(pt)) return currentBgFeatures[i];
+    } catch (e) { /* браузер без поддержки isPointInFill для этого узла — пропускаем */ }
+  }
+  return null;
+}
+
 function tryImportFeatureAt(xy) {
   if (!currentBgFeatures.length) return;
-  const lonlat = editorProj.invert(xy);
-  if (!lonlat) return;
-  const feature = currentBgFeatures.find(f => f.geometry && d3.geoContains(f, lonlat));
+  const feature = findFeatureAt(xy);
   if (!feature) { showNotif('⚠️ Здесь нет готовой границы для импорта'); return; }
   const result = importFeatureAsProvince(feature);
   if (result === 'dup') { showNotif('ℹ️ Эта провинция уже импортирована — редактируйте её в списке слева'); return; }
@@ -561,21 +577,22 @@ function updateDrawPreview() {
   editorDrawG.selectAll('.draw-vertex').remove();
   if (editorPoints.length === 0) return;
 
+  const zoom = 960 / edVb.w; // компенсация зума — толщина линии и точки одинаковы на экране на любом приближении
   const d = 'M' + editorPoints.map(p => p.join(',')).join('L') + (editorPoints.length > 2 ? 'Z' : '');
   editorDrawG.append('path')
     .attr('class', 'draw-preview')
     .attr('d', d)
     .attr('fill', 'rgba(0,0,0,0.08)')
     .attr('stroke', '#111')
-    .attr('stroke-width', strokeWidth)
-    .attr('stroke-dasharray', drawMode === 'point' ? '3,2' : 'none');
+    .attr('stroke-width', strokeWidth / zoom)
+    .attr('stroke-dasharray', drawMode === 'point' ? (3 / zoom) + ',' + (2 / zoom) : 'none');
 
   if (drawMode === 'point') {
     editorPoints.forEach(p => {
       editorDrawG.append('circle')
         .attr('class', 'draw-vertex')
         .attr('cx', p[0]).attr('cy', p[1])
-        .attr('r', strokeWidth + 1.6)
+        .attr('r', (strokeWidth + 1.6) / zoom)
         .attr('fill', '#111');
     });
   }

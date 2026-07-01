@@ -172,6 +172,31 @@ body.menu-mode .game-ui{display:none !important;}
 .setting-row label{font-size:12px;color:#333;display:flex;align-items:center;gap:8px;}
 .setting-row input[type=range]{width:100%;margin-top:6px;}
 .setting-row .setting-val{font-size:11px;color:#888;float:right;}
+
+/* РЕДАКТОР СЦЕНАРИЕВ */
+#editor-panel{position:absolute;top:70px;left:14px;width:270px;bottom:14px;background:#fff;border:1px solid #bbb;border-radius:5px;z-index:410;display:none;flex-direction:column;box-shadow:0 4px 16px rgba(0,0,0,0.2);overflow:hidden;}
+.editor-hdr{background:#2a2a3a;color:#fff;padding:10px 13px;font-size:13px;display:flex;justify-content:space-between;align-items:center;}
+.editor-body{padding:12px 13px;overflow-y:auto;flex:1;}
+.editor-hint{font-size:11px;color:#666;line-height:1.6;margin-bottom:10px;background:#f4f4f4;padding:8px;border-radius:4px;}
+.editor-btn{width:100%;background:#1a2a4a;border:none;color:#fff;padding:8px;border-radius:3px;cursor:pointer;font-size:12px;font-family:Georgia,serif;margin-bottom:7px;}
+.editor-btn:hover{background:#2a3a6a;}
+.editor-btn.danger{background:#7a1a1a;}
+.editor-btn.danger:hover{background:#a02525;}
+.editor-btn.ghost{background:#eee;color:#333;}
+.editor-btn.ghost:hover{background:#ddd;}
+#editor-draw-status{font-size:11px;color:#1a6a1a;font-weight:bold;margin-bottom:8px;display:none;}
+#editor-province-list{margin-top:10px;}
+.eprov-item{display:flex;justify-content:space-between;align-items:center;padding:6px 8px;border:1px solid #e5e5e5;border-radius:4px;margin-bottom:6px;font-size:11px;}
+.eprov-name{font-weight:bold;color:#222;}
+.eprov-owner{color:#888;font-size:10px;}
+.eprov-actions{display:flex;gap:4px;}
+.eprov-actions button{border:none;border-radius:3px;padding:3px 6px;cursor:pointer;font-size:11px;background:#eee;}
+.eprov-actions button:hover{background:#ddd;}
+
+/* Форма сохранения новой провинции */
+#editor-save-form{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);z-index:420;background:#fff;border-radius:6px;padding:20px;width:260px;box-shadow:0 8px 30px rgba(0,0,0,0.4);display:none;}
+#editor-save-form h4{font-size:14px;margin-bottom:12px;}
+#editor-save-form input,#editor-save-form select{width:100%;padding:7px;margin-bottom:9px;border:1px solid #ccc;border-radius:3px;font-family:Georgia,serif;font-size:12px;}
 </style>
 </head>
 <body class="menu-mode">
@@ -202,7 +227,34 @@ body.menu-mode .game-ui{display:none !important;}
   <div class="menu-btns">
     <button id="continue-btn" class="menu-btn" onclick="continueGame()" style="display:none">▶ Продолжить</button>
     <button class="menu-btn" onclick="openLoadMenu()">🗂 Загрузить игру</button>
+    <button class="menu-btn" onclick="openScenarioEditor()">🛠 Редактор сценариев</button>
   </div>
+</div>
+
+<!-- РЕДАКТОР СЦЕНАРИЕВ -->
+<div id="editor-panel">
+  <div class="editor-hdr">
+    <span>🛠 Редактор сценариев</span>
+    <span class="xbtn" onclick="closeScenarioEditor()">✕</span>
+  </div>
+  <div class="editor-body">
+    <div class="editor-hint">Кликайте по карте, чтобы ставить точки границы провинции. Двойной клик или кнопка «Готово» — завершить фигуру.</div>
+    <div id="editor-draw-status">✏️ Рисование... точек: <span id="editor-point-count">0</span></div>
+    <button class="editor-btn" id="editor-new-btn" onclick="startDrawingProvince()">➕ Новая провинция</button>
+    <button class="editor-btn ghost" id="editor-finish-btn" onclick="finishDrawingProvince()" style="display:none">✅ Готово</button>
+    <button class="editor-btn danger" id="editor-cancel-btn" onclick="cancelDrawingProvince()" style="display:none">✖ Отменить рисование</button>
+    <div id="editor-province-list"></div>
+    <button class="editor-btn ghost" onclick="closeScenarioEditor()" style="margin-top:10px">🚪 Выйти в меню</button>
+  </div>
+</div>
+
+<!-- ФОРМА СОХРАНЕНИЯ ПРОВИНЦИИ -->
+<div id="editor-save-form">
+  <h4>Новая провинция</h4>
+  <input type="text" id="eform-name" placeholder="Название провинции">
+  <input type="text" id="eform-owner" placeholder="Страна-владелец (например Франция)">
+  <button class="editor-btn" onclick="saveDrawnProvince()">💾 Сохранить</button>
+  <button class="editor-btn ghost" onclick="discardDrawnProvince()">Отмена</button>
 </div>
 
 <!-- ЭКРАН ЗАГРУЗКИ ИГРЫ -->
@@ -325,6 +377,7 @@ body.menu-mode .game-ui{display:none !important;}
     <g id="france-g"></g>
     <g id="labels-g"></g>
     <g id="objects-g"></g>
+    <g id="editor-g"></g>
   </svg>
 </div>
 
@@ -422,6 +475,7 @@ body.menu-mode .game-ui{display:none !important;}
 <script src="ai.js"></script>
 <script src="game.js"></script>
 <script src="ui.js"></script>
+<script src="editor.js"></script>
 <script>initMenu();</script>
 </body>
 </html>

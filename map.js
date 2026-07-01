@@ -118,6 +118,10 @@ function drawMap() {
         tooltip.style.display='none';
       })
       .on('click', (e, d) => {
+        if (typeof gameStarted !== 'undefined' && !gameStarted) {
+          if (typeof showNotif === 'function') showNotif('⚠️ В этой версии играбельна только Франция');
+          return;
+        }
         const known = KNOWN_COUNTRIES[String(d.id)];
         if (known && typeof openCountryRelations === 'function') {
           openCountryRelations(known.name);
@@ -148,6 +152,11 @@ function drawMap() {
         .on('mouseleave', function(){
           d3.select(this).attr('fill', color);
           tooltip.style.display='none';
+        })
+        .on('click', function(){
+          if (typeof gameStarted !== 'undefined' && !gameStarted) {
+            if (typeof newGame === 'function') newGame();
+          }
         });
 
       // Подпись региона
@@ -268,6 +277,10 @@ function drawSpain() {
         tooltip.style.display = 'none';
       })
       .on('click', function() {
+        if (typeof gameStarted !== 'undefined' && !gameStarted) {
+          if (typeof showNotif === 'function') showNotif('⚠️ В этой версии играбельна только Франция');
+          return;
+        }
         if (typeof openCountryRelations === 'function') openCountryRelations('Испания');
       });
 

@@ -1,9 +1,12 @@
 // ============================================================
-// GAME.JS — ходы, казна, время
+// GAME.JS — ходы, казна, время, сохранения, меню
 // ============================================================
 
 let turn = 1, month = 0, year = 1852, treasury = 4200, incomePerMonth = 580;
 const months = ['Январь','Февраль','Март','Апрель','Май','Июнь','Июль','Август','Сентябрь','Октябрь','Ноябрь','Декабрь'];
+
+let gameStarted = false;
+const SAVE_KEY = 'gs1852_save';
 
 // Динамическое состояние власти — может меняться через события ИИ
 let stateOfPower = {
@@ -27,6 +30,8 @@ async function nextTurn() {
 
   // Запускаем ИИ-события
   await onTurnEnd();
+
+  saveGame();
 
   btn.disabled = false;
   btn.textContent = 'Следующий месяц ▶';
@@ -69,4 +74,92 @@ function changePowerState(field, value) {
     const el = document.getElementById('pm-name');
     if (el) el.textContent = value;
   }
+}
+
+// ============================================================
+// СОХРАНЕНИЕ / ЗАГРУЗКА
+// ============================================================
+function saveGame() {
+  try {
+    const army = document.getElementById('army').textContent.replace(/\s/g,'');
+    const stab = document.getElementById('stab').textContent;
+    const data = {
+      turn, month, year, treasury, incomePerMonth,
+      army: parseInt(army), stability: parseInt(stab),
+      stateOfPower,
+      worldState,
+      playerActions,
+      advisorHistory: typeof advisorHistory !== 'undefined' ? advisorHistory : [],
+      diplomacyHistories: typeof diplomacyHistories !== 'undefined' ? diplomacyHistories : {}
+    };
+    localStorage.setItem(SAVE_KEY, JSON.stringify(data));
+  } catch (e) {
+    console.log('Ошибка сохранения:', e.message);
+  }
+}
+
+function hasSave() {
+  return !!localStorage.getItem(SAVE_KEY);
+}
+
+function loadGame() {
+  const raw = localStorage.getItem(SAVE_KEY);
+  if (!raw) return false;
+  try {
+    const d = JSON.parse(raw);
+    turn = d.turn; month = d.month; year = d.year;
+    treasury = d.treasury; incomePerMonth = d.incomePerMonth;
+    stateOfPower = d.stateOfPower || stateOfPower;
+    worldState = d.worldState || worldState;
+    playerActions = d.playerActions || [];
+    if (typeof advisorHistory !== 'undefined') advisorHistory = d.advisorHistory || [];
+    if (typeof diplomacyHistories !== 'undefined') Object.assign(diplomacyHistories, d.diplomacyHistories || {});
+
+    document.getElementById('treasury').textContent = treasury.toLocaleString('ru') + ' фр.';
+    document.getElementById('income').textContent = (incomePerMonth >= 0 ? '+' : '') + incomePerMonth.toLocaleString('ru') + ' фр.';
+    document.getElementById('army').textContent = d.army.toLocaleString('ru');
+    document.getElementById('stab').textContent = d.stability;
+    document.getElementById('date-disp').textContent = months[month] + ' ' + year + ' г.';
+    document.getElementById('turn-info').textContent = 'Ход ' + turn;
+
+    changePowerState('ruler', stateOfPower.ruler);
+    changePowerState('government', stateOfPower.government);
+    changePowerState('pm', stateOfPower.pm);
+
+    renderActionsList();
+    return true;
+  } catch (e) {
+    console.log('Ошибка загрузки:', e.message);
+    return false;
+  }
+}
+
+function resetGame() {
+  localStorage.removeItem(SAVE_KEY);
+  turn = 1; month = 0; year = 1852; treasury = 4200; incomePerMonth = 580;
+  stateOfPower = { ruler: 'Луи-Наполеон Бонапарт', government: 'Президентская республика', pm: 'Эжен Руэр' };
+  worldState = {
+    relations: { 'Испания': 0, 'Великобритания': 10, 'Россия': 5, 'Австрия': -5, 'Пруссия': 15 },
+    atWarWith: [], alliedWith: [], pastEvents: [], diploLog: []
+  };
+  playerActions = [];
+  if (typeof advisorHistory !== 'undefined') advisorHistory = [];
+  if (typeof diplomacyHistories !== 'undefined') Object.keys(diplomacyHistories).forEach(k => delete diplomacyHistories[k]);
+
+  document.getElementById('treasury').textContent = treasury.toLocaleString('ru') + ' фр.';
+  document.getElementById('income').textContent = '+' + incomePerMonth.toLocaleString('ru') + ' фр.';
+  document.getElementById('army').textContent = (400000).toLocaleString('ru');
+  document.getElementById('stab').textContent = 81;
+  document.getElementById('date-disp').textContent = months[month] + ' ' + year + ' г.';
+  document.getElementById('turn-info').textContent = 'Ход ' + turn;
+
+  changePowerState('ruler', stateOfPower.ruler);
+  changePowerState('government', stateOfPower.government);
+  changePowerState('pm', stateOfPower.pm);
+
+  document.getElementById('events-box').style.display = 'none';
+  document.getElementById('changes-box').style.display = 'none';
+  document.getElementById('adv-messages').innerHTML = '<div class="adv-msg advisor">🎭 Ваше Превосходительство, готов отвечать на ваши вопросы о положении Франции.</div>';
+
+  renderActionsList();
 }

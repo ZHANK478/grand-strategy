@@ -235,3 +235,60 @@ function renderTurnChanges(changes) {
   }
   box.style.display = 'block';
 }
+
+// ============================================================
+// ГЛАВНОЕ МЕНЮ / ПАУЗА / СОХРАНЕНИЯ
+// ============================================================
+function initMenu() {
+  document.getElementById('continue-btn').style.display = hasSave() ? 'block' : 'none';
+}
+
+function startGame() {
+  gameStarted = true;
+  document.body.classList.remove('menu-mode');
+  document.getElementById('main-menu').style.display = 'none';
+}
+
+function newGame() {
+  if (hasSave() && !confirm('Начать новую игру? Текущее сохранение будет затёрто.')) return;
+  resetGame();
+  startGame();
+  showNotif('🇫🇷 Новая игра началась');
+}
+
+function continueGame() {
+  if (!hasSave()) return;
+  loadGame();
+  startGame();
+  showNotif('▶ Игра продолжена');
+}
+
+function openPauseMenu() {
+  document.getElementById('pause-menu').style.display = 'flex';
+}
+
+function closePauseMenu() {
+  document.getElementById('pause-menu').style.display = 'none';
+}
+
+function pauseRestart() {
+  if (!confirm('Начать заново? Текущий прогресс будет потерян.')) return;
+  resetGame();
+  closePauseMenu();
+  showNotif('🔄 Игра начата заново');
+}
+
+function pauseExitToMenu() {
+  saveGame();
+  gameStarted = false;
+  closePauseMenu();
+  document.getElementById('adv-pop').style.display = 'none';
+  document.getElementById('diplo-pop').style.display = 'none';
+  document.getElementById('actions-panel').style.display = 'none';
+  document.getElementById('relations-panel').style.display = 'none';
+  document.getElementById('events-box').style.display = 'none';
+  document.getElementById('changes-box').style.display = 'none';
+  document.body.classList.add('menu-mode');
+  document.getElementById('main-menu').style.display = 'flex';
+  initMenu();
+}

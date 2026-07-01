@@ -276,7 +276,18 @@ body.menu-mode .game-ui{display:none !important;}
       <!-- Вкладка: рисование -->
       <div id="editor-view-draw" style="display:none">
         <div class="editor-hint">Клик по готовой границе на карте — сразу импортирует её как провинцию (границы уже готовые данные, не рисунок). Для новых фигур: клик — точка («Точки»), зажать и вести мышь — линия («Карандаш»). Новые линии липнут к существующим границам.</div>
-        <button class="editor-btn ghost" onclick="importVisibleFeatures()" style="margin-bottom:10px">📥 Импортировать все видимые</button>
+        <button class="editor-btn ghost" onclick="importVisibleFeatures()">📥 Импортировать видимые</button>
+        <button class="editor-btn ghost" onclick="importWholeMapFork()" style="margin-bottom:10px">🍴 Форкнуть карту целиком</button>
+        <div class="setting-row" style="margin-bottom:6px">
+          <label style="display:flex;align-items:center;gap:6px">
+            <input type="checkbox" id="editor-show-labels" checked onchange="onToggleProvinceLabels(this.checked)">
+            Показывать названия провинций
+          </label>
+        </div>
+        <div class="setting-row" style="margin-bottom:10px">
+          <label style="display:block">Размер названий<span class="setting-val" id="editor-label-scale-val">1.0×</span></label>
+          <input type="range" id="editor-label-scale-slider" min="0.3" max="2.5" step="0.1" value="1" oninput="onChangeProvinceLabelScale(this.value)">
+        </div>
         <div class="editor-mode-row">
           <button class="editor-btn active" id="mode-point-btn" onclick="setDrawMode('point')">• Точки</button>
           <button class="editor-btn" id="mode-pencil-btn" onclick="setDrawMode('pencil')">🖊 Карандаш</button>

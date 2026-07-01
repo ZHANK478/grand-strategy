@@ -57,6 +57,20 @@ function onChangeEditorStroke(val) {
   renderMapProvinces();
 }
 
+let showProvinceLabels = localStorage.getItem('gs1852_editor_show_labels') !== '0';
+let provinceLabelScale = parseFloat(localStorage.getItem('gs1852_editor_label_scale')) || 1;
+function onToggleProvinceLabels(checked) {
+  showProvinceLabels = checked;
+  localStorage.setItem('gs1852_editor_show_labels', checked ? '1' : '0');
+  renderMapProvinces();
+}
+function onChangeProvinceLabelScale(val) {
+  provinceLabelScale = parseFloat(val);
+  localStorage.setItem('gs1852_editor_label_scale', provinceLabelScale);
+  document.getElementById('editor-label-scale-val').textContent = provinceLabelScale.toFixed(1) + '×';
+  renderMapProvinces();
+}
+
 // ---- Прилипание к существующим границам (снап), как в ГИС-редакторах ----
 const SNAP_PX = 10; // радиус прилипания в экранных пикселях
 let snapSegments = []; // [[[x1,y1],[x2,y2]], ...] — сегменты границ, доступные для прилипания в текущем виде
@@ -213,6 +227,9 @@ function enterDrawView() {
   applyEditorViewBox();
   document.getElementById('editor-stroke-slider').value = strokeWidth;
   document.getElementById('editor-stroke-val').textContent = strokeWidth.toFixed(1);
+  document.getElementById('editor-show-labels').checked = showProvinceLabels;
+  document.getElementById('editor-label-scale-slider').value = provinceLabelScale;
+  document.getElementById('editor-label-scale-val').textContent = provinceLabelScale.toFixed(1) + '×';
   renderMapProvinces();
   renderEditorProvinceList();
 }
@@ -436,15 +453,26 @@ function featureName(f) {
   return p.name || p.NAME || p.name_en || p.admin || 'Без названия';
 }
 
+// Максимальный "прыжок" между соседними точками контура (в единицах проекции).
+// У стран возле 180° долготы (Россия, Фиджи, США через Аляску) Natural Earth иногда
+// даёт контур, перескакивающий с +180° на −180° — без этой защиты получается
+// гигантская ложная полоса через всю карту вместо настоящей границы.
+const MAX_RING_JUMP = 250;
+
 function importFeatureAsProvince(f) {
   const fid = featureId(f);
-  if (mapProvinces.some(p => p.id === fid)) return false;
+  if (mapProvinces.some(p => p.id === fid)) return 'dup';
   const ring = extractMainRing(f.geometry);
-  if (!ring) return false;
-  const points = ring.slice(0, ring.length - 1).map(c => editorProj(c)).filter(p => p && !isNaN(p[0]));
-  if (points.length < 3) return false;
+  if (!ring) return 'small';
+  const points = ring.slice(0, ring.length - 1).map(c => editorProj(c));
+  if (points.some(p => !p || isNaN(p[0]))) return 'small';
+  for (let i = 0; i < points.length; i++) {
+    const a = points[i], b = points[(i + 1) % points.length];
+    if (Math.hypot(a[0] - b[0], a[1] - b[1]) > MAX_RING_JUMP) return 'dateline';
+  }
+  if (points.length < 3) return 'small';
   mapProvinces.push({ id: fid, name: featureName(f), points });
-  return true;
+  return 'ok';
 }
 
 function tryImportFeatureAt(xy) {
@@ -453,13 +481,13 @@ function tryImportFeatureAt(xy) {
   if (!lonlat) return;
   const feature = currentBgFeatures.find(f => f.geometry && d3.geoContains(f, lonlat));
   if (!feature) { showNotif('⚠️ Здесь нет готовой границы для импорта'); return; }
-  const already = mapProvinces.some(p => p.id === featureId(feature));
-  if (already) { showNotif('ℹ️ Эта провинция уже импортирована — редактируйте её в списке слева'); return; }
-  if (importFeatureAsProvince(feature)) {
-    renderMapProvinces();
-    renderEditorProvinceList();
-    showNotif('✅ Импортировано: ' + featureName(feature));
-  }
+  const result = importFeatureAsProvince(feature);
+  if (result === 'dup') { showNotif('ℹ️ Эта провинция уже импортирована — редактируйте её в списке слева'); return; }
+  if (result === 'dateline') { showNotif('⚠️ Область пересекает 180° долготы — контур повреждён, импорт пропущен'); return; }
+  if (result === 'small') { showNotif('⚠️ Не удалось получить границы этой области'); return; }
+  renderMapProvinces();
+  renderEditorProvinceList();
+  showNotif('✅ Импортировано: ' + featureName(feature));
 }
 
 // Клик по фону вне режима рисования — импортировать область под курсором как провинцию
@@ -473,7 +501,7 @@ editorSvgEl.addEventListener('click', function(e) {
 // Импортировать разом все области, попадающие в текущий видимый кусок карты
 function importVisibleFeatures() {
   if (!currentBgFeatures.length) { showNotif('⚠️ Нет фоновой карты для импорта'); return; }
-  let count = 0;
+  let count = 0, skipped = 0;
   currentBgFeatures.forEach(f => {
     if (mapProvinces.some(p => p.id === featureId(f))) return;
     const bounds = d3.geoBounds(f);
@@ -482,11 +510,27 @@ function importVisibleFeatures() {
     const fx0 = Math.min(c1[0], c2[0]), fx1 = Math.max(c1[0], c2[0]);
     const fy0 = Math.min(c1[1], c2[1]), fy1 = Math.max(c1[1], c2[1]);
     if (fx1 < edVb.x || fx0 > edVb.x + edVb.w || fy1 < edVb.y || fy0 > edVb.y + edVb.h) return;
-    if (importFeatureAsProvince(f)) count++;
+    const r = importFeatureAsProvince(f);
+    if (r === 'ok') count++; else if (r === 'dateline') skipped++;
   });
   renderMapProvinces();
   renderEditorProvinceList();
-  showNotif(count > 0 ? `✅ Импортировано провинций: ${count}` : 'ℹ️ Нечего импортировать в этой области');
+  showNotif(count > 0 ? `✅ Импортировано провинций: ${count}${skipped ? ' (пропущено с разрывом: ' + skipped + ')' : ''}` : 'ℹ️ Нечего импортировать в этой области');
+}
+
+// Форкнуть карту целиком: скопировать ВСЕ регионы источника (не только видимые) в текущую карту.
+// Подходит для рабочего процесса «взял готовую карту → правлю прямо в ней → сохраняю как новую версию».
+function importWholeMapFork() {
+  if (!currentBgFeatures.length) { showNotif('⚠️ Нет фоновой карты для импорта'); return; }
+  if (!confirm(`Импортировать все ${currentBgFeatures.length} регионов источника как провинции? Это может занять время.`)) return;
+  let count = 0, skipped = 0;
+  currentBgFeatures.forEach(f => {
+    const r = importFeatureAsProvince(f);
+    if (r === 'ok') count++; else if (r === 'dateline') skipped++;
+  });
+  renderMapProvinces();
+  renderEditorProvinceList();
+  showNotif(`✅ Карта форкнута: ${count} провинций${skipped ? ', пропущено с разрывом: ' + skipped : ''}`);
 }
 
 // Режим "Карандаш": зажать и вести мышь — рисуется непрерывная линия (тоже липнет к границам)
@@ -552,13 +596,14 @@ function renderMapProvinces() {
       .attr('stroke', '#555')
       .attr('stroke-width', strokeWidth);
 
+    if (!showProvinceLabels) return;
     const cx = p.points.reduce((s, pt) => s + pt[0], 0) / p.points.length;
     const cy = p.points.reduce((s, pt) => s + pt[1], 0) / p.points.length;
     editorDrawG.insert('text', '.draw-preview')
       .attr('class', 'map-prov')
       .attr('x', cx).attr('y', cy)
       .attr('text-anchor', 'middle')
-      .attr('font-size', 8).attr('fill', '#222')
+      .attr('font-size', 8 * provinceLabelScale).attr('fill', '#222')
       .attr('font-family', 'Georgia,serif')
       .attr('pointer-events', 'none')
       .text(p.name);

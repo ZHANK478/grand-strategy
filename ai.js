@@ -2,8 +2,18 @@
 // AI.JS v4 — полная память, AI-оценка дипломатии, длинные новости
 // ============================================================
 
-const GEMINI_API_KEY = localStorage.getItem('openrouter_key') || '';
-if (!GEMINI_API_KEY) { const k = prompt('Введите OpenRouter API ключ:'); if(k) { localStorage.setItem('openrouter_key', k); location.reload(); } }
+// Ключ жёстко очищается от любых непечатаемых/неASCII символов — иначе Bearer-заголовок
+// ломается с ошибкой "String contains non ISO-8859-1 code point" (бывает после копипаста
+// со скрытыми юникод-символами).
+let GEMINI_API_KEY = (localStorage.getItem('openrouter_key') || '').replace(/[^\x20-\x7E]/g, '').trim();
+if (!GEMINI_API_KEY) {
+  const k = prompt('Введите OpenRouter API ключ:');
+  if (k) {
+    GEMINI_API_KEY = k.replace(/[^\x20-\x7E]/g, '').trim();
+    localStorage.setItem('openrouter_key', GEMINI_API_KEY);
+    location.reload();
+  }
+}
 const GEMINI_URL = 'https://openrouter.ai/api/v1/chat/completions';
 const MODEL = 'google/gemini-3.1-flash-lite';
 
@@ -40,7 +50,7 @@ function getGameState() {
     income: document.getElementById('income').textContent,
     army: document.getElementById('army').textContent,
     stability: document.getElementById('stab').textContent,
-    country: (typeof playerCountry !== 'undefined') ? playerCountry : 'Франция',
+    country: (typeof playerCountryDisplayName !== 'undefined') ? playerCountryDisplayName : (typeof playerCountry !== 'undefined' ? playerCountry : 'Франция'),
     ruler: (typeof stateOfPower !== 'undefined') ? stateOfPower.ruler : 'Луи-Наполеон Бонапарт',
     rulerTitle: (typeof stateOfPower !== 'undefined') ? stateOfPower.rulerTitle : 'Президент Французской республики',
     government: (typeof stateOfPower !== 'undefined') ? stateOfPower.government : 'Президентская республика',
@@ -65,7 +75,7 @@ function describeWorldState() {
       worldState.pastEvents.slice(-40).reverse().map((e, i) => `${i + 1}. ${e}`).join('\n')
     : 'Игра только началась, прошлых событий нет.';
 
-  const pc = (typeof playerCountry !== 'undefined') ? playerCountry : 'Франция';
+  const pc = (typeof playerCountryDisplayName !== 'undefined') ? playerCountryDisplayName : (typeof playerCountry !== 'undefined' ? playerCountry : 'Франция');
   return `Отношения ${pc} со странами: ${relText}.\n${warText} ${allyText}\n\n${newsText}`;
 }
 
@@ -98,7 +108,7 @@ async function askGemini(prompt, maxTokens = 400) {
 // ПРАВИЛА РЕАЛИЗМА
 // ============================================================
 function getRealismRules() {
-  const pc = (typeof playerCountry !== 'undefined') ? playerCountry : 'Франция';
+  const pc = (typeof playerCountryDisplayName !== 'undefined') ? playerCountryDisplayName : (typeof playerCountry !== 'undefined' ? playerCountry : 'Франция');
   return `
 СТРОГИЕ ПРАВИЛА:
 1. Действие происходит ТОЛЬКО в реальной истории 1852 года. Никакой фантастики, никаких анахронизмов.
@@ -180,6 +190,14 @@ function parseAndApplyEffects(text) {
         showNotif(`🕊️ Мир заключён с ${c}`);
         turnChanges.push({ label: '🕊️ Мир', value: c, sign: 1 });
       });
+    }
+
+    // Смена названия самой страны (например Пруссия → Германская империя после объединения)
+    if (effects.country_name && typeof renameCountry === 'function' && effects.country_name !== playerCountryDisplayName) {
+      const old = playerCountryDisplayName;
+      renameCountry(effects.country_name);
+      showNotif(`🏳️ Страна переименована: ${effects.country_name}`);
+      turnChanges.push({ label: '🏳️ Название страны', value: old + ' → ' + effects.country_name, sign: 0 });
     }
 
     // Смена власти: правитель, его титул, форма правления, премьер-министр и его титул
@@ -268,7 +286,7 @@ ${actions}
 Напиши РОВНО 7 новостных событий этого месяца. Каждое событие — 2-3 предложения (40-60 слов), содержательно и с деталями. Отражай последствия действий игрока напрямую: если казнил — пиши о реакции армии и народа, если потратил деньги — пиши куда ушли, если оскорблял страну — пиши о дипломатическом кризисе, если действия ведут к перевороту или провозглашению империи — опиши это как реальное историческое событие. Каждое событие с новой строки, без нумерации и символов. Пиши на русском языке.
 
 После 7 событий напиши ровно одну строку:
-EFFECTS:{"treasury_delta":0,"income_delta":0,"army_delta":0,"stability_delta":0,"relations":{${ALL_COUNTRIES.filter(c => c !== state.country).map(c => `"${c}":0`).join(',')}},"war_declared":[],"peace_made":[],"ruler_name":null,"ruler_title":null,"government":null,"pm_name":null,"pm_title":null,"map_objects":[],"territory_transfer":[]}
+EFFECTS:{"treasury_delta":0,"income_delta":0,"army_delta":0,"stability_delta":0,"relations":{${ALL_COUNTRIES.filter(c => c !== state.country).map(c => `"${c}":0`).join(',')}},"war_declared":[],"peace_made":[],"country_name":null,"ruler_name":null,"ruler_title":null,"government":null,"pm_name":null,"pm_title":null,"map_objects":[],"territory_transfer":[]}
 
 КРИТИЧЕСКИ ВАЖНО — заполняй числа исходя из действий игрока, не ставь нули без причины:
 - Казнил/убил солдат или людей → army_delta отрицательный (−количество), stability_delta −3 до −8
@@ -281,6 +299,7 @@ EFFECTS:{"treasury_delta":0,"income_delta":0,"army_delta":0,"stability_delta":0,
 - income_delta — ИСПОЛЬЗУЙ РЕДКО, только для СТРУКТУРНЫХ изменений экономики: открытие/закрытие фабрик, разрушение инфраструктуры войной, изменение налоговой системы, потеря/приобретение территории. НЕ используй income_delta для разовых трат (наряды, пиры, взятки, разовое строительство) — те идут ТОЛЬКО в treasury_delta.
 - Если игрок завёл дорогой постоянный проект (содержание новой армии, масштабная стройка, реформы) — это должно давать ТЕКУЩИЕ расходы через treasury_delta в этом И СЛЕДУЮЩИХ ходах (упоминай в новостях "содержание обходится казне в N франков ежемесячно"), а не через income_delta.
 - treasury_delta и income_delta в франках, army_delta в солдатах
+- country_name: название САМОЙ СТРАНЫ (не правительства). Указывай ТОЛЬКО если по сюжету происходит объединение/переименование государства (например "Пруссия" → "Германская империя" после объединения немецких земель, провозглашение империи меняет название страны). В обычных условиях оставляй null — название страны не должно меняться просто так.
 - ruler_name/ruler_title/government/pm_name/pm_title: указывай значение ТОЛЬКО если в новостях произошёл реальный переворот, провозглашение империи/республики, отречение, введение чрезвычайного/временного правления, отставка премьера и т.п. Иначе оставляй null.
   - government — свободный текст названия формы правления, придумывай подходящее исторической логике (например: "Временное правительство", "Чрезвычайное правительство", "Президентская республика", "Империя", "Конституционная монархия", "Военная диктатура" — любое уместное название, не ограничивайся списком).
   - ruler_title — точный титул главы государства текстом, например "Император французов", "Президент Французской республики", "Председатель временного правительства". Меняй вместе с government, когда меняется форма правления.

@@ -13,7 +13,13 @@ let currentSlotId = null;
 const ALL_COUNTRIES = ['Франция', 'Великобритания', 'Россия', 'Австрия', 'Пруссия', 'Испания'];
 
 // За кого сейчас играет игрок — выбирается в главном меню кликом по стране
-let playerCountry = 'Франция';
+let playerCountry = 'Франция'; // ключ для карты/цветов/отношений — не меняется
+let playerCountryDisplayName = 'Франция'; // отображаемое название — может меняться через события ИИ (например Пруссия → Германская империя)
+
+function renameCountry(newName) {
+  if (!newName) return;
+  playerCountryDisplayName = newName;
+}
 
 // Владелец каждой территории (по умолчанию каждая страна владеет собой).
 // Меняется через аннексии/передачи территорий (EFFECTS.territory_transfer от ИИ).
@@ -157,6 +163,7 @@ function saveGame() {
       army: parseInt(army), stability: parseInt(stab),
       stateOfPower,
       playerCountry,
+      playerCountryDisplayName,
       territoryOwners,
       worldState,
       playerActions,
@@ -179,6 +186,7 @@ function loadGameSlot(id) {
     turn = d.turn; month = d.month; year = d.year;
     treasury = d.treasury; incomePerMonth = d.incomePerMonth;
     playerCountry = d.playerCountry || 'Франция';
+    playerCountryDisplayName = d.playerCountryDisplayName || playerCountry;
     territoryOwners = d.territoryOwners || {};
     stateOfPower = d.stateOfPower || stateOfPower;
     if (!stateOfPower.rulerTitle) stateOfPower.rulerTitle = 'Президент Французской республики';
@@ -223,6 +231,7 @@ function deleteSave(id) {
 // country — за кого играем (по умолчанию Франция, если не передано)
 function resetGame(country) {
   playerCountry = country && COUNTRY_DEFAULTS[country] ? country : 'Франция';
+  playerCountryDisplayName = playerCountry;
   const d = COUNTRY_DEFAULTS[playerCountry];
 
   turn = 1; month = 0; year = 1852;

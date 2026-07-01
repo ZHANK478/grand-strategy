@@ -85,7 +85,7 @@ function renderCountryList() {
   const list = document.getElementById('diplo-countries');
   const availableCountries = (typeof ALL_COUNTRIES !== 'undefined')
     ? ALL_COUNTRIES.filter(c => c !== playerCountry)
-    : ['Испания', 'Великобритания', 'Россия', 'Австрия', 'Пруссия'];
+    : ['Франция', 'Испания', 'Великобритания', 'Россия', 'Австрия', 'Пруссия'].filter(c => c !== playerCountry);
   list.innerHTML = availableCountries.map(c => {
     const rel = (typeof worldState !== 'undefined') ? (worldState.relations[c] || 0) : 0;
     const color = rel > 30 ? '#2a7a2a' : rel < -30 ? '#8a1a1a' : '#7a6a30';

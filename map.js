@@ -1,4 +1,4 @@
-// MAP.JS v5
+// MAP.JS v6 — карта + объекты на карте (армии, штабы, передвижения)
 const W = 960, H = 560;
 
 // Известные страны: ID в world-atlas → название (для кликов и тултипов)
@@ -16,6 +16,7 @@ const tooltip = document.getElementById('tooltip');
 const svg     = d3.select('#map-svg');
 const worldG  = svg.select('#world-g');
 const franceG = svg.select('#france-g');
+const objectsG = svg.select('#objects-g');
 
 // Голубые оттенки провинций
 const FRANCE_COLORS = [
@@ -42,6 +43,27 @@ const PROVINCE_INFO = {
 
 // ID Франции в world-atlas (250 = France)
 const FRANCE_ID = '250';
+
+// Известные города — координаты [lon, lat] для размещения объектов на карте.
+// ИИ ссылается на эти названия в EFFECTS.map_objects.
+const CITY_COORDS = {
+  'Париж': [2.3488, 48.8534],
+  'Марсель': [5.3698, 43.2965],
+  'Лион': [4.8357, 45.7640],
+  'Тулуза': [1.4442, 43.6047],
+  'Бордо': [-0.5792, 44.8378],
+  'Страсбург': [7.7521, 48.5734],
+  'Брест': [-4.4861, 48.3904],
+  'Тулон': [5.9280, 43.1242],
+  'Лондон': [-0.1278, 51.5074],
+  'Мадрид': [-3.7038, 40.4168],
+  'Барселона': [2.1734, 41.3851],
+  'Берлин': [13.4050, 52.5200],
+  'Вена': [16.3738, 48.2082],
+  'Санкт-Петербург': [30.3351, 59.9343],
+  'Москва': [37.6173, 55.7558],
+  'Рим': [12.4964, 41.9028]
+};
 
 function lighten(hex) {
   const n = parseInt(hex.slice(1),16);
@@ -74,9 +96,6 @@ function updateParis() {
     .attr('x', parisXY[0] + r + 0.5/zoom)
     .attr('y', parisXY[1] + 0.5/zoom)
     .attr('visibility', show ? 'visible' : 'hidden');
-
-  d3.selectAll('.spain-label').attr('visibility', zoom > 2 ? 'visible' : 'hidden');
-  d3.selectAll('.prov-label').attr('visibility', zoom > 3.5 ? 'visible' : 'hidden');
 }
 function drawMap() {
   Promise.all([
@@ -158,21 +177,7 @@ function drawMap() {
             if (typeof newGame === 'function') newGame();
           }
         });
-
-      // Подпись региона
-      const c = pathGen.centroid(feature);
-      if (c && !isNaN(c[0])) {
-        franceG.append('text')
-          .attr('class','prov-label')
-          .attr('x', c[0]).attr('y', c[1])
-          .attr('text-anchor','middle')
-          .attr('dominant-baseline','middle')
-          .attr('font-size','6.5')
-          .attr('fill','#ddeeff')
-          .attr('pointer-events','none')
-          .attr('font-family','Georgia,serif')
-          .text(name);
-      }
+      // Названия регионов больше не рисуются постоянно на карте — только во всплывающей подсказке при наведении
     });
 
     // Маркер Парижа — масштабируемый
@@ -194,6 +199,7 @@ function drawMap() {
       .text('★ Париж');
 
     updateLabels();
+    renderMapObjects();
 
   }).catch(err=>{
     console.error(err);
@@ -204,9 +210,8 @@ function drawMap() {
 }
 
 function updateLabels() {
-  const zoom = W / vb.w;
-  franceG.selectAll('.prov-label').attr('visibility', zoom > 2.5 ? 'visible' : 'hidden');
   updateParis();
+  updateObjectScale();
 }
 
 // ---- ЗУМ и перетаскивание ----
@@ -283,19 +288,171 @@ function drawSpain() {
         }
         if (typeof openCountryRelations === 'function') openCountryRelations('Испания');
       });
-
-    // Подпись
-    const c = pathGen.centroid(spain);
-    if (c && !isNaN(c[0])) {
-    spainG.append('text')
-        .attr('class', 'spain-label')
-        .attr('x', c[0]).attr('y', c[1])
-        .attr('text-anchor', 'middle').attr('dominant-baseline', 'middle')
-        .attr('font-size', '7').attr('fill', '#3a2800')
-        .attr('pointer-events', 'none').attr('font-family', 'Georgia,serif')
-        .text('ИСПАНИЯ');
-    }
+    // Название "ИСПАНИЯ" больше не рисуется постоянно — только тултип при наведении
   });
 }
 
 drawSpain();
+
+// ============================================================
+// ОБЪЕКТЫ НА КАРТЕ — армии, штабы, передвижения (создаются через EFFECTS от ИИ)
+// ============================================================
+const TYPE_ICONS = { army: '⚔️', hq: '🏛', naval: '⚓', diplomat: '🕊️', other: '📍' };
+const OWNER_COLORS = { 'Франция': '#1a3a8a', rebel: '#7a1a1a', foreign: '#8a1a1a' };
+
+function ownerColor(owner) {
+  if (owner === 'Франция') return OWNER_COLORS['Франция'];
+  if (owner === 'Бунтовщики' || owner === 'Мятежники') return OWNER_COLORS.rebel;
+  return OWNER_COLORS.foreign;
+}
+
+// Суммарные войска Франции, уже размещённые на карте (для проверки лимита общей армии)
+function totalFrenchTroopsOnMap(excludeId) {
+  if (typeof worldState === 'undefined' || !worldState.mapObjects) return 0;
+  return worldState.mapObjects
+    .filter(o => o.owner === 'Франция' && o.type === 'army' && o.id !== excludeId)
+    .reduce((sum, o) => sum + (o.troops || 0), 0);
+}
+
+// Применить массив действий над объектами карты (вызывается из ai.js после EFFECTS)
+function applyMapObjects(list) {
+  if (!Array.isArray(list) || typeof worldState === 'undefined') return [];
+  if (!worldState.mapObjects) worldState.mapObjects = [];
+  const changeLog = [];
+
+  list.forEach(item => {
+    if (!item || !item.action) return;
+
+    if (item.action === 'create') {
+      const loc = CITY_COORDS[item.location];
+      if (!loc) return; // неизвестный город — пропускаем
+      let troops = item.troops || 0;
+      const owner = item.owner || 'Франция';
+      const type = item.type || 'other';
+
+      if (owner === 'Франция' && type === 'army') {
+        const currentArmy = parseInt(document.getElementById('army').textContent.replace(/\s/g,'')) || 0;
+        const already = totalFrenchTroopsOnMap(null);
+        const room = Math.max(0, currentArmy - already);
+        troops = Math.min(troops, room);
+        if (troops <= 0) { changeLog.push(`⚠️ Недостаточно свободных солдат для «${item.label}»`); return; }
+      }
+
+      const obj = {
+        id: item.id || ('obj_' + Date.now() + Math.random().toString(36).slice(2,6)),
+        type, owner, label: item.label || 'Объект',
+        troops: type === 'army' ? troops : 0,
+        location: item.location
+      };
+      worldState.mapObjects.push(obj);
+      changeLog.push(`${TYPE_ICONS[type] || '📍'} Создано: ${obj.label}${obj.troops ? ' (' + obj.troops.toLocaleString('ru') + ')' : ''}`);
+    }
+
+    if (item.action === 'remove') {
+      const idx = worldState.mapObjects.findIndex(o => o.id === item.id || o.label === item.label);
+      if (idx > -1) {
+        changeLog.push(`✖ Убрано с карты: ${worldState.mapObjects[idx].label}`);
+        worldState.mapObjects.splice(idx, 1);
+      }
+    }
+
+    if (item.action === 'move') {
+      const obj = worldState.mapObjects.find(o => o.id === item.id || o.label === item.label);
+      const toLoc = CITY_COORDS[item.to];
+      if (obj && toLoc) {
+        animateMove(obj, item.to);
+        changeLog.push(`➡️ ${obj.label} направляется: ${obj.location} → ${item.to}`);
+        obj.location = item.to;
+      }
+    }
+  });
+
+  renderMapObjects();
+  return changeLog;
+}
+
+function renderMapObjects() {
+  if (typeof worldState === 'undefined' || !worldState.mapObjects) return;
+  const zoom = W / vb.w;
+  const sel = objectsG.selectAll('g.map-obj')
+    .data(worldState.mapObjects, d => d.id);
+
+  sel.exit().remove();
+
+  const enter = sel.enter().append('g')
+    .attr('class', 'map-obj')
+    .attr('id', d => 'mo-' + d.id);
+
+  enter.append('circle').attr('class', 'mo-dot');
+  enter.append('text').attr('class', 'mo-icon').attr('text-anchor', 'middle').attr('pointer-events', 'none');
+  enter.append('text').attr('class', 'mo-label').attr('text-anchor', 'middle').attr('pointer-events', 'none');
+
+  const merged = enter.merge(sel);
+  merged.each(function(d) {
+    const loc = CITY_COORDS[d.location];
+    if (!loc) return;
+    const xy = proj(loc);
+    const g = d3.select(this);
+    g.select('.mo-dot')
+      .attr('cx', xy[0]).attr('cy', xy[1])
+      .attr('r', 3 / zoom)
+      .attr('fill', ownerColor(d.owner))
+      .attr('stroke', '#fff').attr('stroke-width', 0.6 / zoom);
+    g.select('.mo-icon')
+      .attr('x', xy[0]).attr('y', xy[1] - 5 / zoom)
+      .attr('font-size', 8 / zoom)
+      .text(TYPE_ICONS[d.type] || '📍');
+    g.select('.mo-label')
+      .attr('x', xy[0]).attr('y', xy[1] + 9 / zoom)
+      .attr('font-size', 5.5 / zoom)
+      .attr('fill', '#222')
+      .attr('font-family', 'Georgia,serif')
+      .text(d.label + (d.troops ? ' «' + d.troops.toLocaleString('ru') + '»' : ''));
+    g.style('cursor', 'default')
+      .on('mouseover', () => {
+        tooltip.style.display = 'block';
+        document.getElementById('t-name').textContent = d.label;
+        document.getElementById('t-info').textContent = (d.troops ? '👥 ' + d.troops.toLocaleString('ru') + ' чел. · ' : '') + d.location;
+      })
+      .on('mousemove', e => positionTooltip(e))
+      .on('mouseleave', () => { tooltip.style.display = 'none'; });
+  });
+}
+
+function updateObjectScale() {
+  renderMapObjects();
+}
+
+// Анимация передвижения объекта между городами (~3 секунды)
+function animateMove(obj, toCityName) {
+  const fromLoc = CITY_COORDS[obj.location];
+  const toLoc = CITY_COORDS[toCityName];
+  if (!fromLoc || !toLoc) return;
+  const from = proj(fromLoc), to = proj(toLoc);
+
+  const line = objectsG.append('line')
+    .attr('class', 'mo-travel-line')
+    .attr('x1', from[0]).attr('y1', from[1])
+    .attr('x2', from[0]).attr('y2', from[1])
+    .attr('stroke', ownerColor(obj.owner))
+    .attr('stroke-width', 0.6)
+    .attr('stroke-dasharray', '2,2')
+    .attr('opacity', 0.8);
+
+  const dot = objectsG.append('circle')
+    .attr('class', 'mo-travel-dot')
+    .attr('cx', from[0]).attr('cy', from[1])
+    .attr('r', 2.2)
+    .attr('fill', ownerColor(obj.owner));
+
+  line.transition().duration(3000).attr('x2', to[0]).attr('y2', to[1]);
+  dot.transition().duration(3000)
+    .attr('cx', to[0]).attr('cy', to[1])
+    .on('end', () => {
+      line.remove();
+      dot.remove();
+      renderMapObjects();
+    });
+
+  if (typeof showNotif === 'function') showNotif(`➡️ ${obj.label}: ${obj.location} → ${toCityName}`);
+}

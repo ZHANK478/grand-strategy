@@ -111,6 +111,7 @@ function loadGame() {
     treasury = d.treasury; incomePerMonth = d.incomePerMonth;
     stateOfPower = d.stateOfPower || stateOfPower;
     worldState = d.worldState || worldState;
+    if (!worldState.mapObjects) worldState.mapObjects = [];
     playerActions = d.playerActions || [];
     if (typeof advisorHistory !== 'undefined') advisorHistory = d.advisorHistory || [];
     if (typeof diplomacyHistories !== 'undefined') Object.assign(diplomacyHistories, d.diplomacyHistories || {});
@@ -127,6 +128,7 @@ function loadGame() {
     changePowerState('pm', stateOfPower.pm);
 
     renderActionsList();
+    if (typeof renderMapObjects === 'function') renderMapObjects();
     return true;
   } catch (e) {
     console.log('Ошибка загрузки:', e.message);
@@ -140,7 +142,7 @@ function resetGame() {
   stateOfPower = { ruler: 'Луи-Наполеон Бонапарт', government: 'Президентская республика', pm: 'Эжен Руэр' };
   worldState = {
     relations: { 'Испания': 0, 'Великобритания': 10, 'Россия': 5, 'Австрия': -5, 'Пруссия': 15 },
-    atWarWith: [], alliedWith: [], pastEvents: [], diploLog: []
+    atWarWith: [], alliedWith: [], pastEvents: [], diploLog: [], mapObjects: []
   };
   playerActions = [];
   if (typeof advisorHistory !== 'undefined') advisorHistory = [];
@@ -162,4 +164,5 @@ function resetGame() {
   document.getElementById('adv-messages').innerHTML = '<div class="adv-msg advisor">🎭 Ваше Превосходительство, готов отвечать на ваши вопросы о положении Франции.</div>';
 
   renderActionsList();
+  if (typeof renderMapObjects === 'function') renderMapObjects();
 }

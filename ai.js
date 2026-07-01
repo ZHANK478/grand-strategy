@@ -40,7 +40,7 @@ function getGameState() {
     income: document.getElementById('income').textContent,
     army: document.getElementById('army').textContent,
     stability: document.getElementById('stab').textContent,
-    country: 'Франция',
+    country: (typeof playerCountry !== 'undefined') ? playerCountry : 'Франция',
     ruler: (typeof stateOfPower !== 'undefined') ? stateOfPower.ruler : 'Луи-Наполеон Бонапарт',
     rulerTitle: (typeof stateOfPower !== 'undefined') ? stateOfPower.rulerTitle : 'Президент Французской республики',
     government: (typeof stateOfPower !== 'undefined') ? stateOfPower.government : 'Президентская республика',
@@ -65,7 +65,8 @@ function describeWorldState() {
       worldState.pastEvents.slice(-40).reverse().map((e, i) => `${i + 1}. ${e}`).join('\n')
     : 'Игра только началась, прошлых событий нет.';
 
-  return `Отношения Франции со странами: ${relText}.\n${warText} ${allyText}\n\n${newsText}`;
+  const pc = (typeof playerCountry !== 'undefined') ? playerCountry : 'Франция';
+  return `Отношения ${pc} со странами: ${relText}.\n${warText} ${allyText}\n\n${newsText}`;
 }
 
 async function askGemini(prompt, maxTokens = 400) {
@@ -96,13 +97,17 @@ async function askGemini(prompt, maxTokens = 400) {
 // ============================================================
 // ПРАВИЛА РЕАЛИЗМА
 // ============================================================
-const REALISM_RULES = `
+function getRealismRules() {
+  const pc = (typeof playerCountry !== 'undefined') ? playerCountry : 'Франция';
+  return `
 СТРОГИЕ ПРАВИЛА:
 1. Действие происходит ТОЛЬКО в реальной истории 1852 года. Никакой фантастики, никаких анахронизмов.
-2. Игрок управляет ТОЛЬКО Францией. Другие страны реагируют исходя из СВОЕЙ логики и интересов.
+2. Игрок управляет ТОЛЬКО страной ${pc}. Другие страны реагируют исходя из СВОЕЙ логики и интересов.
 3. Если действие игрока нереалистично — опиши провальную или саркастичную попытку.
 4. Войны не откладываются бесконечно: если отношения ниже -50 и есть провокация — бои реально начинаются.
 `;
+}
+const REALISM_RULES_LEGACY = null; // оставлено для совместимости, используйте getRealismRules()
 
 // ============================================================
 // ПАРСИНГ И ПРИМЕНЕНИЕ JSON-ЭФФЕКТОВ ОТ ИИ
@@ -146,6 +151,17 @@ function parseAndApplyEffects(text) {
     if (effects.map_objects && Array.isArray(effects.map_objects) && typeof applyMapObjects === 'function') {
       const objLog = applyMapObjects(effects.map_objects);
       objLog.forEach(msg => turnChanges.push({ label: '🗺️ Карта', value: msg.replace(/^\S+\s/, ''), sign: 0 }));
+    }
+
+    if (effects.territory_transfer && Array.isArray(effects.territory_transfer) && typeof transferTerritory === 'function') {
+      effects.territory_transfer.forEach(t => {
+        if (!t || !t.country || !t.new_owner) return;
+        const oldOwner = (typeof territoryOwnerOf === 'function') ? territoryOwnerOf(t.country) : t.country;
+        if (oldOwner === t.new_owner) return;
+        transferTerritory(t.country, t.new_owner);
+        showNotif(`🏳️ ${t.country} теперь под властью: ${t.new_owner}`);
+        turnChanges.push({ label: '🏳️ Территория', value: t.country + ' → ' + t.new_owner, sign: t.new_owner === playerCountry ? 1 : (oldOwner === playerCountry ? -1 : 0) });
+      });
     }
 
     if (effects.war_declared && Array.isArray(effects.war_declared)) {
@@ -244,7 +260,7 @@ async function generateEvents() {
 
 ${describeWorldState()}
 
-${REALISM_RULES}
+${getRealismRules()}
 
 Действия игрока в этом месяце:
 ${actions}
@@ -252,7 +268,7 @@ ${actions}
 Напиши РОВНО 7 новостных событий этого месяца. Каждое событие — 2-3 предложения (40-60 слов), содержательно и с деталями. Отражай последствия действий игрока напрямую: если казнил — пиши о реакции армии и народа, если потратил деньги — пиши куда ушли, если оскорблял страну — пиши о дипломатическом кризисе, если действия ведут к перевороту или провозглашению империи — опиши это как реальное историческое событие. Каждое событие с новой строки, без нумерации и символов. Пиши на русском языке.
 
 После 7 событий напиши ровно одну строку:
-EFFECTS:{"treasury_delta":0,"income_delta":0,"army_delta":0,"stability_delta":0,"relations":{"Испания":0,"Великобритания":0,"Россия":0,"Австрия":0,"Пруссия":0},"war_declared":[],"peace_made":[],"ruler_name":null,"ruler_title":null,"government":null,"pm_name":null,"pm_title":null,"map_objects":[]}
+EFFECTS:{"treasury_delta":0,"income_delta":0,"army_delta":0,"stability_delta":0,"relations":{${ALL_COUNTRIES.filter(c => c !== state.country).map(c => `"${c}":0`).join(',')}},"war_declared":[],"peace_made":[],"ruler_name":null,"ruler_title":null,"government":null,"pm_name":null,"pm_title":null,"map_objects":[],"territory_transfer":[]}
 
 КРИТИЧЕСКИ ВАЖНО — заполняй числа исходя из действий игрока, не ставь нули без причины:
 - Казнил/убил солдат или людей → army_delta отрицательный (−количество), stability_delta −3 до −8
@@ -265,19 +281,22 @@ EFFECTS:{"treasury_delta":0,"income_delta":0,"army_delta":0,"stability_delta":0,
 - income_delta — ИСПОЛЬЗУЙ РЕДКО, только для СТРУКТУРНЫХ изменений экономики: открытие/закрытие фабрик, разрушение инфраструктуры войной, изменение налоговой системы, потеря/приобретение территории. НЕ используй income_delta для разовых трат (наряды, пиры, взятки, разовое строительство) — те идут ТОЛЬКО в treasury_delta.
 - Если игрок завёл дорогой постоянный проект (содержание новой армии, масштабная стройка, реформы) — это должно давать ТЕКУЩИЕ расходы через treasury_delta в этом И СЛЕДУЮЩИХ ходах (упоминай в новостях "содержание обходится казне в N франков ежемесячно"), а не через income_delta.
 - treasury_delta и income_delta в франках, army_delta в солдатах
-- ruler_name/ruler_title/government/pm_name/pm_title: указывай значение ТОЛЬКО если в новостях произошёл реальный переворот, провозглашение империи/республики, отречение или отставка премьера. Иначе оставляй null.
-  - government — одно из: "Президентская республика", "Империя", "Конституционная монархия".
-  - ruler_title — точный титул главы государства текстом, например "Император французов", "Президент Французской республики", "Король Франции". Меняй вместе с government, когда меняется форма правления.
+- ruler_name/ruler_title/government/pm_name/pm_title: указывай значение ТОЛЬКО если в новостях произошёл реальный переворот, провозглашение империи/республики, отречение, введение чрезвычайного/временного правления, отставка премьера и т.п. Иначе оставляй null.
+  - government — свободный текст названия формы правления, придумывай подходящее исторической логике (например: "Временное правительство", "Чрезвычайное правительство", "Президентская республика", "Империя", "Конституционная монархия", "Военная диктатура" — любое уместное название, не ограничивайся списком).
+  - ruler_title — точный титул главы государства текстом, например "Император французов", "Президент Французской республики", "Председатель временного правительства". Меняй вместе с government, когда меняется форма правления.
   - pm_name/pm_title — глава правительства может сохранять пост, но игрок или события могут переименовать его должность (например, из "Министр-президент" в "Премьер-министр" после провозглашения империи) — учитывай это как pm_title без обязательной смены pm_name.
+
+ТЕРРИТОРИИ (territory_transfer) — если по итогам событий одна страна аннексирует/захватывает/уступает территорию другой (включая ${state.country}), отрази смену владельца:
+Формат: {"country":"Испания","new_owner":"${state.country}"}. country — одна из стран сценария (${ALL_COUNTRIES.join(', ')}), new_owner — страна, которая теперь ею владеет. Указывай ТОЛЬКО когда это прямо следует из войны/аннексии/уступки территории по итогам событий, иначе оставляй territory_transfer пустым массивом [].
 
 ОБЪЕКТЫ НА КАРТЕ (map_objects) — если игрок явно упомянул создание армии, штаба, флота, отправку делегации/персоны в другую страну и т.п., отрази это как объекты на карте:
 Разрешённые города (используй ТОЛЬКО эти названия для location/to): ${Object.keys(CITY_COORDS).join(', ')}.
 Формат элемента массива map_objects:
-- Создание: {"action":"create","id":"краткий_id_латиницей","type":"army|hq|naval|diplomat|other","owner":"Франция","label":"Парижская армия","troops":50000,"location":"Париж"}
+- Создание: {"action":"create","id":"краткий_id_латиницей","type":"army|hq|naval|diplomat|other","owner":"${state.country}","label":"Парижская армия","troops":50000,"location":"Париж"}
   - type "army" — обязательно указывай troops (число солдат). Сумма всех французских армий на карте не может превышать общую численность армии — если превышает, движок сам обрежет.
   - type "hq"/"naval"/"other" — troops не указывай (0), это здания/штабы, не войска.
   - type "diplomat" — конкретный человек/делегация, без troops.
-  - Если событие описывает армию мятежников или иностранного вторжения — owner "Бунтовщики" или название страны (не "Франция"), тогда лимит численности не действует, придумай реалистичное число сам.
+  - Если событие описывает армию мятежников или иностранного вторжения — owner "Бунтовщики" или название страны (не "${state.country}"), тогда лимит численности не действует, придумай реалистичное число сам.
 - Перемещение: {"action":"move","id":"тот_же_id","to":"Лондон"} — используй когда объект (например, делегация или армия) отправляется в путь; движение анимируется на карте.
 - Удаление: {"action":"remove","id":"тот_же_id"} — когда армия разбита/расформирована или штаб закрыт.
 Создавай map_objects ТОЛЬКО когда это явно следует из действий игрока или сюжета. Не создавай объекты просто так. Если ничего подобного не произошло — оставляй map_objects пустым массивом [].`;
@@ -304,12 +323,12 @@ let advisorHistory = [];
 async function askAdvisor(userMessage) {
   const state = getGameState();
 
-  const systemContext = `Ты — главный советник Франции в ${state.date}.
+  const systemContext = `Ты — главный советник страны ${state.country} в ${state.date}.
 Правитель: ${state.ruler}. Казна: ${state.treasury}. Армия: ${state.army}. Стабильность: ${state.stability}.
 
 ${describeWorldState()}
 
-${REALISM_RULES}
+${getRealismRules()}
 
 Отвечай кратко, по делу, от лица советника эпохи 1852 года. ОБЯЗАТЕЛЬНО упомяни 1-2 конкретных события из хроники в своём ответе если они есть — покажи что ты в курсе. Максимум 120 слов.`;
 
@@ -329,6 +348,7 @@ ${REALISM_RULES}
 // ============================================================
 const diplomacyHistories = {};
 const leaders = {
+  'Франция': 'президент Луи-Наполеон Бонапарт',
   'Испания': 'королева Изабелла II',
   'Великобритания': 'премьер-министр лорд Абердин',
   'Россия': 'царь Николай I',
@@ -349,22 +369,22 @@ async function sendDiplomacy(targetCountry, message) {
     ? 'Последние известия в мире:\n' + worldState.pastEvents.slice(-8).reverse().map((e,i) => `${i+1}. ${e}`).join('\n')
     : '';
 
-  diplomacyHistories[targetCountry].push({ role: 'france', text: message });
+  diplomacyHistories[targetCountry].push({ role: 'player', text: message });
   const historyText = diplomacyHistories[targetCountry].slice(-8)
-    .map(m => `${m.role === 'france' ? 'Франция' : targetCountry}: ${m.text}`).join('\n');
+    .map(m => `${m.role === 'player' ? state.country : targetCountry}: ${m.text}`).join('\n');
 
   const relLabel = relation > 30 ? 'дружелюбные' : relation < -30 ? 'враждебные' : 'нейтральные';
-  const warLine = isWar ? 'ВЫ СЕЙЧАС В СОСТОЯНИИ ВОЙНЫ С ФРАНЦИЕЙ.' : '';
-  const allyLine = isAlly ? 'Вы союзники с Францией.' : '';
+  const warLine = isWar ? `ВЫ СЕЙЧАС В СОСТОЯНИИ ВОЙНЫ С ${state.country.toUpperCase()}.` : '';
+  const allyLine = isAlly ? `Вы союзники с ${state.country}.` : '';
 
   const prompt = `Ты — ${leader} страны ${targetCountry} в ${state.date}.
-Текущие отношения с Францией: ${relation} (${relLabel}). ${warLine} ${allyLine}
-Ты ведёшь дипломатические переговоры с Францией (правитель: ${state.ruler}).
+Текущие отношения с ${state.country}: ${relation} (${relLabel}). ${warLine} ${allyLine}
+Ты ведёшь дипломатические переговоры с ${state.country} (правитель: ${state.ruler}).
 ${recentNews}
 
-${REALISM_RULES}
+${getRealismRules()}
 
-Отвечай от первого лица, как этот исторический персонаж. Реагируй на тон и содержание послания — если Франция грубит, оскорбляет, угрожает — реагируй с гневом и последствиями. Если предлагает выгодное — рассматривай заинтересованно. 60-100 слов.
+Отвечай от первого лица, как этот исторический персонаж. Реагируй на тон и содержание послания — если собеседник грубит, оскорбляет, угрожает — реагируй с гневом и последствиями. Если предлагает выгодное — рассматривай заинтересованно. 60-100 слов.
 
 История переговоров:
 ${historyText}

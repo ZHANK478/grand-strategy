@@ -19,12 +19,15 @@ const franceG = svg.select('#france-g');
 const labelsG = svg.select('#labels-g');
 const objectsG = svg.select('#objects-g');
 
-// Голубые оттенки провинций
-const FRANCE_COLORS = [
-  '#3a7ab8','#4a8ac8','#2e6aa8','#5a98cc','#3a80bc',
-  '#2868a0','#4a90c4','#3878b0','#5294c8','#2c6aaa',
-  '#4286be','#3a7cb8','#2e72ac','#4a8cc4','#5698cc'
-];
+// Цвет территории каждой страны — своя территория и всё захваченное красится в цвет владельца
+const COUNTRY_COLORS = {
+  'Франция':        '#2a5aa8',
+  'Великобритания': '#a82a2a',
+  'Россия':         '#3a7a3a',
+  'Австрия':        '#8a5a1a',
+  'Пруссия':        '#5a5a7a',
+  'Испания':        '#c8a040'
+};
 
 const PROVINCE_INFO = {
   'Île-de-France':               { pop:'2.1 млн', income:'620 фр./мес' },
@@ -158,20 +161,28 @@ function drawMap() {
       .data(countries.features.filter(d => String(d.id) !== FRANCE_ID))
       .join('path')
       .attr('class','country')
+      .attr('data-country', d => KNOWN_COUNTRIES[String(d.id)] ? KNOWN_COUNTRIES[String(d.id)].name : '')
       .attr('d', pathGen)
-      .attr('fill', d => KNOWN_COUNTRIES[String(d.id)] ? '#c8b870' : '#e8e4dc')
+      .attr('fill', d => {
+        const known = KNOWN_COUNTRIES[String(d.id)];
+        if (!known) return '#e8e4dc';
+        const owner = (typeof territoryOwnerOf === 'function') ? territoryOwnerOf(known.name) : known.name;
+        return COUNTRY_COLORS[owner] || '#c8b870';
+      })
       .attr('stroke','#888')
       .attr('stroke-width','0.25')
       .style('cursor', d => KNOWN_COUNTRIES[String(d.id)] ? 'pointer' : 'default')
       .on('mouseover',(e,d)=>{
         const known = KNOWN_COUNTRIES[String(d.id)];
-        d3.select(e.currentTarget).attr('fill', known ? '#e0d080' : '#d8d4cc');
+        d3.select(e.currentTarget).style('opacity', known ? 0.8 : 1);
         tooltip.style.display='block';
         if (known) {
+          const owner = (typeof territoryOwnerOf === 'function') ? territoryOwnerOf(known.name) : known.name;
+          const ownerStr = owner !== known.name ? ` (владеет: ${owner})` : '';
           const rel = (typeof worldState !== 'undefined') ? (worldState.relations[known.name] || 0) : 0;
           const relStr = (rel > 0 ? '+' : '') + rel;
           const war = (typeof worldState !== 'undefined') && worldState.atWarWith.includes(known.name) ? ' ⚔️ ВОЙНА' : '';
-          document.getElementById('t-name').textContent = known.name + war;
+          document.getElementById('t-name').textContent = known.name + ownerStr + war;
           document.getElementById('t-info').textContent = known.label + ' · Отношения: ' + relStr;
         } else {
           document.getElementById('t-name').textContent='Страна';
@@ -180,16 +191,15 @@ function drawMap() {
       })
       .on('mousemove', e => positionTooltip(e))
       .on('mouseleave', (e,d)=>{
-        const known = KNOWN_COUNTRIES[String(d.id)];
-        d3.select(e.currentTarget).attr('fill', known ? '#c8b870' : '#e8e4dc');
+        d3.select(e.currentTarget).style('opacity', 1);
         tooltip.style.display='none';
       })
       .on('click', (e, d) => {
+        const known = KNOWN_COUNTRIES[String(d.id)];
         if (typeof gameStarted !== 'undefined' && !gameStarted) {
-          if (typeof showNotif === 'function') showNotif('⚠️ В этой версии играбельна только Франция');
+          if (known && typeof selectPlayableCountry === 'function') selectPlayableCountry(known.name);
           return;
         }
-        const known = KNOWN_COUNTRIES[String(d.id)];
         if (known && typeof openCountryRelations === 'function') {
           openCountryRelations(known.name);
         }
@@ -200,34 +210,36 @@ function drawMap() {
       .filter(d => KNOWN_COUNTRIES[String(d.id)])
       .forEach(d => addCountryLabel(KNOWN_COUNTRIES[String(d.id)].name, d, true));
 
-    // Регионы Франции — реальный GeoJSON поверх
+    // Регионы Франции — реальный GeoJSON поверх, все в одном цвете страны-владельца
     franceGeo.features.forEach((feature, i) => {
       const name   = feature.properties.nom;
       const info   = PROVINCE_INFO[name] || { pop:'—', income:'—' };
-      const color  = FRANCE_COLORS[i % FRANCE_COLORS.length];
+      const owner  = (typeof territoryOwnerOf === 'function') ? territoryOwnerOf('Франция') : 'Франция';
+      const color  = COUNTRY_COLORS[owner] || COUNTRY_COLORS['Франция'];
       const hcolor = lighten(color);
 
       franceG.append('path')
         .datum(feature)
+        .attr('class', 'france-province')
         .attr('d', pathGen)
         .attr('fill', color)
         .attr('stroke','#6a9ac0')   // серо-голубая граница
         .attr('stroke-width','0.4')
         .style('cursor','pointer')
         .on('mouseover', function(e){
-          d3.select(this).attr('fill', hcolor);
+          d3.select(this).style('opacity', 0.8);
           tooltip.style.display='block';
           document.getElementById('t-name').textContent = name;
           document.getElementById('t-info').textContent = '👥 '+info.pop+' · 💰 '+info.income;
         })
         .on('mousemove', e => positionTooltip(e))
         .on('mouseleave', function(){
-          d3.select(this).attr('fill', color);
+          d3.select(this).style('opacity', 1);
           tooltip.style.display='none';
         })
         .on('click', function(){
           if (typeof gameStarted !== 'undefined' && !gameStarted) {
-            if (typeof newGame === 'function') newGame();
+            if (typeof selectPlayableCountry === 'function') selectPlayableCountry('Франция');
           }
         });
       // Названия регионов больше не рисуются постоянно на карте — только во всплывающей подсказке при наведении
@@ -268,6 +280,25 @@ function updateLabels() {
   updateParis();
   updateCountryLabels();
   updateObjectScale();
+}
+
+// Перекрасить все территории по текущим владельцам (вызывается после аннексий/передач)
+function renderTerritoryColors() {
+  worldG.selectAll('path.country').each(function() {
+    const name = d3.select(this).attr('data-country');
+    if (!name) return;
+    const owner = territoryOwnerOf(name);
+    d3.select(this).attr('fill', COUNTRY_COLORS[owner] || '#c8b870');
+  });
+  const franceOwner = territoryOwnerOf('Франция');
+  franceG.selectAll('.france-province').attr('fill', COUNTRY_COLORS[franceOwner] || COUNTRY_COLORS['Франция']);
+  const spainOwner = territoryOwnerOf('Испания');
+  spainG.selectAll('.spain-territory').attr('fill', COUNTRY_COLORS[spainOwner] || COUNTRY_COLORS['Испания']);
+}
+
+// Выбор играбельной страны кликом по карте в главном меню
+function selectPlayableCountry(name) {
+  if (typeof newGame === 'function') newGame(name);
 }
 
 // ---- ЗУМ и перетаскивание ----
@@ -319,27 +350,33 @@ function drawSpain() {
 
     spainG.append('path')
       .datum(spain)
+      .attr('class', 'spain-territory')
       .attr('d', pathGen)
-      .attr('fill', '#c8a040')
+      .attr('fill', () => {
+        const owner = (typeof territoryOwnerOf === 'function') ? territoryOwnerOf('Испания') : 'Испания';
+        return COUNTRY_COLORS[owner] || COUNTRY_COLORS['Испания'];
+      })
       .attr('stroke', '#7a5a10')
       .attr('stroke-width', '0.5')
       .style('cursor', 'pointer')
       .on('mouseover', function(e) {
-        d3.select(this).attr('fill', '#e0b850');
+        d3.select(this).style('opacity', 0.8);
         tooltip.style.display = 'block';
+        const owner = (typeof territoryOwnerOf === 'function') ? territoryOwnerOf('Испания') : 'Испания';
+        const ownerStr = owner !== 'Испания' ? ` (владеет: ${owner})` : '';
         const rel = (typeof worldState !== 'undefined') ? (worldState.relations['Испания'] || 0) : 0;
         const war = (typeof worldState !== 'undefined') && worldState.atWarWith.includes('Испания') ? ' ⚔️ ВОЙНА' : '';
-        document.getElementById('t-name').textContent = 'Испания' + war;
+        document.getElementById('t-name').textContent = 'Испания' + ownerStr + war;
         document.getElementById('t-info').textContent = '👑 Королева Изабелла II · Отношения: ' + (rel > 0 ? '+' : '') + rel;
       })
       .on('mousemove', e => positionTooltip(e))
       .on('mouseleave', function() {
-        d3.select(this).attr('fill', '#c8a040');
+        d3.select(this).style('opacity', 1);
         tooltip.style.display = 'none';
       })
       .on('click', function() {
         if (typeof gameStarted !== 'undefined' && !gameStarted) {
-          if (typeof showNotif === 'function') showNotif('⚠️ В этой версии играбельна только Франция');
+          if (typeof selectPlayableCountry === 'function') selectPlayableCountry('Испания');
           return;
         }
         if (typeof openCountryRelations === 'function') openCountryRelations('Испания');
@@ -356,19 +393,21 @@ drawSpain();
 // ОБЪЕКТЫ НА КАРТЕ — армии, штабы, передвижения (создаются через EFFECTS от ИИ)
 // ============================================================
 const TYPE_ICONS = { army: '⚔️', hq: '🏛', naval: '⚓', diplomat: '🕊️', other: '📍' };
-const OWNER_COLORS = { 'Франция': '#1a3a8a', rebel: '#7a1a1a', foreign: '#8a1a1a' };
+const OWNER_COLORS = { rebel: '#7a1a1a', foreign: '#8a1a1a' };
 
 function ownerColor(owner) {
-  if (owner === 'Франция') return OWNER_COLORS['Франция'];
+  const pc = (typeof playerCountry !== 'undefined') ? playerCountry : 'Франция';
+  if (owner === pc) return COUNTRY_COLORS[pc] || '#1a3a8a';
   if (owner === 'Бунтовщики' || owner === 'Мятежники') return OWNER_COLORS.rebel;
-  return OWNER_COLORS.foreign;
+  return COUNTRY_COLORS[owner] || OWNER_COLORS.foreign;
 }
 
-// Суммарные войска Франции, уже размещённые на карте (для проверки лимита общей армии)
+// Суммарные войска игрока, уже размещённые на карте (для проверки лимита общей армии)
 function totalFrenchTroopsOnMap(excludeId) {
   if (typeof worldState === 'undefined' || !worldState.mapObjects) return 0;
+  const pc = (typeof playerCountry !== 'undefined') ? playerCountry : 'Франция';
   return worldState.mapObjects
-    .filter(o => o.owner === 'Франция' && o.type === 'army' && o.id !== excludeId)
+    .filter(o => o.owner === pc && o.type === 'army' && o.id !== excludeId)
     .reduce((sum, o) => sum + (o.troops || 0), 0);
 }
 
@@ -385,10 +424,10 @@ function applyMapObjects(list) {
       const loc = CITY_COORDS[item.location];
       if (!loc) return; // неизвестный город — пропускаем
       let troops = item.troops || 0;
-      const owner = item.owner || 'Франция';
+      const owner = item.owner || playerCountry;
       const type = item.type || 'other';
 
-      if (owner === 'Франция' && type === 'army') {
+      if (owner === playerCountry && type === 'army') {
         const currentArmy = parseInt(document.getElementById('army').textContent.replace(/\s/g,'')) || 0;
         const already = totalFrenchTroopsOnMap(null);
         const room = Math.max(0, currentArmy - already);

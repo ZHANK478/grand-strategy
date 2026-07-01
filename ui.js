@@ -70,7 +70,6 @@ function advisorKeydown(e) {
 // ============================================================
 // ДИПЛОМАТИЯ — выбор страны и чат
 // ============================================================
-const availableCountries = ['Испания', 'Великобритания', 'Россия', 'Австрия', 'Пруссия'];
 let selectedCountry = null;
 
 function openDiploPanel() {
@@ -84,6 +83,9 @@ function openDiploPanel() {
 function renderCountryList() {
   if (selectedCountry) return;
   const list = document.getElementById('diplo-countries');
+  const availableCountries = (typeof ALL_COUNTRIES !== 'undefined')
+    ? ALL_COUNTRIES.filter(c => c !== playerCountry)
+    : ['Испания', 'Великобритания', 'Россия', 'Австрия', 'Пруссия'];
   list.innerHTML = availableCountries.map(c => {
     const rel = (typeof worldState !== 'undefined') ? (worldState.relations[c] || 0) : 0;
     const color = rel > 30 ? '#2a7a2a' : rel < -30 ? '#8a1a1a' : '#7a6a30';
@@ -147,6 +149,7 @@ function diploKeydown(e) {
 // ПАНЕЛЬ ОТНОШЕНИЙ — открывается кликом на страну на карте
 // ============================================================
 const leaderNames = {
+  'Франция': 'Луи-Наполеон Бонапарт',
   'Испания': 'Королева Изабелла II',
   'Великобритания': 'Премьер-министр лорд Абердин',
   'Россия': 'Царь Николай I',
@@ -249,13 +252,13 @@ function startGame() {
   document.getElementById('main-menu').style.display = 'none';
 }
 
-// Клик по Франции на карте главного меню — сразу новая игра
-function newGame() {
+// Клик по стране на карте главного меню — сразу новая игра за эту страну
+function newGame(country) {
   currentSlotId = 'slot_' + Date.now();
-  resetGame();
+  resetGame(country);
   saveGame();
   startGame();
-  showNotif('🇫🇷 Новая игра началась');
+  showNotif('🏳️ Новая игра началась: ' + playerCountry);
 }
 
 // "Продолжить" в главном меню — грузит последнюю по времени партию
@@ -324,7 +327,7 @@ function closePauseMenu() {
 
 function pauseRestart() {
   if (!confirm('Начать заново? Текущий прогресс этой партии будет потерян.')) return;
-  resetGame();
+  resetGame(playerCountry);
   saveGame();
   closePauseMenu();
   showNotif('🔄 Игра начата заново');

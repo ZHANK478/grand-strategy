@@ -173,8 +173,9 @@ body.menu-mode .game-ui{display:none !important;}
 .setting-row input[type=range]{width:100%;margin-top:6px;}
 .setting-row .setting-val{font-size:11px;color:#888;float:right;}
 
-/* РЕДАКТОР СЦЕНАРИЕВ */
-#editor-panel{position:absolute;top:70px;left:14px;width:270px;bottom:14px;background:#fff;border:1px solid #bbb;border-radius:5px;z-index:410;display:none;flex-direction:column;box-shadow:0 4px 16px rgba(0,0,0,0.2);overflow:hidden;}
+/* РЕДАКТОР СЦЕНАРИЕВ — полностью отдельный от игровой карты холст */
+#editor-screen{position:absolute;inset:0;z-index:410;background:#eef1f4;display:none;flex-direction:row;}
+#editor-sidebar{width:270px;background:#fff;border-right:1px solid #bbb;display:flex;flex-direction:column;box-shadow:2px 0 10px rgba(0,0,0,0.08);}
 .editor-hdr{background:#2a2a3a;color:#fff;padding:10px 13px;font-size:13px;display:flex;justify-content:space-between;align-items:center;}
 .editor-body{padding:12px 13px;overflow-y:auto;flex:1;}
 .editor-hint{font-size:11px;color:#666;line-height:1.6;margin-bottom:10px;background:#f4f4f4;padding:8px;border-radius:4px;}
@@ -184,19 +185,34 @@ body.menu-mode .game-ui{display:none !important;}
 .editor-btn.danger:hover{background:#a02525;}
 .editor-btn.ghost{background:#eee;color:#333;}
 .editor-btn.ghost:hover{background:#ddd;}
+.editor-btn.active{background:#c07a1a;}
+.editor-mode-row{display:flex;gap:6px;margin-bottom:9px;}
+.editor-mode-row .editor-btn{margin-bottom:0;}
 #editor-draw-status{font-size:11px;color:#1a6a1a;font-weight:bold;margin-bottom:8px;display:none;}
 #editor-province-list{margin-top:10px;}
 .eprov-item{display:flex;justify-content:space-between;align-items:center;padding:6px 8px;border:1px solid #e5e5e5;border-radius:4px;margin-bottom:6px;font-size:11px;}
 .eprov-name{font-weight:bold;color:#222;}
-.eprov-owner{color:#888;font-size:10px;}
 .eprov-actions{display:flex;gap:4px;}
 .eprov-actions button{border:none;border-radius:3px;padding:3px 6px;cursor:pointer;font-size:11px;background:#eee;}
 .eprov-actions button:hover{background:#ddd;}
+#editor-canvas-wrap{flex:1;position:relative;background:#dfe6ec;}
+#editor-svg{width:100%;height:100%;cursor:crosshair;}
+
+/* Список карт */
+.map-tpl-item,.map-saved-item{display:flex;justify-content:space-between;align-items:center;padding:9px 10px;border:1px solid #e0e0e0;border-radius:4px;margin-bottom:7px;cursor:pointer;}
+.map-tpl-item:hover,.map-saved-item:hover{background:#f4f4f4;}
+.map-item-name{font-size:12px;font-weight:bold;color:#222;}
+.map-item-sub{font-size:10px;color:#888;}
 
 /* Форма сохранения новой провинции */
-#editor-save-form{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);z-index:420;background:#fff;border-radius:6px;padding:20px;width:260px;box-shadow:0 8px 30px rgba(0,0,0,0.4);display:none;}
+#editor-save-form{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);z-index:600;background:#fff;border-radius:6px;padding:20px;width:260px;box-shadow:0 8px 30px rgba(0,0,0,0.4);display:none;}
 #editor-save-form h4{font-size:14px;margin-bottom:12px;}
-#editor-save-form input,#editor-save-form select{width:100%;padding:7px;margin-bottom:9px;border:1px solid #ccc;border-radius:3px;font-family:Georgia,serif;font-size:12px;}
+#editor-save-form input{width:100%;padding:7px;margin-bottom:9px;border:1px solid #ccc;border-radius:3px;font-family:Georgia,serif;font-size:12px;}
+
+/* Форма сохранения карты */
+#editor-map-name-form{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);z-index:600;background:#fff;border-radius:6px;padding:20px;width:260px;box-shadow:0 8px 30px rgba(0,0,0,0.4);display:none;}
+#editor-map-name-form h4{font-size:14px;margin-bottom:12px;}
+#editor-map-name-form input{width:100%;padding:7px;margin-bottom:9px;border:1px solid #ccc;border-radius:3px;font-family:Georgia,serif;font-size:12px;}
 </style>
 </head>
 <body class="menu-mode">
@@ -231,20 +247,53 @@ body.menu-mode .game-ui{display:none !important;}
   </div>
 </div>
 
-<!-- РЕДАКТОР СЦЕНАРИЕВ -->
-<div id="editor-panel">
-  <div class="editor-hdr">
-    <span>🛠 Редактор сценариев</span>
-    <span class="xbtn" onclick="closeScenarioEditor()">✕</span>
+<!-- РЕДАКТОР СЦЕНАРИЕВ — полностью отдельная песочница, не связана с игровой картой -->
+<div id="editor-screen">
+  <div id="editor-sidebar">
+    <div class="editor-hdr">
+      <span>🛠 Редактор сценариев</span>
+      <span class="xbtn" onclick="closeScenarioEditor()">✕</span>
+    </div>
+    <div class="editor-body">
+
+      <!-- Вкладка: список карт -->
+      <div id="editor-view-maps">
+        <div class="editor-hint">Карты — отдельная песочница. Здесь нет стран и игровой механики, только контуры для рисования провинций.</div>
+        <div class="map-tpl-item" onclick="newMapFromTemplate('world')">
+          <div><div class="map-item-name">🌍 Мир (контуры)</div><div class="map-item-sub">Береговые линии для трассировки</div></div>
+        </div>
+        <div class="map-tpl-item" onclick="newMapFromTemplate('blank')">
+          <div><div class="map-item-name">⬜ Пустая карта</div><div class="map-item-sub">Чистый холст</div></div>
+        </div>
+        <div style="margin:14px 0 8px;font-size:10px;text-transform:uppercase;color:#999;letter-spacing:.05em">Сохранённые карты</div>
+        <div id="editor-saved-maps-list"></div>
+        <button class="editor-btn ghost" onclick="closeScenarioEditor()" style="margin-top:14px">🚪 Выйти в меню</button>
+      </div>
+
+      <!-- Вкладка: рисование -->
+      <div id="editor-view-draw" style="display:none">
+        <div class="editor-hint">Клик — точка (режим «Точки»). Зажать и вести мышь — линия (режим «Карандаш»).</div>
+        <div class="editor-mode-row">
+          <button class="editor-btn active" id="mode-point-btn" onclick="setDrawMode('point')">• Точки</button>
+          <button class="editor-btn" id="mode-pencil-btn" onclick="setDrawMode('pencil')">🖊 Карандаш</button>
+        </div>
+        <div id="editor-draw-status">✏️ Рисование... точек: <span id="editor-point-count">0</span></div>
+        <button class="editor-btn" id="editor-new-btn" onclick="startDrawingProvince()">➕ Новая провинция</button>
+        <button class="editor-btn ghost" id="editor-finish-btn" onclick="finishDrawingProvince()" style="display:none">✅ Готово</button>
+        <button class="editor-btn danger" id="editor-cancel-btn" onclick="cancelDrawingProvince()" style="display:none">✖ Отменить рисование</button>
+        <div id="editor-province-list"></div>
+        <button class="editor-btn" onclick="promptSaveMap()" style="margin-top:10px">💾 Сохранить карту</button>
+        <button class="editor-btn ghost" onclick="backToMapsList()">◀ К списку карт</button>
+      </div>
+
+    </div>
   </div>
-  <div class="editor-body">
-    <div class="editor-hint">Кликайте по карте, чтобы ставить точки границы провинции. Двойной клик или кнопка «Готово» — завершить фигуру.</div>
-    <div id="editor-draw-status">✏️ Рисование... точек: <span id="editor-point-count">0</span></div>
-    <button class="editor-btn" id="editor-new-btn" onclick="startDrawingProvince()">➕ Новая провинция</button>
-    <button class="editor-btn ghost" id="editor-finish-btn" onclick="finishDrawingProvince()" style="display:none">✅ Готово</button>
-    <button class="editor-btn danger" id="editor-cancel-btn" onclick="cancelDrawingProvince()" style="display:none">✖ Отменить рисование</button>
-    <div id="editor-province-list"></div>
-    <button class="editor-btn ghost" onclick="closeScenarioEditor()" style="margin-top:10px">🚪 Выйти в меню</button>
+  <div id="editor-canvas-wrap">
+    <svg id="editor-svg" viewBox="0 0 960 560" xmlns="http://www.w3.org/2000/svg">
+      <rect width="960" height="560" fill="#dfe6ec"/>
+      <g id="editor-bg-g"></g>
+      <g id="editor-draw-g"></g>
+    </svg>
   </div>
 </div>
 
@@ -252,9 +301,16 @@ body.menu-mode .game-ui{display:none !important;}
 <div id="editor-save-form">
   <h4>Новая провинция</h4>
   <input type="text" id="eform-name" placeholder="Название провинции">
-  <input type="text" id="eform-owner" placeholder="Страна-владелец (например Франция)">
   <button class="editor-btn" onclick="saveDrawnProvince()">💾 Сохранить</button>
   <button class="editor-btn ghost" onclick="discardDrawnProvince()">Отмена</button>
+</div>
+
+<!-- ФОРМА СОХРАНЕНИЯ КАРТЫ -->
+<div id="editor-map-name-form">
+  <h4>Название карты</h4>
+  <input type="text" id="emap-name" placeholder="Например: Европа v1">
+  <button class="editor-btn" onclick="confirmSaveMap()">💾 Сохранить</button>
+  <button class="editor-btn ghost" onclick="document.getElementById('editor-map-name-form').style.display='none'">Отмена</button>
 </div>
 
 <!-- ЭКРАН ЗАГРУЗКИ ИГРЫ -->
@@ -377,7 +433,6 @@ body.menu-mode .game-ui{display:none !important;}
     <g id="france-g"></g>
     <g id="labels-g"></g>
     <g id="objects-g"></g>
-    <g id="editor-g"></g>
   </svg>
 </div>
 

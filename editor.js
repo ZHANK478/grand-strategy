@@ -265,7 +265,7 @@ function renderBackground(template) {
       .attr('x', 480).attr('y', 280)
       .attr('text-anchor', 'middle').attr('font-size', 13)
       .attr('fill', '#fff').attr('font-family', 'Georgia,serif')
-      .text('⏳ Загрузка провинций всех стран (Natural Earth Admin-1, ~5-6 МБ, может занять до минуты)...');
+      .text('⏳ Загрузка провинций (Natural Earth Admin-1 — есть детально не для всех стран)...');
 
     fetchAdmin1Data();
   }
@@ -292,8 +292,11 @@ function fetchAdmin1Data(sourceIndex) {
 
   d3.json(ADMIN1_SOURCES[sourceIndex])
     .then(data => {
-      if (!data || !Array.isArray(data.features) || data.features.length < 1000) {
-        throw new Error('Получено ' + (data && data.features ? data.features.length : 0) + ' объектов вместо ожидаемых ~4600');
+      // Важно: у этого источника подробное деление есть лишь для ограниченного набора крупных
+      // стран (реально около 294 объектов на весь мир, не тысячи) — это не ошибка загрузки,
+      // а особенность самого датасета. Порог тут — просто защита от совсем пустого/битого ответа.
+      if (!data || !Array.isArray(data.features) || data.features.length < 50) {
+        throw new Error('Получено ' + (data && data.features ? data.features.length : 0) + ' объектов — подозрительно мало');
       }
       neAdmin1Cache = data; // кэшируем в памяти на всю сессию — повторно грузить не будем
       editorBgG.select('#editor-loading-txt').remove();

@@ -218,3 +218,20 @@ function updateRelationsPanel() {
   const name = document.getElementById('rel-country-name').textContent;
   if (name) openCountryRelations(name);
 }
+
+// ============================================================
+// ИЗМЕНЕНИЯ ЗА ХОД — сводка после каждого хода (вызывается из ai.js)
+// ============================================================
+function renderTurnChanges(changes) {
+  const box = document.getElementById('changes-box');
+  const list = document.getElementById('changes-list');
+  if (!changes || changes.length === 0) {
+    list.innerHTML = '<div class="chg-empty">Заметных изменений не произошло</div>';
+  } else {
+    list.innerHTML = changes.map(c => {
+      const cls = c.sign > 0 ? 'pos' : c.sign < 0 ? 'neg' : 'neutral';
+      return `<div class="chg-item"><span class="chg-label">${c.label}</span><span class="chg-val ${cls}">${c.value}</span></div>`;
+    }).join('');
+  }
+  box.style.display = 'block';
+}

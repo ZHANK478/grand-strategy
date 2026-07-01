@@ -115,6 +115,17 @@ body{background:#f0ede8;color:#111;font-family:Georgia,serif;overflow:hidden;hei
 .rel-status{font-size:13px;font-weight:bold;}
 .rel-diplo-btn{width:100%;margin-top:12px;background:#1a2a4a;border:none;color:#fff;padding:8px;border-radius:3px;cursor:pointer;font-size:12px;font-family:Georgia,serif;}
 .rel-diplo-btn:hover{background:#2a3a5a;}
+
+/* ИЗМЕНЕНИЯ ЗА ХОД */
+#changes-box{position:absolute;top:88px;right:368px;width:230px;background:#fff;border:1px solid #bbb;border-radius:5px;z-index:200;display:none;box-shadow:0 4px 16px rgba(0,0,0,0.15);max-height:420px;overflow-y:auto;}
+.changes-hdr{background:#2a2a3a;color:#fff;padding:9px 13px;border-bottom:1px solid #ddd;font-size:13px;display:flex;justify-content:space-between;align-items:center;border-radius:5px 5px 0 0;position:sticky;top:0;}
+.chg-item{display:flex;justify-content:space-between;align-items:center;padding:7px 13px;font-size:12px;border-bottom:1px solid #f0f0f0;}
+.chg-item .chg-label{color:#444;}
+.chg-item .chg-val{font-weight:bold;}
+.chg-val.pos{color:#1a7a1a;}
+.chg-val.neg{color:#b02020;}
+.chg-val.neutral{color:#7a6a20;}
+.chg-empty{padding:12px 13px;font-size:11px;color:#888;font-style:italic;}
 </style>
 </head>
 <body>
@@ -153,10 +164,10 @@ body{background:#f0ede8;color:#111;font-family:Georgia,serif;overflow:hidden;hei
     </div>
   </div>
   <div class="portrait-caption">
-    <div class="pc-name">Луи-Наполеон Бонапарт</div>
-    <div class="pc-title">Президент Французской республики</div>
+    <div class="pc-name" id="ruler-name">Луи-Наполеон Бонапарт</div>
+    <div class="pc-title" id="ruler-title">Президент Французской республики</div>
   </div>
-  <div class="govbadge">🏛 Президентская республика</div>
+  <div class="govbadge" id="govbadge-text">🏛 Президентская республика</div>
 
   <div class="psec">
     <button class="cbtn" onclick="toggle('pm')">▶ Глава правительства</button>
@@ -173,7 +184,7 @@ body{background:#f0ede8;color:#111;font-family:Georgia,serif;overflow:hidden;hei
         </div>
       </div>
       <div class="portrait-caption">
-        <div class="pc-name" style="font-size:13px">Эжен Руэр</div>
+        <div class="pc-name" id="pm-name" style="font-size:13px">Эжен Руэр</div>
         <div class="pc-title">Министр-президент</div>
       </div>
     </div>
@@ -216,6 +227,15 @@ body{background:#f0ede8;color:#111;font-family:Georgia,serif;overflow:hidden;hei
 </div>
 
 <div id="tooltip"><div class="tn" id="t-name">—</div><div class="tr" id="t-info">—</div></div>
+
+<!-- ИЗМЕНЕНИЯ ЗА ХОД -->
+<div id="changes-box">
+  <div class="changes-hdr">
+    <span>📊 Изменения за ход</span>
+    <span class="xbtn" onclick="document.getElementById('changes-box').style.display='none'">✕</span>
+  </div>
+  <div id="changes-list"></div>
+</div>
 
 <!-- СОБЫТИЯ -->
 <div id="events-box">

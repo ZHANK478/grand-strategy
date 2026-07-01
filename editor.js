@@ -18,6 +18,28 @@ let editorDrawing = false;
 let editorPoints = [];         // [[x,y], ...] в координатах editor-svg (0..960 / 0..560)
 let pencilActive = false;      // мышь зажата в режиме карандаша
 
+// ---- Зум и панорамирование холста редактора (независимо от игровой карты) ----
+let edVb = { x: 0, y: 0, w: 960, h: 560 };
+let edPanning = false, edPanStart = { x: 0, y: 0 };
+
+function applyEditorViewBox() {
+  editorSvgEl.setAttribute('viewBox', `${edVb.x} ${edVb.y} ${edVb.w} ${edVb.h}`);
+}
+
+document.getElementById('editor-canvas-wrap').addEventListener('wheel', function(e) {
+  e.preventDefault();
+  const f = e.deltaY > 0 ? 1.12 : 0.89;
+  const nw = Math.max(25, Math.min(1800, edVb.w * f));
+  const nh = Math.max(15, Math.min(1100, edVb.h * f));
+  const rect = editorSvgEl.getBoundingClientRect();
+  const mx = (e.clientX - rect.left) / rect.width;
+  const my = (e.clientY - rect.top) / rect.height;
+  edVb.x += edVb.w * mx - nw * mx;
+  edVb.y += edVb.h * my - nh * my;
+  edVb.w = nw; edVb.h = nh;
+  applyEditorViewBox();
+}, { passive: false });
+
 let currentMapId = null;       // null = новая несохранённая карта
 let currentMapTemplate = null; // 'world' | 'blank'
 let mapProvinces = [];         // [{id, name, points}]
@@ -117,27 +139,59 @@ function enterDrawView() {
   document.getElementById('editor-view-maps').style.display = 'none';
   document.getElementById('editor-view-draw').style.display = 'block';
   cancelDrawingProvince();
+  edVb = { x: 0, y: 0, w: 960, h: 560 };
+  applyEditorViewBox();
   renderMapProvinces();
   renderEditorProvinceList();
 }
 
 // ============================================================
-// Фон-подложка (только контуры, без стран/цветов/игровой логики)
+// Фон-подложка (только контуры для трассировки — цветовая палитра как в основной игре)
 // ============================================================
 function renderBackground(template) {
   editorBgG.selectAll('*').remove();
-  if (template !== 'world') return;
-  d3.json('https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json').then(world => {
-    const countries = topojson.feature(world, world.objects.countries);
-    editorBgG.selectAll('path')
-      .data(countries.features)
-      .join('path')
-      .attr('d', editorPathGen)
-      .attr('fill', '#eceee9')
-      .attr('stroke', '#aaa')
-      .attr('stroke-width', 0.4)
-      .attr('pointer-events', 'none');
-  });
+  if (template === 'blank') return;
+
+  if (template === 'world') {
+    d3.json('https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json').then(world => {
+      const countries = topojson.feature(world, world.objects.countries);
+      editorBgG.selectAll('path')
+        .data(countries.features)
+        .join('path')
+        .attr('d', editorPathGen)
+        .attr('fill', '#e8e4dc')
+        .attr('stroke', '#888')
+        .attr('stroke-width', 0.25)
+        .attr('pointer-events', 'none');
+    });
+  }
+
+  if (template === 'provinces') {
+    editorBgG.append('text')
+      .attr('id', 'editor-loading-txt')
+      .attr('x', 480).attr('y', 280)
+      .attr('text-anchor', 'middle').attr('font-size', 13)
+      .attr('fill', '#fff').attr('font-family', 'Georgia,serif')
+      .text('⏳ Загрузка провинций всех стран (Natural Earth Admin-1)...');
+
+    // Natural Earth Admin-1 (штаты/провинции/области всех стран мира), через jsDelivr зеркало GitHub
+    d3.json('https://cdn.jsdelivr.net/gh/nvkelso/natural-earth-vector@master/geojson/ne_50m_admin_1_states_provinces.geojson')
+      .then(data => {
+        editorBgG.select('#editor-loading-txt').remove();
+        editorBgG.selectAll('path')
+          .data(data.features)
+          .join('path')
+          .attr('d', editorPathGen)
+          .attr('fill', '#e8e4dc')
+          .attr('stroke', '#999')
+          .attr('stroke-width', 0.2)
+          .attr('pointer-events', 'none');
+      })
+      .catch(err => {
+        console.error(err);
+        editorBgG.select('#editor-loading-txt').text('⚠️ Не удалось загрузить — попробуйте ещё раз');
+      });
+  }
 }
 
 // ============================================================
@@ -203,11 +257,12 @@ function discardDrawnProvince() {
   document.getElementById('editor-save-form').style.display = 'none';
 }
 
-// ---- Координаты мыши → координаты editor-svg (без пана/зума, поэтому точно совпадает с курсором) ----
+// ---- Координаты мыши → координаты editor-svg (учитывает текущий зум/пан холста) ----
 function editorMouseCoords(e) {
   const rect = editorSvgEl.getBoundingClientRect();
-  const x = (e.clientX - rect.left) * (960 / rect.width);
-  const y = (e.clientY - rect.top) * (560 / rect.height);
+  const scale = edVb.w / rect.width;
+  const x = edVb.x + (e.clientX - rect.left) * scale;
+  const y = edVb.y + (e.clientY - rect.top) * scale;
   return [x, y];
 }
 
@@ -224,6 +279,25 @@ editorSvgEl.addEventListener('dblclick', function(e) {
   if (!editorDrawing || drawMode !== 'point') return;
   e.preventDefault();
   finishDrawingProvince();
+});
+
+// Панорамирование холста (перетаскивание) — только когда НЕ идёт рисование
+editorSvgEl.addEventListener('mousedown', function(e) {
+  if (editorDrawing) return; // во время рисования перетаскивание отключено, чтобы не мешать карандашу/точкам
+  edPanning = true;
+  edPanStart = { x: e.clientX, y: e.clientY };
+});
+window.addEventListener('mousemove', function(e) {
+  if (!edPanning) return;
+  const rect = editorSvgEl.getBoundingClientRect();
+  const scale = edVb.w / rect.width;
+  edVb.x -= (e.clientX - edPanStart.x) * scale;
+  edVb.y -= (e.clientY - edPanStart.y) * scale;
+  edPanStart = { x: e.clientX, y: e.clientY };
+  applyEditorViewBox();
+});
+window.addEventListener('mouseup', function() {
+  edPanning = false;
 });
 
 // Режим "Карандаш": зажать и вести мышь — рисуется непрерывная линия
@@ -284,9 +358,9 @@ function renderMapProvinces() {
     editorDrawG.insert('path', '.draw-preview')
       .attr('class', 'map-prov')
       .attr('d', d)
-      .attr('fill', 'rgba(90,120,160,0.25)')
-      .attr('stroke', '#2a3a5a')
-      .attr('stroke-width', 1);
+      .attr('fill', '#e8e4dc')
+      .attr('stroke', '#555')
+      .attr('stroke-width', 0.8);
 
     const cx = p.points.reduce((s, pt) => s + pt[0], 0) / p.points.length;
     const cy = p.points.reduce((s, pt) => s + pt[1], 0) / p.points.length;

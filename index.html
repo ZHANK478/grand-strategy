@@ -195,7 +195,7 @@ body.menu-mode .game-ui{display:none !important;}
 .eprov-actions{display:flex;gap:4px;}
 .eprov-actions button{border:none;border-radius:3px;padding:3px 6px;cursor:pointer;font-size:11px;background:#eee;}
 .eprov-actions button:hover{background:#ddd;}
-#editor-canvas-wrap{flex:1;position:relative;background:#dfe6ec;}
+#editor-canvas-wrap{flex:1;position:relative;background:#4a7aaa;overflow:hidden;}
 #editor-svg{width:100%;height:100%;cursor:crosshair;}
 
 /* Список карт */
@@ -260,7 +260,10 @@ body.menu-mode .game-ui{display:none !important;}
       <div id="editor-view-maps">
         <div class="editor-hint">Карты — отдельная песочница. Здесь нет стран и игровой механики, только контуры для рисования провинций.</div>
         <div class="map-tpl-item" onclick="newMapFromTemplate('world')">
-          <div><div class="map-item-name">🌍 Мир (контуры)</div><div class="map-item-sub">Береговые линии для трассировки</div></div>
+          <div><div class="map-item-name">🌍 Мир (контуры стран)</div><div class="map-item-sub">Только границы стран, без провинций</div></div>
+        </div>
+        <div class="map-tpl-item" onclick="newMapFromTemplate('provinces')">
+          <div><div class="map-item-name">🗺️ Мир с провинциями</div><div class="map-item-sub">Natural Earth Admin-1 · все страны · загрузка может занять время</div></div>
         </div>
         <div class="map-tpl-item" onclick="newMapFromTemplate('blank')">
           <div><div class="map-item-name">⬜ Пустая карта</div><div class="map-item-sub">Чистый холст</div></div>
@@ -290,7 +293,7 @@ body.menu-mode .game-ui{display:none !important;}
   </div>
   <div id="editor-canvas-wrap">
     <svg id="editor-svg" viewBox="0 0 960 560" xmlns="http://www.w3.org/2000/svg">
-      <rect width="960" height="560" fill="#dfe6ec"/>
+      <rect width="960" height="560" fill="#4a7aaa"/>
       <g id="editor-bg-g"></g>
       <g id="editor-draw-g"></g>
     </svg>

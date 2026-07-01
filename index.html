@@ -280,6 +280,10 @@ body.menu-mode .game-ui{display:none !important;}
           <button class="editor-btn active" id="mode-point-btn" onclick="setDrawMode('point')">• Точки</button>
           <button class="editor-btn" id="mode-pencil-btn" onclick="setDrawMode('pencil')">🖊 Карандаш</button>
         </div>
+        <div class="setting-row" style="margin-bottom:10px">
+          <label style="display:block">Толщина линии<span class="setting-val" id="editor-stroke-val">0.6</span></label>
+          <input type="range" id="editor-stroke-slider" min="0.1" max="3" step="0.1" value="0.6" oninput="onChangeEditorStroke(this.value)">
+        </div>
         <div id="editor-draw-status">✏️ Рисование... точек: <span id="editor-point-count">0</span></div>
         <button class="editor-btn" id="editor-new-btn" onclick="startDrawingProvince()">➕ Новая провинция</button>
         <button class="editor-btn ghost" id="editor-finish-btn" onclick="finishDrawingProvince()" style="display:none">✅ Готово</button>

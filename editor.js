@@ -41,8 +41,77 @@ document.getElementById('editor-canvas-wrap').addEventListener('wheel', function
 }, { passive: false });
 
 let currentMapId = null;       // null = новая несохранённая карта
-let currentMapTemplate = null; // 'world' | 'blank'
+let currentMapTemplate = null; // 'world' | 'blank' | 'provinces'
 let mapProvinces = [];         // [{id, name, points}]
+
+let currentBgFeatures = [];    // спроецированные кольца фона (для прилипания границ)
+let neAdmin1Cache = null;      // кэш в памяти сессии — Natural Earth грузится один раз за сессию
+
+let strokeWidth = parseFloat(localStorage.getItem('gs1852_editor_stroke')) || 0.6;
+function onChangeEditorStroke(val) {
+  strokeWidth = parseFloat(val);
+  localStorage.setItem('gs1852_editor_stroke', strokeWidth);
+  document.getElementById('editor-stroke-val').textContent = strokeWidth.toFixed(1);
+  updateDrawPreview();
+  renderMapProvinces();
+}
+
+// ---- Прилипание к существующим границам (снап), как в ГИС-редакторах ----
+const SNAP_PX = 10; // радиус прилипания в экранных пикселях
+let snapSegments = []; // [[[x1,y1],[x2,y2]], ...] — сегменты границ, доступные для прилипания в текущем виде
+
+function buildSnapIndex() {
+  snapSegments = [];
+  const pad = edVb.w * 0.15;
+  const bx0 = edVb.x - pad, bx1 = edVb.x + edVb.w + pad;
+  const by0 = edVb.y - pad, by1 = edVb.y + edVb.h + pad;
+
+  function addRing(coordsLatLon) {
+    const pts = coordsLatLon.map(c => editorProj(c)).filter(p => p && !isNaN(p[0]));
+    for (let i = 0; i < pts.length - 1; i++) {
+      const a = pts[i], b = pts[i + 1];
+      if (Math.max(a[0], b[0]) < bx0 || Math.min(a[0], b[0]) > bx1) continue;
+      if (Math.max(a[1], b[1]) < by0 || Math.min(a[1], b[1]) > by1) continue;
+      snapSegments.push([a, b]);
+    }
+  }
+
+  currentBgFeatures.forEach(f => {
+    const geom = f.geometry;
+    if (!geom) return;
+    if (geom.type === 'Polygon') geom.coordinates.forEach(addRing);
+    if (geom.type === 'MultiPolygon') geom.coordinates.forEach(poly => poly.forEach(addRing));
+  });
+
+  // Уже нарисованные на этой карте провинции — тоже цепляемся к их границам
+  mapProvinces.forEach(p => {
+    if (!p.points || p.points.length < 2) return;
+    const ring = p.points.concat([p.points[0]]);
+    for (let i = 0; i < ring.length - 1; i++) snapSegments.push([ring[i], ring[i + 1]]);
+  });
+}
+
+function closestPointOnSegment(p, a, b) {
+  const dx = b[0] - a[0], dy = b[1] - a[1];
+  const len2 = dx * dx + dy * dy;
+  if (len2 === 0) return a;
+  let t = ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / len2;
+  t = Math.max(0, Math.min(1, t));
+  return [a[0] + t * dx, a[1] + t * dy];
+}
+
+function snapPoint(xy) {
+  if (snapSegments.length === 0) return xy;
+  const rect = editorSvgEl.getBoundingClientRect();
+  const radiusSvg = SNAP_PX * (edVb.w / rect.width);
+  let best = null, bestDist = radiusSvg;
+  snapSegments.forEach(seg => {
+    const cp = closestPointOnSegment(xy, seg[0], seg[1]);
+    const d = Math.hypot(cp[0] - xy[0], cp[1] - xy[1]);
+    if (d < bestDist) { bestDist = d; best = cp; }
+  });
+  return best || xy;
+}
 
 // ============================================================
 // Индекс сохранённых карт
@@ -141,6 +210,8 @@ function enterDrawView() {
   cancelDrawingProvince();
   edVb = { x: 0, y: 0, w: 960, h: 560 };
   applyEditorViewBox();
+  document.getElementById('editor-stroke-slider').value = strokeWidth;
+  document.getElementById('editor-stroke-val').textContent = strokeWidth.toFixed(1);
   renderMapProvinces();
   renderEditorProvinceList();
 }
@@ -150,11 +221,13 @@ function enterDrawView() {
 // ============================================================
 function renderBackground(template) {
   editorBgG.selectAll('*').remove();
-  if (template === 'blank') return;
+  currentBgFeatures = [];
+  if (template === 'blank') { buildSnapIndex(); return; }
 
   if (template === 'world') {
     d3.json('https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json').then(world => {
       const countries = topojson.feature(world, world.objects.countries);
+      currentBgFeatures = countries.features;
       editorBgG.selectAll('path')
         .data(countries.features)
         .join('path')
@@ -163,35 +236,59 @@ function renderBackground(template) {
         .attr('stroke', '#888')
         .attr('stroke-width', 0.25)
         .attr('pointer-events', 'none');
+      buildSnapIndex();
     });
   }
 
   if (template === 'provinces') {
+    if (neAdmin1Cache) {
+      currentBgFeatures = neAdmin1Cache.features;
+      drawProvinceFeatures(neAdmin1Cache.features);
+      buildSnapIndex();
+      return;
+    }
+
     editorBgG.append('text')
       .attr('id', 'editor-loading-txt')
       .attr('x', 480).attr('y', 280)
       .attr('text-anchor', 'middle').attr('font-size', 13)
       .attr('fill', '#fff').attr('font-family', 'Georgia,serif')
-      .text('⏳ Загрузка провинций всех стран (Natural Earth Admin-1)...');
+      .text('⏳ Загрузка провинций всех стран (Natural Earth Admin-1, ~5-6 МБ, может занять до минуты)...');
 
-    // Natural Earth Admin-1 (штаты/провинции/области всех стран мира), через jsDelivr зеркало GitHub
-    d3.json('https://cdn.jsdelivr.net/gh/nvkelso/natural-earth-vector@master/geojson/ne_50m_admin_1_states_provinces.geojson')
-      .then(data => {
-        editorBgG.select('#editor-loading-txt').remove();
-        editorBgG.selectAll('path')
-          .data(data.features)
-          .join('path')
-          .attr('d', editorPathGen)
-          .attr('fill', '#e8e4dc')
-          .attr('stroke', '#999')
-          .attr('stroke-width', 0.2)
-          .attr('pointer-events', 'none');
-      })
-      .catch(err => {
-        console.error(err);
-        editorBgG.select('#editor-loading-txt').text('⚠️ Не удалось загрузить — попробуйте ещё раз');
-      });
+    fetchAdmin1Data();
   }
+}
+
+function fetchAdmin1Data() {
+  // Natural Earth Admin-1 (штаты/провинции/области всех стран мира), через jsDelivr зеркало GitHub
+  d3.json('https://cdn.jsdelivr.net/gh/nvkelso/natural-earth-vector@master/geojson/ne_50m_admin_1_states_provinces.geojson')
+    .then(data => {
+      neAdmin1Cache = data; // кэшируем в памяти на всю сессию — повторно грузить не будем
+      editorBgG.select('#editor-loading-txt').remove();
+      currentBgFeatures = data.features;
+      drawProvinceFeatures(data.features);
+      buildSnapIndex();
+    })
+    .catch(err => {
+      console.error(err);
+      editorBgG.select('#editor-loading-txt')
+        .text('⚠️ Не удалось загрузить. ')
+        .append('tspan').attr('x', 480).attr('dy', 16).text('Нажмите, чтобы повторить попытку.')
+        .attr('cursor', 'pointer');
+      editorBgG.select('#editor-loading-txt').style('cursor', 'pointer').on('click', fetchAdmin1Data);
+    });
+}
+
+function drawProvinceFeatures(features) {
+  editorBgG.selectAll('path').remove();
+  editorBgG.selectAll('path')
+    .data(features)
+    .join('path')
+    .attr('d', editorPathGen)
+    .attr('fill', '#e8e4dc')
+    .attr('stroke', '#999')
+    .attr('stroke-width', 0.2)
+    .attr('pointer-events', 'none');
 }
 
 // ============================================================
@@ -206,6 +303,7 @@ function setDrawMode(mode) {
 function startDrawingProvince() {
   editorDrawing = true;
   editorPoints = [];
+  buildSnapIndex();
   document.getElementById('editor-draw-status').style.display = 'block';
   document.getElementById('editor-point-count').textContent = '0';
   document.getElementById('editor-new-btn').style.display = 'none';
@@ -266,10 +364,10 @@ function editorMouseCoords(e) {
   return [x, y];
 }
 
-// Режим "Точки": клик добавляет вершину
+// Режим "Точки": клик добавляет вершину (с прилипанием к соседним границам)
 editorSvgEl.addEventListener('click', function(e) {
   if (!editorDrawing || drawMode !== 'point') return;
-  const xy = editorMouseCoords(e);
+  const xy = snapPoint(editorMouseCoords(e));
   editorPoints.push(xy);
   document.getElementById('editor-point-count').textContent = editorPoints.length;
   updateDrawPreview();
@@ -300,20 +398,21 @@ window.addEventListener('mouseup', function() {
   edPanning = false;
 });
 
-// Режим "Карандаш": зажать и вести мышь — рисуется непрерывная линия
+// Режим "Карандаш": зажать и вести мышь — рисуется непрерывная линия (тоже липнет к границам)
 editorSvgEl.addEventListener('mousedown', function(e) {
   if (!editorDrawing || drawMode !== 'pencil') return;
   pencilActive = true;
-  const xy = editorMouseCoords(e);
+  const xy = snapPoint(editorMouseCoords(e));
   editorPoints.push(xy);
   document.getElementById('editor-point-count').textContent = editorPoints.length;
   updateDrawPreview();
 });
 editorSvgEl.addEventListener('mousemove', function(e) {
   if (!editorDrawing || drawMode !== 'pencil' || !pencilActive) return;
-  const xy = editorMouseCoords(e);
+  const raw = editorMouseCoords(e);
   const last = editorPoints[editorPoints.length - 1];
-  if (last && Math.hypot(xy[0] - last[0], xy[1] - last[1]) < 4) return; // не копим лишние точки
+  if (last && Math.hypot(raw[0] - last[0], raw[1] - last[1]) < 4) return; // не копим лишние точки
+  const xy = snapPoint(raw);
   editorPoints.push(xy);
   document.getElementById('editor-point-count').textContent = editorPoints.length;
   updateDrawPreview();
@@ -333,7 +432,7 @@ function updateDrawPreview() {
     .attr('d', d)
     .attr('fill', 'rgba(0,0,0,0.08)')
     .attr('stroke', '#111')
-    .attr('stroke-width', 1.4)
+    .attr('stroke-width', strokeWidth)
     .attr('stroke-dasharray', drawMode === 'point' ? '3,2' : 'none');
 
   if (drawMode === 'point') {
@@ -341,7 +440,7 @@ function updateDrawPreview() {
       editorDrawG.append('circle')
         .attr('class', 'draw-vertex')
         .attr('cx', p[0]).attr('cy', p[1])
-        .attr('r', 2.6)
+        .attr('r', strokeWidth + 1.6)
         .attr('fill', '#111');
     });
   }
@@ -360,7 +459,7 @@ function renderMapProvinces() {
       .attr('d', d)
       .attr('fill', '#e8e4dc')
       .attr('stroke', '#555')
-      .attr('stroke-width', 0.8);
+      .attr('stroke-width', strokeWidth);
 
     const cx = p.points.reduce((s, pt) => s + pt[0], 0) / p.points.length;
     const cy = p.points.reduce((s, pt) => s + pt[1], 0) / p.points.length;

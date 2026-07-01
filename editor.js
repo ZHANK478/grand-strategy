@@ -98,11 +98,16 @@ function buildSnapIndex() {
     if (geom.type === 'MultiPolygon') geom.coordinates.forEach(poly => poly.forEach(addRing));
   });
 
-  // Уже нарисованные на этой карте провинции — тоже цепляемся к их границам
+  // Уже нарисованные вручную провинции этой карты — тоже цепляемся к их границам
   mapProvinces.forEach(p => {
-    if (!p.points || p.points.length < 2) return;
-    const ring = p.points.concat([p.points[0]]);
-    for (let i = 0; i < ring.length - 1; i++) snapSegments.push([ring[i], ring[i + 1]]);
+    if (p.points && p.points.length >= 2) {
+      const ring = p.points.concat([p.points[0]]);
+      for (let i = 0; i < ring.length - 1; i++) snapSegments.push([ring[i], ring[i + 1]]);
+    }
+    if (p.geometry) {
+      if (p.geometry.type === 'Polygon') p.geometry.coordinates.forEach(addRing);
+      if (p.geometry.type === 'MultiPolygon') p.geometry.coordinates.forEach(poly => poly.forEach(addRing));
+    }
   });
 }
 
@@ -425,29 +430,6 @@ window.addEventListener('mouseup', function() {
 // Границы, которые видно на фоне (страны/Natural Earth), — не рисунок, а реальные фигуры.
 // Клик по такой области (вне режима рисования) сразу превращает её в провинцию со своими границами.
 // ============================================================
-function planarArea(pts) {
-  let a = 0;
-  for (let i = 0; i < pts.length - 1; i++) a += pts[i][0] * pts[i + 1][1] - pts[i + 1][0] * pts[i][1];
-  return Math.abs(a / 2);
-}
-
-// Выбираем главное кольцо контура по площади В ПРОЕЦИРОВАННЫХ координатах (не в сырых lon/lat —
-// у стран возле полюсов и с большим охватом по долготе (Канада, Россия) формула площади в градусах
-// сильно искажена и выбирала не тот кусок геометрии).
-function extractMainRingProjected(geom) {
-  if (!geom) return null;
-  const rings = geom.type === 'Polygon' ? [geom.coordinates[0]]
-    : geom.type === 'MultiPolygon' ? geom.coordinates.map(poly => poly[0])
-    : [];
-  let best = null, bestArea = -1;
-  rings.forEach(ring => {
-    const pts = ring.map(c => editorProj(c)).filter(p => p && !isNaN(p[0]));
-    if (pts.length < 3) return;
-    const a = planarArea(pts);
-    if (a > bestArea) { bestArea = a; best = pts; }
-  });
-  return best;
-}
 
 function featureId(f) {
   const p = f.properties || {};
@@ -458,56 +440,15 @@ function featureName(f) {
   return p.name || p.NAME || p.name_en || p.admin || 'Без названия';
 }
 
-// Максимальный "прыжок" между соседними точками контура (в единицах проекции).
-// У стран возле 180° долготы (Россия, Фиджи, США через Аляску) Natural Earth иногда
-// даёт контур, перескакивающий с +180° на −180° — без этой защиты получается
-// гигантская ложная полоса через всю карту вместо настоящей границы.
-const MAX_RING_JUMP = 250;
-
-// Страны/провинции возле 180° долготы (Россия, Аляска-США, Фиджи и т.п.) в этом источнике
-// иногда хранятся ОДНИМ контуром, перескакивающим через линию перемены даты. Вместо того чтобы
-// просто отказывать в импорте, разрезаем контур на куски в местах разрыва — каждый кусок
-// становится отдельной провинцией («часть 1», «часть 2»), без ложной полосы через карту.
-function splitRingAtJumps(points) {
-  const n = points.length;
-  const jumpIdx = [];
-  for (let i = 0; i < n; i++) {
-    const a = points[i], b = points[(i + 1) % n];
-    if (Math.hypot(a[0] - b[0], a[1] - b[1]) > MAX_RING_JUMP) jumpIdx.push(i);
-  }
-  if (jumpIdx.length === 0) return [points];
-
-  const chunks = [];
-  for (let k = 0; k < jumpIdx.length; k++) {
-    const start = (jumpIdx[k] + 1) % n;
-    const end = jumpIdx[(k + 1) % jumpIdx.length];
-    const chunk = [];
-    let idx = start, guard = 0;
-    while (guard++ <= n) {
-      chunk.push(points[idx]);
-      if (idx === end) break;
-      idx = (idx + 1) % n;
-    }
-    if (chunk.length >= 3) chunks.push(chunk);
-  }
-  return chunks;
-}
-
+// Как и основная карта игры (map.js), храним у импортированных провинций ПОЛНУЮ geo-геометрию
+// (в градусах, как в исходном GeoJSON) и рисуем её через editorPathGen — d3 сам корректно
+// рисует "разрывные" фигуры (Россия, Аляска — из нескольких кусков через 180° долготы),
+// без ручной склейки в одну линию, которая раньше ломала контур.
 function importFeatureAsProvince(f) {
   const fid = featureId(f);
-  if (mapProvinces.some(p => p.id === fid || p.id.indexOf(fid + '_p') === 0)) return 'dup';
-  const points = extractMainRingProjected(f.geometry);
-  if (!points || points.length < 3) return 'small';
-
-  const pieces = splitRingAtJumps(points);
-  if (pieces.length === 0) return 'small';
-
-  const baseName = featureName(f);
-  pieces.forEach((pts, i) => {
-    const pid = pieces.length > 1 ? fid + '_p' + (i + 1) : fid;
-    const name = pieces.length > 1 ? baseName + ' (часть ' + (i + 1) + ')' : baseName;
-    mapProvinces.push({ id: pid, name, points: pts });
-  });
+  if (mapProvinces.some(p => p.id === fid)) return 'dup';
+  if (!f.geometry) return 'small';
+  mapProvinces.push({ id: fid, name: featureName(f), geometry: f.geometry });
   return 'ok';
 }
 
@@ -638,8 +579,25 @@ function updateDrawPreview() {
 function renderMapProvinces() {
   editorDrawG.selectAll('.map-prov').remove();
   mapProvinces.forEach(p => {
-    if (!p.points || p.points.length < 3) return;
-    const d = 'M' + p.points.map(pt => pt.join(',')).join('L') + 'Z';
+    let d, cx, cy;
+
+    if (p.geometry) {
+      // Импортированная провинция — полная geo-геометрия, рисуем через d3 (корректно обрабатывает
+      // многочастные фигуры вроде России/Аляски, разорванные через 180° долготы)
+      const feature = { type: 'Feature', geometry: p.geometry };
+      d = editorPathGen(feature);
+      if (!d) return;
+      const c = editorPathGen.centroid(feature);
+      cx = c[0]; cy = c[1];
+    } else if (p.points && p.points.length >= 3) {
+      // Нарисованная вручную провинция — простой многоугольник в экранных координатах
+      d = 'M' + p.points.map(pt => pt.join(',')).join('L') + 'Z';
+      cx = p.points.reduce((s, pt) => s + pt[0], 0) / p.points.length;
+      cy = p.points.reduce((s, pt) => s + pt[1], 0) / p.points.length;
+    } else {
+      return;
+    }
+
     editorDrawG.insert('path', '.draw-preview')
       .attr('class', 'map-prov')
       .attr('d', d)
@@ -648,8 +606,6 @@ function renderMapProvinces() {
       .attr('stroke-width', strokeWidth);
 
     if (!showProvinceLabels) return;
-    const cx = p.points.reduce((s, pt) => s + pt[0], 0) / p.points.length;
-    const cy = p.points.reduce((s, pt) => s + pt[1], 0) / p.points.length;
     editorDrawG.insert('text', '.draw-preview')
       .attr('class', 'map-prov')
       .attr('x', cx).attr('y', cy)

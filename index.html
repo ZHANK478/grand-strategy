@@ -397,6 +397,7 @@ body.menu-mode .game-ui{display:none !important;}
     <div class="pc-name" id="ruler-name">Луи-Наполеон Бонапарт</div>
     <div class="pc-title" id="ruler-title">Президент Французской республики</div>
   </div>
+  <div class="govbadge" id="country-name-badge" style="font-weight:bold">🏳️ Франция</div>
   <div class="govbadge" id="govbadge-text">🏛 Президентская республика</div>
 
   <div class="psec">
@@ -434,16 +435,16 @@ body.menu-mode .game-ui{display:none !important;}
   <div class="psec">
     <button class="cbtn" onclick="toggle('country')">▶ Данные страны</button>
     <div class="ccont" id="country">
-      <div class="irow"><span class="k">Население</span><span>35.8 млн</span></div>
-      <div class="irow"><span class="k">Площадь</span><span>551 000 км²</span></div>
-      <div class="irow"><span class="k">Столица</span><span>Париж</span></div>
-      <div class="irow"><span class="k">ВВП</span><span>~14 млрд фр.</span></div>
+      <div class="irow"><span class="k">Население</span><span id="country-pop">35.8 млн</span></div>
+      <div class="irow"><span class="k">Площадь</span><span id="country-area">551 000 км²</span></div>
+      <div class="irow"><span class="k">Столица</span><span id="country-capital">Париж</span></div>
+      <div class="irow"><span class="k">ВВП</span><span id="country-gdp">~14 млрд фр.</span></div>
     </div>
   </div>
 
   <div class="psec">
     <div class="phdr">Положение страны</div>
-    <div class="state-text">Франция в 1852 году переживает переходный период. Луи-Наполеон готовится провозгласить Вторую империю. Экономика растёт, но политическое напряжение высоко.</div>
+    <div class="state-text" id="country-blurb">Франция в 1852 году переживает переходный период. Луи-Наполеон готовится провозгласить Вторую империю. Экономика растёт, но политическое напряжение высоко.</div>
   </div>
 </div>
 
@@ -548,11 +549,11 @@ body.menu-mode .game-ui{display:none !important;}
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/topojson/3.0.2/topojson.min.js"></script>
-<script src="map.js?v=11"></script>
-<script src="ai.js?v=11"></script>
-<script src="game.js?v=11"></script>
-<script src="ui.js?v=11"></script>
-<script src="editor.js?v=11"></script>
+<script src="map.js?v=12"></script>
+<script src="ai.js?v=12"></script>
+<script src="game.js?v=12"></script>
+<script src="ui.js?v=12"></script>
+<script src="editor.js?v=12"></script>
 <script>initMenu();</script>
 </body>
 </html>

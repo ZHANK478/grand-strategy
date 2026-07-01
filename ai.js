@@ -119,6 +119,18 @@ function getRealismRules() {
 }
 const REALISM_RULES_LEGACY = null; // оставлено для совместимости, используйте getRealismRules()
 
+// Игрок может переименовать свою страну (Пруссия → "Русская Держава" и т.п.), но все системные
+// поля (territoryOwners, COUNTRY_COLORS, relations, ALL_COUNTRIES) работают по КАНОНИЧЕСКОМУ имени
+// (playerCountry). ИИ в тексте использует отображаемое имя — здесь приводим его обратно к канону,
+// иначе перекраска карты/поиск владельца молча ломается.
+function normalizeCountryName(name) {
+  if (!name) return name;
+  if (typeof playerCountryDisplayName !== 'undefined' && typeof playerCountry !== 'undefined' && name === playerCountryDisplayName) {
+    return playerCountry;
+  }
+  return name;
+}
+
 // ============================================================
 // ПАРСИНГ И ПРИМЕНЕНИЕ JSON-ЭФФЕКТОВ ОТ ИИ
 // ============================================================
@@ -150,7 +162,8 @@ function parseAndApplyEffects(text) {
     }
 
     if (effects.relations) {
-      Object.entries(effects.relations).forEach(([country, delta]) => {
+      Object.entries(effects.relations).forEach(([rawCountry, delta]) => {
+        const country = normalizeCountryName(rawCountry);
         if (delta && delta !== 0) {
           changeRelations(country, delta);
           turnChanges.push({ label: '🤝 ' + country, value: (delta > 0 ? '+' : '') + delta, sign: delta });
@@ -166,16 +179,20 @@ function parseAndApplyEffects(text) {
     if (effects.territory_transfer && Array.isArray(effects.territory_transfer) && typeof transferTerritory === 'function') {
       effects.territory_transfer.forEach(t => {
         if (!t || !t.country || !t.new_owner) return;
-        const oldOwner = (typeof territoryOwnerOf === 'function') ? territoryOwnerOf(t.country) : t.country;
-        if (oldOwner === t.new_owner) return;
-        transferTerritory(t.country, t.new_owner);
-        showNotif(`🏳️ ${t.country} теперь под властью: ${t.new_owner}`);
-        turnChanges.push({ label: '🏳️ Территория', value: t.country + ' → ' + t.new_owner, sign: t.new_owner === playerCountry ? 1 : (oldOwner === playerCountry ? -1 : 0) });
+        const country = normalizeCountryName(t.country);
+        const newOwner = normalizeCountryName(t.new_owner);
+        if (!ALL_COUNTRIES.includes(country) || !ALL_COUNTRIES.includes(newOwner)) return;
+        const oldOwner = (typeof territoryOwnerOf === 'function') ? territoryOwnerOf(country) : country;
+        if (oldOwner === newOwner) return;
+        transferTerritory(country, newOwner);
+        showNotif(`🏳️ ${country} теперь под властью: ${newOwner}`);
+        turnChanges.push({ label: '🏳️ Территория', value: country + ' → ' + newOwner, sign: newOwner === playerCountry ? 1 : (oldOwner === playerCountry ? -1 : 0) });
       });
     }
 
     if (effects.war_declared && Array.isArray(effects.war_declared)) {
-      effects.war_declared.forEach(c => {
+      effects.war_declared.forEach(raw => {
+        const c = normalizeCountryName(raw);
         if (!worldState.atWarWith.includes(c)) worldState.atWarWith.push(c);
         changeRelations(c, -50);
         showNotif(`⚔️ Война объявлена: ${c}!`);
@@ -184,7 +201,8 @@ function parseAndApplyEffects(text) {
     }
 
     if (effects.peace_made && Array.isArray(effects.peace_made)) {
-      effects.peace_made.forEach(c => {
+      effects.peace_made.forEach(raw => {
+        const c = normalizeCountryName(raw);
         worldState.atWarWith = worldState.atWarWith.filter(x => x !== c);
         changeRelations(c, 20);
         showNotif(`🕊️ Мир заключён с ${c}`);
@@ -198,6 +216,26 @@ function parseAndApplyEffects(text) {
       renameCountry(effects.country_name);
       showNotif(`🏳️ Страна переименована: ${effects.country_name}`);
       turnChanges.push({ label: '🏳️ Название страны', value: old + ' → ' + effects.country_name, sign: 0 });
+    }
+
+    // Смена власти в ЧУЖИХ странах (например поставленный марионеточный правитель в захваченной территории)
+    if (effects.foreign_leader_change && Array.isArray(effects.foreign_leader_change) && typeof setForeignRuler === 'function') {
+      effects.foreign_leader_change.forEach(f => {
+        if (!f || !f.country) return;
+        const country = normalizeCountryName(f.country);
+        if (country === playerCountry || !ALL_COUNTRIES.includes(country)) return; // своей страной управляем через ruler_name
+        const old = countryRulers[country] ? countryRulers[country].ruler : country;
+        const fields = {};
+        if (f.ruler_name) fields.ruler = f.ruler_name;
+        if (f.ruler_title) fields.rulerTitle = f.ruler_title;
+        if (f.government) fields.government = f.government;
+        if (f.pm_name) fields.pm = f.pm_name;
+        if (f.pm_title) fields.pmTitle = f.pm_title;
+        if (Object.keys(fields).length === 0) return;
+        setForeignRuler(country, fields);
+        showNotif(`👑 Новый правитель в ${country}: ${fields.ruler || old}`);
+        turnChanges.push({ label: '👑 Власть в ' + country, value: old + ' → ' + (fields.ruler || old), sign: 0 });
+      });
     }
 
     // Смена власти: правитель, его титул, форма правления, премьер-министр и его титул
@@ -286,7 +324,7 @@ ${actions}
 Напиши РОВНО 7 новостных событий этого месяца. Каждое событие — 2-3 предложения (40-60 слов), содержательно и с деталями. Отражай последствия действий игрока напрямую: если казнил — пиши о реакции армии и народа, если потратил деньги — пиши куда ушли, если оскорблял страну — пиши о дипломатическом кризисе, если действия ведут к перевороту или провозглашению империи — опиши это как реальное историческое событие. Каждое событие с новой строки, без нумерации и символов. Пиши на русском языке.
 
 После 7 событий напиши ровно одну строку:
-EFFECTS:{"treasury_delta":0,"income_delta":0,"army_delta":0,"stability_delta":0,"relations":{${ALL_COUNTRIES.filter(c => c !== state.country).map(c => `"${c}":0`).join(',')}},"war_declared":[],"peace_made":[],"country_name":null,"ruler_name":null,"ruler_title":null,"government":null,"pm_name":null,"pm_title":null,"map_objects":[],"territory_transfer":[]}
+EFFECTS:{"treasury_delta":0,"income_delta":0,"army_delta":0,"stability_delta":0,"relations":{${ALL_COUNTRIES.filter(c => c !== state.country).map(c => `"${c}":0`).join(',')}},"war_declared":[],"peace_made":[],"country_name":null,"ruler_name":null,"ruler_title":null,"government":null,"pm_name":null,"pm_title":null,"map_objects":[],"territory_transfer":[],"foreign_leader_change":[]}
 
 КРИТИЧЕСКИ ВАЖНО — заполняй числа исходя из действий игрока, не ставь нули без причины:
 - Казнил/убил солдат или людей → army_delta отрицательный (−количество), stability_delta −3 до −8
@@ -304,20 +342,30 @@ EFFECTS:{"treasury_delta":0,"income_delta":0,"army_delta":0,"stability_delta":0,
   - government — свободный текст названия формы правления, придумывай подходящее исторической логике (например: "Временное правительство", "Чрезвычайное правительство", "Президентская республика", "Империя", "Конституционная монархия", "Военная диктатура" — любое уместное название, не ограничивайся списком).
   - ruler_title — точный титул главы государства текстом, например "Император французов", "Президент Французской республики", "Председатель временного правительства". Меняй вместе с government, когда меняется форма правления.
   - pm_name/pm_title — глава правительства может сохранять пост, но игрок или события могут переименовать его должность (например, из "Министр-президент" в "Премьер-министр" после провозглашения империи) — учитывай это как pm_title без обязательной смены pm_name.
+  - Эти поля меняют власть ТОЛЬКО в стране игрока (${state.country}). Для смены власти в ДРУГИХ странах используй foreign_leader_change ниже.
 
-ТЕРРИТОРИИ (territory_transfer) — если по итогам событий одна страна аннексирует/захватывает/уступает территорию другой (включая ${state.country}), отрази смену владельца:
-Формат: {"country":"Испания","new_owner":"${state.country}"}. country — одна из стран сценария (${ALL_COUNTRIES.join(', ')}), new_owner — страна, которая теперь ею владеет. Указывай ТОЛЬКО когда это прямо следует из войны/аннексии/уступки территории по итогам событий, иначе оставляй territory_transfer пустым массивом [].
+foreign_leader_change — смена правителя в ЧУЖОЙ стране (не ${state.country}), например если игрок захватил территорию, "освободил" её или посадил марионеточного правителя после победы в войне.
+Формат: [{"country":"Пруссия","ruler_name":"Новое Имя","ruler_title":"Титул","government":"Форма правления","pm_name":null,"pm_title":null}]. Указывай ТОЛЬКО когда это прямо следует из сюжета (переворот, назначение игроком нового правителя, освобождение территории). Иначе оставляй пустым массивом [].
 
-ОБЪЕКТЫ НА КАРТЕ (map_objects) — если игрок явно упомянул создание армии, штаба, флота, отправку делегации/персоны в другую страну и т.п., отрази это как объекты на карте:
+ТЕРРИТОРИИ (territory_transfer) — если по итогам событий одна СТРАНА ЦЕЛИКОМ аннексирует/захватывает/уступает территорию другой страны ЦЕЛИКОМ (включая ${state.country}), отрази смену владельца:
+Формат: {"country":"Испания","new_owner":"${state.country}"}. country — одна из стран сценария (${ALL_COUNTRIES.join(', ')}), new_owner — страна, которая теперь ею владеет.
+ВАЖНО: territory_transfer работает ТОЛЬКО на уровне целых стран целиком — система пока не различает провинции ВНУТРИ страны. Если игрок уступает/получает лишь ЧАСТЬ территории страны (например одну область, а не всю страну) — НЕ используй territory_transfer (это исказит карту, отдав всю страну), просто опиши это в новостях текстом и отрази последствия через treasury/stability/relations. territory_transfer указывай ТОЛЬКО когда меняет владельца ВСЯ страна целиком. Иначе оставляй пустым массивом [].
+
+ОБЪЕКТЫ НА КАРТЕ (map_objects) — если игрок явно упомянул создание армии, штаба, флота, отправку делегации/персоны в другую страну, расформирование/пополнение существующего объекта и т.п., отрази это:
 Разрешённые города (используй ТОЛЬКО эти названия для location/to): ${Object.keys(CITY_COORDS).join(', ')}.
+${worldState.mapObjects && worldState.mapObjects.length > 0
+    ? 'УЖЕ СУЩЕСТВУЮЩИЕ объекты на карте (используй их id для update/remove/move, не создавай дубликаты):\n' +
+      worldState.mapObjects.map(o => `- id:"${o.id}" label:"${o.label}" type:${o.type} owner:${o.owner} troops:${o.troops} location:${o.location}`).join('\n')
+    : 'На карте пока нет объектов.'}
 Формат элемента массива map_objects:
 - Создание: {"action":"create","id":"краткий_id_латиницей","type":"army|hq|naval|diplomat|other","owner":"${state.country}","label":"Парижская армия","troops":50000,"location":"Париж"}
-  - type "army" — обязательно указывай troops (число солдат). Сумма всех французских армий на карте не может превышать общую численность армии — если превышает, движок сам обрежет.
+  - type "army" — обязательно указывай troops (число солдат). Сумма всех армий игрока на карте не может превышать общую численность армии — если превышает, движок сам обрежет.
   - type "hq"/"naval"/"other" — troops не указывай (0), это здания/штабы, не войска.
   - type "diplomat" — конкретный человек/делегация, без troops.
   - Если событие описывает армию мятежников или иностранного вторжения — owner "Бунтовщики" или название страны (не "${state.country}"), тогда лимит численности не действует, придумай реалистичное число сам.
+- Изменение: {"action":"update","id":"id_существующего_объекта","troops":50000} — используй когда часть армии распущена/пополнена (например "уволить 200000 из резерва") или переименована (добавь "label":"новое имя"). Если troops опускается до 0 — объект удалится сам. ОБЯЗАТЕЛЬНО используй update, когда игрок явно меняет численность УЖЕ СУЩЕСТВУЮЩЕГО объекта — не оставляй его "висеть" с устаревшим числом.
 - Перемещение: {"action":"move","id":"тот_же_id","to":"Лондон"} — используй когда объект (например, делегация или армия) отправляется в путь; движение анимируется на карте.
-- Удаление: {"action":"remove","id":"тот_же_id"} — когда армия разбита/расформирована или штаб закрыт.
+- Удаление: {"action":"remove","id":"тот_же_id"} — когда армия полностью разбита/расформирована или штаб закрыт.
 Создавай map_objects ТОЛЬКО когда это явно следует из действий игрока или сюжета. Не создавай объекты просто так. Если ничего подобного не произошло — оставляй map_objects пустым массивом [].`;
 
   const result = await askGemini(prompt, 1200);
@@ -379,7 +427,8 @@ async function sendDiplomacy(targetCountry, message) {
   const state = getGameState();
   if (!diplomacyHistories[targetCountry]) diplomacyHistories[targetCountry] = [];
 
-  const leader = leaders[targetCountry] || 'правитель ' + targetCountry;
+  const cr = (typeof countryRulers !== 'undefined') ? countryRulers[targetCountry] : null;
+  const leader = cr ? `${cr.pmTitle || cr.rulerTitle || 'правитель'} ${cr.ruler}` : (leaders[targetCountry] || 'правитель ' + targetCountry);
   const relation = worldState.relations[targetCountry] || 0;
   const isWar = worldState.atWarWith.includes(targetCountry);
   const isAlly = worldState.alliedWith.includes(targetCountry);

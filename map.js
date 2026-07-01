@@ -424,7 +424,8 @@ function applyMapObjects(list) {
       const loc = CITY_COORDS[item.location];
       if (!loc) return; // неизвестный город — пропускаем
       let troops = item.troops || 0;
-      const owner = item.owner || playerCountry;
+      const rawOwner = item.owner || playerCountry;
+      const owner = (typeof normalizeCountryName === 'function') ? normalizeCountryName(rawOwner) : rawOwner;
       const type = item.type || 'other';
 
       if (owner === playerCountry && type === 'army') {
@@ -450,6 +451,23 @@ function applyMapObjects(list) {
       if (idx > -1) {
         changeLog.push(`✖ Убрано с карты: ${worldState.mapObjects[idx].label}`);
         worldState.mapObjects.splice(idx, 1);
+      }
+    }
+
+    // Изменить численность/название уже существующего объекта (расформирование части, пополнение,
+    // переименование) — без этого объекты навсегда "застревали" на карте с исходным числом солдат.
+    if (item.action === 'update') {
+      const obj = worldState.mapObjects.find(o => o.id === item.id || o.label === item.label);
+      if (obj) {
+        const before = obj.troops || 0;
+        if (typeof item.troops === 'number') obj.troops = Math.max(0, item.troops);
+        if (item.label) obj.label = item.label;
+        if (obj.troops === 0 && obj.type === 'army') {
+          changeLog.push(`✖ Расформировано: ${obj.label}`);
+          worldState.mapObjects = worldState.mapObjects.filter(o => o !== obj);
+        } else {
+          changeLog.push(`✏️ Обновлено: ${obj.label}${typeof item.troops === 'number' ? ' (' + before.toLocaleString('ru') + ' → ' + obj.troops.toLocaleString('ru') + ')' : ''}`);
+        }
       }
     }
 

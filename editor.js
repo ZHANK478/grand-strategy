@@ -271,24 +271,37 @@ function renderBackground(template) {
   }
 }
 
-function fetchAdmin1Data() {
-  // Natural Earth Admin-1 (штаты/провинции/области всех стран мира), через jsDelivr зеркало GitHub
-  d3.json('https://cdn.jsdelivr.net/gh/nvkelso/natural-earth-vector@master/geojson/ne_50m_admin_1_states_provinces.geojson')
+// Несколько источников одного и того же датасета — если jsDelivr отдал неполные данные
+// (бывает с большими файлами через зеркало GitHub), пробуем следующий по очереди.
+const ADMIN1_SOURCES = [
+  'https://cdn.jsdelivr.net/gh/nvkelso/natural-earth-vector@master/geojson/ne_50m_admin_1_states_provinces.geojson',
+  'https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson/ne_50m_admin_1_states_provinces.geojson'
+];
+
+function fetchAdmin1Data(sourceIndex) {
+  sourceIndex = sourceIndex || 0;
+  if (sourceIndex >= ADMIN1_SOURCES.length) {
+    editorBgG.select('#editor-loading-txt')
+      .text('⚠️ Не удалось загрузить ни с одного источника.')
+      .append('tspan').attr('x', 480).attr('dy', 16).text('Нажмите, чтобы попробовать снова.');
+    editorBgG.select('#editor-loading-txt').style('cursor', 'pointer').on('click', () => fetchAdmin1Data(0));
+    return;
+  }
+
+  editorBgG.select('#editor-loading-txt').text(`⏳ Загрузка провинций (источник ${sourceIndex + 1}/${ADMIN1_SOURCES.length})...`);
+
+  d3.json(ADMIN1_SOURCES[sourceIndex])
     .then(data => {
       if (!data || !Array.isArray(data.features) || data.features.length < 1000) {
-        // Файл пришёл, но подозрительно мало объектов — источник отдал неполные/битые данные
-        throw new Error('Получено ' + (data && data.features ? data.features.length : 0) + ' объектов вместо ожидаемых ~4600 — данные неполные');
+        throw new Error('Получено ' + (data && data.features ? data.features.length : 0) + ' объектов вместо ожидаемых ~4600');
       }
       neAdmin1Cache = data; // кэшируем в памяти на всю сессию — повторно грузить не будем
       editorBgG.select('#editor-loading-txt').remove();
       drawProvinceFeatures(data.features);
     })
     .catch(err => {
-      console.error(err);
-      editorBgG.select('#editor-loading-txt')
-        .text('⚠️ Не удалось загрузить (' + err.message + ').')
-        .append('tspan').attr('x', 480).attr('dy', 16).text('Нажмите, чтобы повторить попытку.');
-      editorBgG.select('#editor-loading-txt').style('cursor', 'pointer').on('click', fetchAdmin1Data);
+      console.warn('Источник ' + (sourceIndex + 1) + ' не сработал:', err.message);
+      fetchAdmin1Data(sourceIndex + 1); // пробуем следующий источник
     });
 }
 

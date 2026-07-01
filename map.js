@@ -78,6 +78,7 @@ function addCountryLabel(name, coordsOrFeature, isFeature) {
   if (!xy || isNaN(xy[0])) return;
   labelsG.append('text')
     .attr('class', 'country-label')
+    .attr('data-country', name)
     .attr('data-cx', xy[0]).attr('data-cy', xy[1])
     .attr('x', xy[0]).attr('y', xy[1])
     .attr('text-anchor', 'middle').attr('dominant-baseline', 'middle')
@@ -86,6 +87,14 @@ function addCountryLabel(name, coordsOrFeature, isFeature) {
     .attr('paint-order', 'stroke')
     .attr('stroke', '#fff').attr('stroke-width', 2.2)
     .text(name);
+}
+
+// Обновить подпись страны на карте под её текущее отображаемое название
+// (вызывается из renameCountry в game.js при переименовании страны игрока)
+function updateMapCountryLabel(canonicalName, displayName) {
+  labelsG.selectAll('.country-label')
+    .filter(function() { return d3.select(this).attr('data-country') === canonicalName; })
+    .text(displayName);
 }
 
 function updateCountryLabels() {

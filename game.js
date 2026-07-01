@@ -21,6 +21,7 @@ function renameCountry(newName) {
   playerCountryDisplayName = newName;
   const badge = document.getElementById('country-name-badge');
   if (badge) badge.textContent = '🏳️ ' + newName;
+  if (typeof updateMapCountryLabel === 'function') updateMapCountryLabel(playerCountry, newName);
 }
 
 // Владелец каждой территории (по умолчанию каждая страна владеет собой).

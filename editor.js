@@ -311,6 +311,10 @@ function fetchAdmin1Data(sourceIndex) {
 }
 
 function drawProvinceFeatures(features) {
+  console.log('[DEBUG] drawProvinceFeatures: получено объектов =', features.length);
+  console.log('[DEBUG] первый объект:', features[0]);
+  console.log('[DEBUG] пример path d= для первого объекта:', editorPathGen(features[0]));
+
   // Отбрасываем объекты с геометрией, которую движок не может отрисовать (пустой/битый path) —
   // иначе они молча пропадают с карты без предупреждения, из-за чего казалось, что "куски карты" исчезли.
   const valid = features.filter(f => {
@@ -319,6 +323,7 @@ function drawProvinceFeatures(features) {
   });
   const skipped = features.length - valid.length;
   currentBgFeatures = valid;
+  console.log('[DEBUG] валидных объектов после фильтра =', valid.length, ', пропущено =', skipped);
 
   editorBgG.selectAll('path').remove();
   editorBgG.selectAll('path')
@@ -329,6 +334,8 @@ function drawProvinceFeatures(features) {
     .attr('stroke', '#999')
     .attr('stroke-width', 0.2)
     .attr('pointer-events', 'none');
+
+  console.log('[DEBUG] реально нарисовано <path> элементов =', editorBgG.selectAll('path').size());
 
   buildSnapIndex();
   showNotif(`🗺️ Загружено регионов: ${valid.length}` + (skipped ? ` (пропущено битых: ${skipped})` : ''));

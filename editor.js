@@ -216,6 +216,47 @@ function renderSavedMapsList() {
   `).join('');
 }
 
+// ============================================================
+// «Взять части из другой карты»: показать сохранённую карту как фон, чтобы кликами
+// доимпортировать из неё нужные провинции в текущую (текущие провинции не трогаем).
+// ============================================================
+function openLoadMapPicker() {
+  const list = document.getElementById('editor-loadmap-list');
+  const idx = getMapsIndex().filter(m => m.id !== currentMapId); // текущую карту не предлагаем
+  if (idx.length === 0) {
+    list.innerHTML = '<div class="chg-empty">Нет других сохранённых карт</div>';
+  } else {
+    list.innerHTML = idx.map(m => `
+      <div class="map-saved-item" onclick="loadSavedMapAsBackground('${m.id}')">
+        <div><div class="map-item-name">🗺️ ${m.name}</div><div class="map-item-sub">${m.provinceCount} провинций</div></div>
+      </div>
+    `).join('');
+  }
+  document.getElementById('editor-loadmap-form').style.display = 'block';
+}
+
+function closeLoadMapPicker() {
+  document.getElementById('editor-loadmap-form').style.display = 'none';
+}
+
+function loadSavedMapAsBackground(id) {
+  const raw = localStorage.getItem(mapDataKey(id));
+  if (!raw) { showNotif('⚠️ Карта не найдена'); return; }
+  let d;
+  try { d = JSON.parse(raw); } catch (e) { showNotif('⚠️ Не удалось прочитать карту'); return; }
+  const provs = d.provinces || [];
+  const feats = provs.map(p => {
+    const g = provinceToGeometry(p);
+    return g ? { type: 'Feature', geometry: g, properties: { name: p.name } } : null;
+  }).filter(Boolean);
+  if (!feats.length) { showNotif('⚠️ В этой карте нет провинций с границами'); return; }
+  closeLoadMapPicker();
+  currentMapTemplate = 'imported-bg'; // чтобы клик-импорт работал (не 'blank')
+  drawProvinceFeatures(feats);
+  document.getElementById('nuts-level-switcher').style.display = 'none'; // уровни NUTS тут не при чём
+  showNotif('📂 Карта показана как фон: ' + feats.length + ' провинций. Кликайте нужные, чтобы добавить их в свою карту.');
+}
+
 function deleteSavedMap(id) {
   if (!confirm('Удалить эту карту?')) return;
   localStorage.removeItem(mapDataKey(id));
@@ -448,13 +489,48 @@ async function switchNutsLevel(level) {
     return;
   }
 
-  // Средне/Мелко — субрегионы Европы (NUTS1 для уровня 2, NUTS2 для уровня 3), сразу по всей Европе
+  // Средне/Мелко — субрегионы: Европа через NUTS (NUTS1 для ур.2, NUTS2 для ур.3) +
+  // остальной мир (США, Россия, Канада и т.д.) через Natural Earth Admin-1. NUTS грузится
+  // быстро, Admin-1 — большой файл (~17 МБ), поэтому он опционален: если не подгрузится,
+  // покажем хотя бы Европу.
   const nutsLevel = level === 2 ? 1 : 2;
-  if (nutsLevelCache[nutsLevel]) { drawProvinceFeatures(nutsLevelCache[nutsLevel]); return; }
-  showEditorLoadingText(`⏳ Загрузка субрегионов Европы (уровень ${level})...`);
-  try { nutsLevelCache[nutsLevel] = await fetchNutsLevel(nutsLevel); }
-  catch (err) { editorBgG.select('#editor-loading-txt').text('⚠️ Не удалось загрузить: ' + err.message); return; }
-  drawProvinceFeatures(nutsLevelCache[nutsLevel]);
+  showEditorLoadingText(`⏳ Загрузка субрегионов (Европа + мир, уровень ${level})...`);
+
+  let nutsFeats = [];
+  try {
+    if (!nutsLevelCache[nutsLevel]) nutsLevelCache[nutsLevel] = await fetchNutsLevel(nutsLevel);
+    nutsFeats = nutsLevelCache[nutsLevel];
+  } catch (err) {
+    console.warn('NUTS не загрузился:', err.message);
+  }
+
+  let admin1Feats = [];
+  try { admin1Feats = await fetchAdmin1Features(); }
+  catch (err) { console.warn('Admin-1 не загрузился:', err.message); }
+
+  if (!nutsFeats.length && !admin1Feats.length) {
+    editorBgG.select('#editor-loading-txt').text('⚠️ Не удалось загрузить субрегионы ни из одного источника.');
+    return;
+  }
+  drawProvinceFeatures([...nutsFeats, ...admin1Feats]);
+}
+
+// Promise-обёртка над загрузкой Natural Earth Admin-1 (США/Россия/Канада… — ~294 региона,
+// без Европы) с перебором источников и кэшем на сессию.
+function fetchAdmin1Features(i) {
+  i = i || 0;
+  if (neAdmin1Cache) return Promise.resolve(neAdmin1Cache.features);
+  if (i >= ADMIN1_SOURCES.length) return Promise.reject(new Error('Admin-1 недоступен'));
+  return d3.json(ADMIN1_SOURCES[i]).then(data => {
+    if (!data || !Array.isArray(data.features) || data.features.length < 50) {
+      throw new Error('Получено мало объектов');
+    }
+    neAdmin1Cache = data;
+    return data.features;
+  }).catch(err => {
+    console.warn('Admin-1 источник ' + (i + 1) + ' не сработал:', err.message);
+    return fetchAdmin1Features(i + 1);
+  });
 }
 
 // ============================================================
@@ -497,6 +573,37 @@ function updateUndoButton() {
 // случай «крупная область поверх мелких» и наоборот.
 // ============================================================
 function geoFeatureOf(p) { return { type: 'Feature', geometry: p.geometry }; }
+
+// Геометрия провинции в географических координатах: у импортированных она уже есть,
+// у нарисованных вручную (экранные точки) — переводим обратно через editorProj.invert().
+function provinceToGeometry(p) {
+  if (p.geometry) return p.geometry;
+  if (p.points && p.points.length >= 3) {
+    const ring = p.points.map(pt => editorProj.invert(pt)).filter(Boolean);
+    if (ring.length < 3) return null;
+    ring.push(ring[0]);
+    return { type: 'Polygon', coordinates: [ring] };
+  }
+  return null;
+}
+
+// Обрезать геометрию по границам перечисленных провинций (вырезать их из неё) — turf.difference.
+// Нужно, чтобы крупная область (Франция) упиралась в уже выбранные мелкие куски, а не ложилась поверх.
+function clipGeometryAgainst(geometry, overlapIds) {
+  let result = turf.feature(geometry);
+  for (const id of overlapIds) {
+    const p = mapProvinces.find(x => x.id === id);
+    if (!p) continue;
+    const pg = provinceToGeometry(p);
+    if (!pg) continue;
+    try {
+      const diff = turf.difference(result, turf.feature(pg));
+      result = diff; // может стать null, если область полностью вырезана
+    } catch (e) { /* сложная геометрия — пропускаем этот кусок */ }
+    if (!result) break;
+  }
+  return result ? result.geometry : null;
+}
 
 function findOverlappingProvinces(feature) {
   const out = [];
@@ -860,7 +967,14 @@ function findFeatureAt(xy) {
   return null;
 }
 
-function tryImportFeatureAt(xy) {
+function afterImportRefresh(name) {
+  renderMapProvinces();
+  renderEditorProvinceList();
+  buildSnapIndex();
+  showNotif('✅ Импортировано: ' + name);
+}
+
+async function tryImportFeatureAt(xy) {
   if (!currentBgFeatures.length) return;
   const feature = findFeatureAt(xy);
   if (!feature) { showNotif('⚠️ Здесь нет готовой границы для импорта'); return; }
@@ -870,24 +984,42 @@ function tryImportFeatureAt(xy) {
   }
   if (!feature.geometry) { showNotif('⚠️ Не удалось получить границы этой области'); return; }
 
-  // Защита от наложения: если новая область перекрывает уже добавленные провинции
-  // (например, крупная Бавария поверх мелких кусков) — предлагаем заменить их, а не
-  // класть друг на друга. Так граница одной провинции всегда упирается в границу другой.
+  const name = featureName(feature);
   const overlaps = findOverlappingProvinces(feature);
-  if (overlaps.length) {
-    const ok = confirm(`Эта область пересекается с уже добавленными провинциями (${overlaps.length} шт.).\n\nOK — заменить их этой областью.\nОтмена — оставить как есть (импорт не выполнять).`);
-    if (!ok) return;
+
+  // Нет пересечений — просто добавляем.
+  if (!overlaps.length) {
     pushHistory();
-    mapProvinces = mapProvinces.filter(p => !overlaps.includes(p.id));
-  } else {
-    pushHistory();
+    mapProvinces.push({ id: featureId(feature), name, geometry: feature.geometry });
+    afterImportRefresh(name);
+    return;
   }
 
-  mapProvinces.push({ id: featureId(feature), name: featureName(feature), geometry: feature.geometry });
-  renderMapProvinces();
-  renderEditorProvinceList();
-  buildSnapIndex();
-  showNotif('✅ Импортировано: ' + featureName(feature));
+  // Есть пересечение — предлагаем три варианта:
+  //   OK на 1-м окне  → ОБРЕЗАТЬ новую область по границам мелких (мелкие остаются)
+  //   OK на 2-м окне  → ЗАМЕНИТЬ мелкие целиком этой крупной областью
+  //   Отмена оба раза → ничего не делать
+  const clip = confirm(`Эта область пересекается с уже добавленными провинциями (${overlaps.length} шт.).\n\nOK — ОБРЕЗАТЬ новую область по их границам (мелкие останутся на месте, крупная упрётся в них).\nОтмена — другой вариант...`);
+  if (clip) {
+    showNotif('⏳ Обрезаю границы (turf.js)...');
+    let geom;
+    try {
+      await ensureTurfLoaded();
+      geom = clipGeometryAgainst(feature.geometry, overlaps);
+    } catch (err) { showNotif('⚠️ ' + err.message); return; }
+    if (!geom) { showNotif('⚠️ После обрезки от области ничего не осталось (она целиком внутри других провинций)'); return; }
+    pushHistory();
+    mapProvinces.push({ id: featureId(feature), name, geometry: geom });
+    afterImportRefresh(name);
+    return;
+  }
+
+  const replace = confirm(`Заменить эти ${overlaps.length} провинций новой областью целиком?\n\nOK — заменить (мелкие удалятся).\nОтмена — ничего не делать.`);
+  if (!replace) return;
+  pushHistory();
+  mapProvinces = mapProvinces.filter(p => !overlaps.includes(p.id));
+  mapProvinces.push({ id: featureId(feature), name, geometry: feature.geometry });
+  afterImportRefresh(name);
 }
 
 // Клик по фону вне режима рисования — импортировать область под курсором как провинцию

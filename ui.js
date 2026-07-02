@@ -148,22 +148,18 @@ function diploKeydown(e) {
 // ============================================================
 // ПАНЕЛЬ ОТНОШЕНИЙ — открывается кликом на страну на карте
 // ============================================================
-const leaderNames = {
-  'Франция': 'Луи-Наполеон Бонапарт',
-  'Испания': 'Королева Изабелла II',
-  'Великобритания': 'Премьер-министр лорд Абердин',
-  'Россия': 'Царь Николай I',
-  'Австрия': 'Император Франц Иосиф I',
-  'Пруссия': 'Король Фридрих Вильгельм IV',
-};
-
 function openCountryRelations(countryName) {
   const rel = (typeof worldState !== 'undefined') ? (worldState.relations[countryName] || 0) : 0;
   const isWar = (typeof worldState !== 'undefined') && worldState.atWarWith.includes(countryName);
   const isAlly = (typeof worldState !== 'undefined') && worldState.alliedWith.includes(countryName);
 
+  // Правитель берётся из countryRulers (game.js) — эта запись реально меняется через
+  // foreign_leader_change от ИИ, в отличие от прежнего статичного списка имён.
+  const r = (typeof countryRulers !== 'undefined') ? countryRulers[countryName] : null;
+  const leaderText = r ? `${r.ruler} (${r.rulerTitle})` : '';
+
   document.getElementById('rel-country-name').textContent = countryName;
-  document.getElementById('rel-leader').textContent = leaderNames[countryName] || '';
+  document.getElementById('rel-leader').textContent = leaderText;
 
   // Полоска отношений: от -100 до +100, центр = 50%
   const pct = (rel + 100) / 2;

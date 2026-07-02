@@ -163,51 +163,32 @@ function updateParis() {
     .attr('y', parisXY[1] + 0.5/zoom)
     .attr('visibility', show ? 'visible' : 'hidden');
 }
+// Карта теперь целиком строится из одного источника — сценария (scenario_1852.json),
+// созданного в редакторе сценариев. Никакой отдельной "фоновой" карты мира больше нет: смена
+// сценария (другой файл) полностью меняет карту игры, включая нейтральные земли. Это позволяет,
+// например, взять карту США и добавить туда Францию/Испанию — играть будет по тем же правилам.
 function drawMap() {
-  d3.json('https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json').then(world => {
+  // Маркер Парижа — масштабируемый (остаётся как декоративная метка столицы игрока по умолчанию)
+  parisXY = proj([2.3488, 48.8534]);
+  franceG.append('circle')
+    .attr('id','paris-dot')
+    .attr('cx', parisXY[0]).attr('cy', parisXY[1])
+    .attr('r', 2.5)
+    .attr('fill','#f0c040').attr('stroke','#805000').attr('stroke-width','0.8')
+    .attr('pointer-events','none')
+    .attr('visibility','hidden');
+  franceG.append('text')
+    .attr('id','paris-label')
+    .attr('x', parisXY[0]+4).attr('y', parisXY[1]-2)
+    .attr('font-size','8').attr('fill','#f0c040')
+    .attr('font-family','Georgia,serif')
+    .attr('pointer-events','none')
+    .attr('visibility','hidden')
+    .text('★ Париж');
 
-    const countries = topojson.feature(world, world.objects.countries);
-
-    // Фон мира — просто контуры всех стран, без раскраски и кликов: настоящее владение
-    // теперь показывает слой провинций (drawScenarioProvinces ниже), этот слой — только подложка
-    // на случай пробелов в покрытии провинциями (Аляска, Азия, Африка и т.п. вне сценария).
-    worldG.selectAll('path.country')
-      .data(countries.features)
-      .join('path')
-      .attr('class','country')
-      .attr('d', pathGen)
-      .attr('fill', '#e8e4dc')
-      .attr('stroke','#888')
-      .attr('stroke-width','0.25');
-
-    // Маркер Парижа — масштабируемый
-    parisXY = proj([2.3488, 48.8534]);
-    franceG.append('circle')
-      .attr('id','paris-dot')
-      .attr('cx', parisXY[0]).attr('cy', parisXY[1])
-      .attr('r', 2.5)
-      .attr('fill','#f0c040').attr('stroke','#805000').attr('stroke-width','0.8')
-      .attr('pointer-events','none')
-      .attr('visibility','hidden');
-    franceG.append('text')
-      .attr('id','paris-label')
-      .attr('x', parisXY[0]+4).attr('y', parisXY[1]-2)
-      .attr('font-size','8').attr('fill','#f0c040')
-      .attr('font-family','Georgia,serif')
-      .attr('pointer-events','none')
-      .attr('visibility','hidden')
-      .text('★ Париж');
-
-    labelsG.style('display', showCountryLabels ? null : 'none');
-    updateLabels();
-    renderMapObjects();
-
-  }).catch(err=>{
-    console.error(err);
-    svg.append('text').attr('x',W/2).attr('y',H/2)
-      .attr('text-anchor','middle').attr('font-size','13')
-      .attr('fill','#888').text('Ошибка загрузки карты');
-  });
+  labelsG.style('display', showCountryLabels ? null : 'none');
+  updateLabels();
+  renderMapObjects();
 }
 
 function updateLabels() {
@@ -282,11 +263,17 @@ function provinceOwnerOf(id, scenarioOwner) {
 
 function drawScenarioProvinces() {
   d3.json('scenario_1852.json').then(data => {
-    scenarioProvinces = (data.provinces || []).filter(p => p.owner && ALL_COUNTRIES.includes(p.owner) && p.geometry);
+    // Берём ВСЕ провинции сценария, не только те, что закреплены за 6 странами — нейтральные
+    // земли (owner:null) рисуются тоже, просто нейтральным цветом, чтобы карта была полной сама
+    // по себе, без обращения к внешним источникам (world-atlas больше не используется вообще).
+    scenarioProvinces = (data.provinces || []).filter(p => p.geometry);
     renderScenarioProvinces();
     addCountryLabelsFromProvinces();
   }).catch(err => {
-    console.warn('Провинции сценария не загрузились (карта останется на уровне стран):', err.message);
+    console.error('Не удалось загрузить карту сценария:', err.message);
+    svg.append('text').attr('x', W/2).attr('y', H/2)
+      .attr('text-anchor', 'middle').attr('font-size', '13')
+      .attr('fill', '#888').text('Ошибка загрузки карты сценария');
   });
 }
 
@@ -316,14 +303,22 @@ function renderScenarioProvinces() {
     .attr('class', 'scenario-province')
     .attr('data-province-id', d => d.id)
     .attr('d', d => pathGen({ type: 'Feature', geometry: d.geometry }))
-    .attr('fill', d => getCountryColor(provinceOwnerOf(d.id, d.owner)))
+    .attr('fill', d => {
+      const owner = provinceOwnerOf(d.id, d.owner);
+      return owner ? getCountryColor(owner) : '#e8e4dc';
+    })
     .attr('stroke', '#6a6a5a')
     .attr('stroke-width', '0.3')
-    .style('cursor', 'pointer')
+    .style('cursor', d => provinceOwnerOf(d.id, d.owner) ? 'pointer' : 'default')
     .on('mouseover', function(e, d) {
       d3.select(this).style('opacity', 0.8);
       tooltip.style.display = 'block';
       const owner = provinceOwnerOf(d.id, d.owner);
+      if (!owner) {
+        document.getElementById('t-name').textContent = d.name;
+        document.getElementById('t-info').textContent = 'Нейтральная территория';
+        return;
+      }
       const rel = (typeof worldState !== 'undefined') ? (worldState.relations[owner] || 0) : 0;
       const war = (typeof worldState !== 'undefined') && worldState.atWarWith.includes(owner) ? ' ⚔️ ВОЙНА' : '';
       document.getElementById('t-name').textContent = d.name + ' (' + owner + ')' + war;
@@ -336,6 +331,7 @@ function renderScenarioProvinces() {
     })
     .on('click', function(e, d) {
       const owner = provinceOwnerOf(d.id, d.owner);
+      if (!owner) return; // нейтральная земля — кликать пока не на что
       if (typeof gameStarted !== 'undefined' && !gameStarted) {
         if (typeof selectPlayableCountry === 'function') selectPlayableCountry(owner);
         return;
@@ -369,6 +365,22 @@ function totalFrenchTroopsOnMap(excludeId) {
 }
 
 // Применить массив действий над объектами карты (вызывается из ai.js после EFFECTS)
+// Координаты места для объекта на карте (армия/штаб/etc): либо известный город (CITY_COORDS),
+// либо — теперь — НАЗВАНИЕ ПРОВИНЦИИ сценария (ищем по имени без учёта регистра, берём её
+// географический центр). Раньше ИИ мог ссылаться только на фиксированный список городов из
+// старой карты, из-за чего многие места (например Зальцбург) не находились вовсе.
+function resolveLocationLonLat(name) {
+  if (!name) return null;
+  if (CITY_COORDS[name]) return CITY_COORDS[name];
+  if (typeof scenarioProvinces !== 'undefined') {
+    const p = scenarioProvinces.find(x => x.name.toLowerCase() === String(name).toLowerCase());
+    if (p) {
+      try { return d3.geoCentroid({ type: 'Feature', geometry: p.geometry }); } catch (e) { return null; }
+    }
+  }
+  return null;
+}
+
 function applyMapObjects(list) {
   if (!Array.isArray(list) || typeof worldState === 'undefined') return [];
   if (!worldState.mapObjects) worldState.mapObjects = [];
@@ -378,7 +390,7 @@ function applyMapObjects(list) {
     if (!item || !item.action) return;
 
     if (item.action === 'create') {
-      const loc = CITY_COORDS[item.location];
+      const loc = resolveLocationLonLat(item.location);
       if (!loc) return; // неизвестный город — пропускаем
       let troops = item.troops || 0;
       const rawOwner = item.owner || playerCountry;
@@ -430,7 +442,7 @@ function applyMapObjects(list) {
 
     if (item.action === 'move') {
       const obj = worldState.mapObjects.find(o => o.id === item.id || o.label === item.label);
-      const toLoc = CITY_COORDS[item.to];
+      const toLoc = resolveLocationLonLat(item.to);
       if (obj && toLoc) {
         animateMove(obj, item.to);
         changeLog.push(`➡️ ${obj.label} направляется: ${obj.location} → ${item.to}`);
@@ -461,7 +473,7 @@ function renderMapObjects() {
 
   const merged = enter.merge(sel);
   merged.each(function(d) {
-    const loc = CITY_COORDS[d.location];
+    const loc = resolveLocationLonLat(d.location);
     if (!loc) return;
     const xy = proj(loc);
     const g = d3.select(this);
@@ -497,8 +509,8 @@ function updateObjectScale() {
 
 // Анимация передвижения объекта между городами (~3 секунды)
 function animateMove(obj, toCityName) {
-  const fromLoc = CITY_COORDS[obj.location];
-  const toLoc = CITY_COORDS[toCityName];
+  const fromLoc = resolveLocationLonLat(obj.location);
+  const toLoc = resolveLocationLonLat(toCityName);
   if (!fromLoc || !toLoc) return;
   const from = proj(fromLoc), to = proj(toLoc);
 

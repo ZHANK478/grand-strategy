@@ -303,6 +303,7 @@ function enterDrawView() {
   document.getElementById('editor-label-scale-val').textContent = provinceLabelScale.toFixed(1) + '×';
   document.getElementById('nuts-level-switcher').style.display = currentMapTemplate === 'nuts-europe' ? 'block' : 'none';
   activeNutsOverrideLevel = null;
+  admin1Showing = false;
   selectedProvinceIds.clear();
   mapHistory = [];
   updateUndoButton();
@@ -477,6 +478,9 @@ function showEditorLoadingText(msg) {
 // взять целую Россию на «Крупно», а потом переключиться на «Средне» и добрать регионы Франции.
 async function switchNutsLevel(level) {
   activeNutsOverrideLevel = level;
+  admin1Showing = false;
+  const ab = document.getElementById('admin1-toggle-btn');
+  if (ab) ab.classList.remove('active');
   ['1', '2', '3'].forEach(l => document.getElementById('nuts-lvl-' + l + '-btn').classList.toggle('active', Number(l) === level));
 
   // Крупно — весь мир по странам
@@ -489,41 +493,31 @@ async function switchNutsLevel(level) {
     return;
   }
 
-  // Средне/Мелко — субрегионы: Европа через NUTS (NUTS1 для ур.2, NUTS2 для ур.3) +
-  // остальной мир (США, Россия, Канада и т.д.) через Natural Earth Admin-1. NUTS грузится
-  // быстро, Admin-1 — большой файл (~17 МБ), поэтому он опционален: если не подгрузится,
-  // покажем хотя бы Европу.
+  // Средне/Мелко — субрегионы Европы через NUTS (NUTS1 для ур.2, NUTS2 для ур.3).
+  // Области/штаты остального мира — отдельным слоем (кнопка «Показать области/штаты мира»).
   const nutsLevel = level === 2 ? 1 : 2;
-  showEditorLoadingText(`⏳ Загрузка субрегионов (Европа + мир, уровень ${level})...`);
-
-  let nutsFeats = [];
-  try {
-    if (!nutsLevelCache[nutsLevel]) nutsLevelCache[nutsLevel] = await fetchNutsLevel(nutsLevel);
-    nutsFeats = nutsLevelCache[nutsLevel];
-  } catch (err) {
-    console.warn('NUTS не загрузился:', err.message);
-  }
-
-  let admin1Feats = [];
-  try { admin1Feats = await fetchAdmin1Features(); }
-  catch (err) { console.warn('Admin-1 не загрузился:', err.message); }
-
-  if (!nutsFeats.length && !admin1Feats.length) {
-    editorBgG.select('#editor-loading-txt').text('⚠️ Не удалось загрузить субрегионы ни из одного источника.');
-    return;
-  }
-  drawProvinceFeatures([...nutsFeats, ...admin1Feats]);
+  if (nutsLevelCache[nutsLevel]) { drawProvinceFeatures(nutsLevelCache[nutsLevel]); return; }
+  showEditorLoadingText(`⏳ Загрузка субрегионов Европы (уровень ${level})...`);
+  try { nutsLevelCache[nutsLevel] = await fetchNutsLevel(nutsLevel); }
+  catch (err) { editorBgG.select('#editor-loading-txt').text('⚠️ Не удалось загрузить: ' + err.message); return; }
+  drawProvinceFeatures(nutsLevelCache[nutsLevel]);
 }
 
-// Promise-обёртка над загрузкой Natural Earth Admin-1 (США/Россия/Канада… — ~294 региона,
-// без Европы) с перебором источников и кэшем на сессию.
+// ============================================================
+// ОТДЕЛЬНЫЙ СЛОЙ: области/штаты всего мира (Natural Earth Admin-1). Включается/выключается
+// кнопкой независимо от уровней Крупно/Средне/Мелко.
+// ============================================================
+let admin1Showing = false;
+
+// Promise-обёртка над загрузкой Natural Earth Admin-1 (штаты/области мира) с перебором источников
+// и кэшем на сессию. Источник — официальный репозиторий Natural Earth (nvkelso), 50m-версия.
 function fetchAdmin1Features(i) {
   i = i || 0;
   if (neAdmin1Cache) return Promise.resolve(neAdmin1Cache.features);
-  if (i >= ADMIN1_SOURCES.length) return Promise.reject(new Error('Admin-1 недоступен'));
+  if (i >= ADMIN1_SOURCES.length) return Promise.reject(new Error('Admin-1 недоступен ни с одного источника'));
   return d3.json(ADMIN1_SOURCES[i]).then(data => {
     if (!data || !Array.isArray(data.features) || data.features.length < 50) {
-      throw new Error('Получено мало объектов');
+      throw new Error('Получено мало объектов (' + (data && data.features ? data.features.length : 0) + ')');
     }
     neAdmin1Cache = data;
     return data.features;
@@ -531,6 +525,25 @@ function fetchAdmin1Features(i) {
     console.warn('Admin-1 источник ' + (i + 1) + ' не сработал:', err.message);
     return fetchAdmin1Features(i + 1);
   });
+}
+
+async function toggleWorldAdmin1() {
+  const btn = document.getElementById('admin1-toggle-btn');
+  if (admin1Showing) {
+    // выключаем — возвращаемся к уровню, который был активен
+    admin1Showing = false;
+    btn.classList.remove('active');
+    switchNutsLevel(activeNutsOverrideLevel || 1);
+    return;
+  }
+  showEditorLoadingText('⏳ Загрузка областей/штатов мира (Natural Earth Admin-1)...');
+  let feats;
+  try { feats = await fetchAdmin1Features(); }
+  catch (err) { editorBgG.select('#editor-loading-txt').text('⚠️ Не удалось загрузить: ' + err.message); return; }
+  admin1Showing = true;
+  btn.classList.add('active');
+  ['1', '2', '3'].forEach(l => document.getElementById('nuts-lvl-' + l + '-btn').classList.remove('active'));
+  drawProvinceFeatures(feats);
 }
 
 // ============================================================
@@ -628,10 +641,33 @@ function toggleProvinceSelection(id, checked) {
 }
 
 function updateMergeButtonState() {
-  const btn = document.getElementById('merge-selected-btn');
-  const countEl = document.getElementById('merge-selected-count');
-  countEl.textContent = selectedProvinceIds.size;
-  btn.style.display = selectedProvinceIds.size >= 2 ? 'block' : 'none';
+  const n = selectedProvinceIds.size;
+  document.getElementById('merge-selected-count').textContent = n;
+  document.getElementById('merge-selected-btn').style.display = n >= 2 ? 'block' : 'none';
+  const clr = document.getElementById('clear-sel-btn');
+  const del = document.getElementById('delete-sel-btn');
+  if (clr) { clr.style.display = n >= 1 ? 'block' : 'none'; document.getElementById('sel-count').textContent = n; }
+  if (del) { del.style.display = n >= 1 ? 'block' : 'none'; document.getElementById('del-count').textContent = n; }
+}
+
+function clearSelection() {
+  selectedProvinceIds.clear();
+  updateMergeButtonState();
+  renderEditorProvinceList();
+}
+
+function deleteSelectedProvinces() {
+  if (selectedProvinceIds.size === 0) return;
+  if (!confirm(`Удалить выбранные провинции (${selectedProvinceIds.size} шт.)?`)) return;
+  pushHistory();
+  const ids = new Set(selectedProvinceIds);
+  mapProvinces = mapProvinces.filter(p => !ids.has(p.id));
+  selectedProvinceIds.clear();
+  updateMergeButtonState();
+  renderEditorProvinceList();
+  renderMapProvinces();
+  buildSnapIndex();
+  showNotif('🗑 Удалено провинций: ' + ids.size);
 }
 
 async function mergeSelectedProvinces() {
@@ -693,13 +729,13 @@ async function mergeSelectedProvinces() {
   showNotif('✅ Объединено провинций: ' + provinces.length + ' → «' + name.trim() + '»');
 }
 
-// Основной источник — файл, лежащий прямо в репозитории игры (10m, полное покрытие стран,
-// упрощённый через mapshaper). Никаких внешних зеркал — грузится с того же сайта, что и игра.
-// Внешние источники оставлены запасным вариантом на случай, если локальный файл вдруг уберут.
+// Источник областей/штатов мира — официальный репозиторий Natural Earth (nvkelso), версия 50m
+// (полное покрытие мира: штаты США, области России, провинции и т.д.). Перебор нескольких CDN.
 const ADMIN1_SOURCES = [
-  'admin1.geojson.json?v=2',
   'https://cdn.jsdelivr.net/gh/nvkelso/natural-earth-vector@master/geojson/ne_50m_admin_1_states_provinces.geojson',
-  'https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson/ne_50m_admin_1_states_provinces.geojson'
+  'https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson/ne_50m_admin_1_states_provinces.geojson',
+  'https://cdn.jsdelivr.net/gh/nvkelso/natural-earth-vector@master/geojson/ne_10m_admin_1_states_provinces.geojson',
+  'https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson/ne_10m_admin_1_states_provinces.geojson'
 ];
 
 function fetchAdmin1Data(sourceIndex) {

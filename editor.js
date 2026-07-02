@@ -263,6 +263,8 @@ function enterDrawView() {
   document.getElementById('nuts-level-switcher').style.display = currentMapTemplate === 'nuts-europe' ? 'block' : 'none';
   activeNutsOverrideLevel = null;
   selectedProvinceIds.clear();
+  mapHistory = [];
+  updateUndoButton();
   updateMergeButtonState();
   renderMapProvinces();
   renderEditorProvinceList();
@@ -463,6 +465,56 @@ async function switchNutsLevel(level) {
 // ============================================================
 let selectedProvinceIds = new Set();
 
+// ============================================================
+// ИСТОРИЯ ИЗМЕНЕНИЙ (Undo) — снимок mapProvinces перед каждым изменением,
+// чтобы случайный клик/импорт можно было откатить как в редакторах.
+// ============================================================
+let mapHistory = [];
+function pushHistory() {
+  mapHistory.push(JSON.stringify(mapProvinces));
+  if (mapHistory.length > 30) mapHistory.shift(); // не копим бесконечно
+  updateUndoButton();
+}
+function undoLastChange() {
+  if (mapHistory.length === 0) return;
+  mapProvinces = JSON.parse(mapHistory.pop());
+  selectedProvinceIds.clear();
+  updateUndoButton();
+  updateMergeButtonState();
+  renderMapProvinces();
+  renderEditorProvinceList();
+  buildSnapIndex();
+  showNotif('↩ Отменено');
+}
+function updateUndoButton() {
+  const btn = document.getElementById('undo-btn');
+  if (btn) btn.disabled = mapHistory.length === 0;
+}
+
+// ============================================================
+// ЗАЩИТА ОТ НАЛОЖЕНИЯ: две провинции не должны перекрывать друг друга.
+// Определяем пересечение геометрически по центроидам (без turf) — надёжно ловит
+// случай «крупная область поверх мелких» и наоборот.
+// ============================================================
+function geoFeatureOf(p) { return { type: 'Feature', geometry: p.geometry }; }
+
+function findOverlappingProvinces(feature) {
+  const out = [];
+  let fCentroid;
+  try { fCentroid = d3.geoCentroid(feature); } catch (e) { return out; }
+  mapProvinces.forEach(p => {
+    if (!p.geometry) return; // нарисованные вручную (экранные точки) не проверяем
+    const pf = geoFeatureOf(p);
+    let overlap = false;
+    try {
+      const pC = d3.geoCentroid(pf);
+      overlap = d3.geoContains(feature, pC) || d3.geoContains(pf, fCentroid);
+    } catch (e) { /* битая геометрия — пропускаем */ }
+    if (overlap) out.push(p.id);
+  });
+  return out;
+}
+
 function toggleProvinceSelection(id, checked) {
   if (checked) selectedProvinceIds.add(id); else selectedProvinceIds.delete(id);
   updateMergeButtonState();
@@ -522,6 +574,7 @@ async function mergeSelectedProvinces() {
   if (!name) return;
 
   const newId = 'merged_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
+  pushHistory();
   mapProvinces = mapProvinces.filter(p => !ids.includes(p.id));
   mapProvinces.push({ id: newId, name: name.trim(), geometry: merged.geometry });
 
@@ -607,6 +660,7 @@ function stripFrameArtifactRings(geometry) {
 }
 
 function drawProvinceFeatures(rawFeatures) {
+  editorBgG.select('#editor-loading-txt').remove(); // убираем текст загрузки, когда данные пришли
   const features = rawFeatures
     .map(f => ({ ...f, geometry: stripFrameArtifactRings(f.geometry) }))
     .filter(f => f.geometry);
@@ -703,6 +757,7 @@ function saveDrawnProvince() {
   if (!name) { showNotif('⚠️ Введите название провинции'); return; }
 
   const id = 'prov_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
+  pushHistory();
   mapProvinces.push({ id, name, points: editorPoints.slice() });
 
   document.getElementById('editor-save-form').style.display = 'none';
@@ -809,12 +864,29 @@ function tryImportFeatureAt(xy) {
   if (!currentBgFeatures.length) return;
   const feature = findFeatureAt(xy);
   if (!feature) { showNotif('⚠️ Здесь нет готовой границы для импорта'); return; }
-  const result = importFeatureAsProvince(feature);
-  if (result === 'dup') { showNotif('ℹ️ Эта провинция уже импортирована — редактируйте её в списке слева'); return; }
-  if (result === 'dateline') { showNotif('⚠️ Область пересекает 180° долготы — контур повреждён, импорт пропущен'); return; }
-  if (result === 'small') { showNotif('⚠️ Не удалось получить границы этой области'); return; }
+
+  if (mapProvinces.some(p => p.id === featureId(feature))) {
+    showNotif('ℹ️ Эта провинция уже импортирована — редактируйте её в списке слева'); return;
+  }
+  if (!feature.geometry) { showNotif('⚠️ Не удалось получить границы этой области'); return; }
+
+  // Защита от наложения: если новая область перекрывает уже добавленные провинции
+  // (например, крупная Бавария поверх мелких кусков) — предлагаем заменить их, а не
+  // класть друг на друга. Так граница одной провинции всегда упирается в границу другой.
+  const overlaps = findOverlappingProvinces(feature);
+  if (overlaps.length) {
+    const ok = confirm(`Эта область пересекается с уже добавленными провинциями (${overlaps.length} шт.).\n\nOK — заменить их этой областью.\nОтмена — оставить как есть (импорт не выполнять).`);
+    if (!ok) return;
+    pushHistory();
+    mapProvinces = mapProvinces.filter(p => !overlaps.includes(p.id));
+  } else {
+    pushHistory();
+  }
+
+  mapProvinces.push({ id: featureId(feature), name: featureName(feature), geometry: feature.geometry });
   renderMapProvinces();
   renderEditorProvinceList();
+  buildSnapIndex();
   showNotif('✅ Импортировано: ' + featureName(feature));
 }
 
@@ -829,7 +901,9 @@ editorSvgEl.addEventListener('click', function(e) {
 // Импортировать разом все области, попадающие в текущий видимый кусок карты
 function importVisibleFeatures() {
   if (!currentBgFeatures.length) { showNotif('⚠️ Нет фоновой карты для импорта'); return; }
-  let count = 0, skipped = 0;
+  const checkOverlap = mapProvinces.length > 0; // на пустой карте проверять нечего
+  let count = 0, skippedOverlap = 0;
+  pushHistory();
   currentBgFeatures.forEach(f => {
     if (mapProvinces.some(p => p.id === featureId(f))) return;
     const bounds = d3.geoBounds(f);
@@ -838,12 +912,16 @@ function importVisibleFeatures() {
     const fx0 = Math.min(c1[0], c2[0]), fx1 = Math.max(c1[0], c2[0]);
     const fy0 = Math.min(c1[1], c2[1]), fy1 = Math.max(c1[1], c2[1]);
     if (fx1 < edVb.x || fx0 > edVb.x + edVb.w || fy1 < edVb.y || fy0 > edVb.y + edVb.h) return;
+    if (checkOverlap && findOverlappingProvinces(f).length) { skippedOverlap++; return; }
     const r = importFeatureAsProvince(f);
-    if (r === 'ok') count++; else if (r === 'dateline') skipped++;
+    if (r === 'ok') count++;
   });
+  if (count === 0) mapHistory.pop(); // ничего не добавили — незачем засорять историю
+  updateUndoButton();
   renderMapProvinces();
   renderEditorProvinceList();
-  showNotif(count > 0 ? `✅ Импортировано провинций: ${count}${skipped ? ' (пропущено с разрывом: ' + skipped + ')' : ''}` : 'ℹ️ Нечего импортировать в этой области');
+  buildSnapIndex();
+  showNotif(count > 0 ? `✅ Импортировано провинций: ${count}${skippedOverlap ? ' (пропущено пересекающихся: ' + skippedOverlap + ')' : ''}` : 'ℹ️ Нечего импортировать (или всё пересекается с уже добавленным)');
 }
 
 // Форкнуть карту целиком: скопировать ВСЕ регионы источника (не только видимые) в текущую карту.
@@ -851,14 +929,20 @@ function importVisibleFeatures() {
 function importWholeMapFork() {
   if (!currentBgFeatures.length) { showNotif('⚠️ Нет фоновой карты для импорта'); return; }
   if (!confirm(`Импортировать все ${currentBgFeatures.length} регионов источника как провинции? Это может занять время.`)) return;
-  let count = 0, skipped = 0;
+  const checkOverlap = mapProvinces.length > 0;
+  let count = 0, skippedOverlap = 0;
+  pushHistory();
   currentBgFeatures.forEach(f => {
+    if (checkOverlap && findOverlappingProvinces(f).length) { skippedOverlap++; return; }
     const r = importFeatureAsProvince(f);
-    if (r === 'ok') count++; else if (r === 'dateline') skipped++;
+    if (r === 'ok') count++;
   });
+  if (count === 0) mapHistory.pop();
+  updateUndoButton();
   renderMapProvinces();
   renderEditorProvinceList();
-  showNotif(`✅ Карта форкнута: ${count} провинций${skipped ? ', пропущено с разрывом: ' + skipped : ''}`);
+  buildSnapIndex();
+  showNotif(`✅ Карта форкнута: ${count} провинций${skippedOverlap ? ', пропущено пересекающихся: ' + skippedOverlap : ''}`);
 }
 
 // Режим "Карандаш": зажать и вести мышь — рисуется непрерывная линия (тоже липнет к границам)
@@ -982,6 +1066,7 @@ function renameMapProvince(id) {
   if (!p) return;
   const name = prompt('Новое название провинции:', p.name);
   if (!name) return;
+  pushHistory();
   p.name = name.trim();
   renderEditorProvinceList();
   renderMapProvinces();
@@ -989,9 +1074,13 @@ function renameMapProvince(id) {
 
 function deleteMapProvince(id) {
   if (!confirm('Удалить эту провинцию?')) return;
+  pushHistory();
   mapProvinces = mapProvinces.filter(p => p.id !== id);
+  selectedProvinceIds.delete(id);
+  updateMergeButtonState();
   renderEditorProvinceList();
   renderMapProvinces();
+  buildSnapIndex();
 }
 
 // ============================================================

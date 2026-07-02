@@ -293,6 +293,7 @@ body.menu-mode .game-ui{display:none !important;}
           </div>
           <div style="font-size:10px;color:#888;margin-top:4px;line-height:1.4">Крупно — целые страны всего мира. Средне/Мелко — субрегионы Европы. У больших стран берите мелкий уровень, у мелких — крупный. Уже импортированные провинции не пропадают.</div>
         </div>
+        <button class="editor-btn ghost" id="undo-btn" onclick="undoLastChange()" style="margin-bottom:10px" disabled>↩ Отменить последнее</button>
         <button class="editor-btn ghost" id="merge-selected-btn" onclick="mergeSelectedProvinces()" style="display:none;margin-bottom:10px">🔗 Объединить выбранные (<span id="merge-selected-count">0</span>)</button>
         <div class="setting-row" style="margin-bottom:6px">
           <label style="display:flex;align-items:center;gap:6px">
@@ -562,11 +563,11 @@ body.menu-mode .game-ui{display:none !important;}
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/topojson/3.0.2/topojson.min.js"></script>
-<script src="map.js?v=18"></script>
-<script src="ai.js?v=18"></script>
-<script src="game.js?v=18"></script>
-<script src="ui.js?v=18"></script>
-<script src="editor.js?v=18"></script>
+<script src="map.js?v=19"></script>
+<script src="ai.js?v=19"></script>
+<script src="game.js?v=19"></script>
+<script src="ui.js?v=19"></script>
+<script src="editor.js?v=19"></script>
 <script>initMenu();</script>
 </body>
 </html>

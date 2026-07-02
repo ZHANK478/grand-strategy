@@ -309,6 +309,7 @@ function renderTerritoryColors() {
   franceG.selectAll('.france-province').attr('fill', getCountryColor(franceOwner));
   const spainOwner = territoryOwnerOf('Испания');
   spainG.selectAll('.spain-territory').attr('fill', getCountryColor(spainOwner));
+  if (typeof renderScenarioProvinces === 'function') renderScenarioProvinces();
 }
 
 // Выбор играбельной страны кликом по карте в главном меню
@@ -403,6 +404,68 @@ function drawSpain() {
 }
 
 drawSpain();
+
+// ============================================================
+// ПРОВИНЦИИ ИЗ СЦЕНАРИЯ (созданы в редакторе сценариев) — реальные границы вместо одной
+// закрашенной кляксы на страну. Рисуются ПОВЕРХ существующих слоёв стран, ничего не заменяя:
+// если для какого-то участка страны провинции нет, под ней по-прежнему виден старый фон-блоб.
+// Казна/армия/ИИ/дипломатия не меняются — меняется только слой отображения территории.
+// ============================================================
+const provincesG = svg.select('#provinces-g');
+let scenarioProvinces = []; // [{id,name,geometry,owner}] — owner тут ИСХОДНЫЙ (из сценария)
+
+// Текущий (с учётом аннексий) владелец провинции: провинция передана, если есть запись
+// в provinceOwners (game.js) — иначе действует владелец, назначенный при создании сценария.
+function provinceOwnerOf(id, scenarioOwner) {
+  if (typeof provinceOwners !== 'undefined' && provinceOwners[id]) return provinceOwners[id];
+  return scenarioOwner;
+}
+
+function drawScenarioProvinces() {
+  d3.json('scenario_1852.json').then(data => {
+    scenarioProvinces = (data.provinces || []).filter(p => p.owner && ALL_COUNTRIES.includes(p.owner) && p.geometry);
+    renderScenarioProvinces();
+  }).catch(err => {
+    console.warn('Провинции сценария не загрузились (карта останется на уровне стран):', err.message);
+  });
+}
+
+function renderScenarioProvinces() {
+  provincesG.selectAll('path.scenario-province')
+    .data(scenarioProvinces, d => d.id)
+    .join('path')
+    .attr('class', 'scenario-province')
+    .attr('data-province-id', d => d.id)
+    .attr('d', d => pathGen({ type: 'Feature', geometry: d.geometry }))
+    .attr('fill', d => getCountryColor(provinceOwnerOf(d.id, d.owner)))
+    .attr('stroke', '#6a6a5a')
+    .attr('stroke-width', '0.3')
+    .style('cursor', 'pointer')
+    .on('mouseover', function(e, d) {
+      d3.select(this).style('opacity', 0.8);
+      tooltip.style.display = 'block';
+      const owner = provinceOwnerOf(d.id, d.owner);
+      const rel = (typeof worldState !== 'undefined') ? (worldState.relations[owner] || 0) : 0;
+      const war = (typeof worldState !== 'undefined') && worldState.atWarWith.includes(owner) ? ' ⚔️ ВОЙНА' : '';
+      document.getElementById('t-name').textContent = d.name + ' (' + owner + ')' + war;
+      document.getElementById('t-info').textContent = 'Отношения: ' + (rel > 0 ? '+' : '') + rel;
+    })
+    .on('mousemove', e => positionTooltip(e))
+    .on('mouseleave', function() {
+      d3.select(this).style('opacity', 1);
+      tooltip.style.display = 'none';
+    })
+    .on('click', function(e, d) {
+      const owner = provinceOwnerOf(d.id, d.owner);
+      if (typeof gameStarted !== 'undefined' && !gameStarted) {
+        if (typeof selectPlayableCountry === 'function') selectPlayableCountry(owner);
+        return;
+      }
+      if (typeof openCountryRelations === 'function') openCountryRelations(owner);
+    });
+}
+
+drawScenarioProvinces();
 
 // ============================================================
 // ОБЪЕКТЫ НА КАРТЕ — армии, штабы, передвижения (создаются через EFFECTS от ИИ)

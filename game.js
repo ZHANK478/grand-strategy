@@ -28,6 +28,11 @@ function renameCountry(newName) {
 // Меняется через аннексии/передачи территорий (EFFECTS.territory_transfer от ИИ).
 let territoryOwners = {};
 
+// Владелец каждой ПРОВИНЦИИ сценария (id -> страна), хранит только ОТЛИЧИЯ от исходного
+// владельца из scenario_1852.json (аналогично countryColorOverrides) — id провинции,
+// у которой нет записи здесь, принадлежит тому, кто указан при создании сценария.
+let provinceOwners = {};
+
 // Цвет территории — переопределяется только В РАМКАХ ТЕКУЩЕЙ ПАРТИИ (сбрасывается на новую игру,
 // сохраняется/загружается вместе с сохранением). Игрок может попросить ИИ перекрасить свою страну.
 let countryColorOverrides = {};
@@ -159,6 +164,14 @@ function changePowerState(field, value) {
 function transferTerritory(countryName, newOwner) {
   if (!ALL_COUNTRIES.includes(countryName) || !ALL_COUNTRIES.includes(newOwner)) return;
   territoryOwners[countryName] = newOwner;
+  // Страна аннексирована целиком — переносим ВСЕ её провинции на нового владельца тоже,
+  // иначе карта провинций разойдётся с таблицей владения странами.
+  if (typeof scenarioProvinces !== 'undefined') {
+    scenarioProvinces.forEach(p => {
+      const currentOwner = provinceOwners[p.id] || p.owner;
+      if (currentOwner === countryName) provinceOwners[p.id] = newOwner;
+    });
+  }
   if (typeof renderTerritoryColors === 'function') renderTerritoryColors();
 }
 
@@ -208,6 +221,7 @@ function saveGame() {
       playerCountry,
       playerCountryDisplayName,
       territoryOwners,
+      provinceOwners,
       countryColorOverrides,
       worldState,
       playerActions,
@@ -232,10 +246,12 @@ function loadGameSlot(id) {
     playerCountry = d.playerCountry || 'Франция';
     playerCountryDisplayName = d.playerCountryDisplayName || playerCountry;
     territoryOwners = d.territoryOwners || {};
+    provinceOwners = d.provinceOwners || {};
     countryColorOverrides = d.countryColorOverrides || {};
     if (typeof updateMapCountryLabel === 'function') {
       ALL_COUNTRIES.forEach(c => updateMapCountryLabel(c, c === playerCountry ? playerCountryDisplayName : c));
     }
+    if (typeof renderTerritoryColors === 'function') renderTerritoryColors();
     stateOfPower = d.stateOfPower || stateOfPower;
     if (!stateOfPower.rulerTitle) stateOfPower.rulerTitle = 'Президент Французской республики';
     if (!stateOfPower.pmTitle) stateOfPower.pmTitle = 'Министр-президент';
@@ -297,6 +313,7 @@ function resetGame(country) {
   treasury = d.treasury; incomePerMonth = d.income;
   stateOfPower = { ruler: d.ruler, rulerTitle: d.rulerTitle, government: d.government, pm: d.pm, pmTitle: d.pmTitle };
   territoryOwners = {};
+  provinceOwners = {};
   countryColorOverrides = {};
 
   // Сбрасываем подписи стран на карте к каноническим названиям — иначе переименование
@@ -304,6 +321,7 @@ function resetGame(country) {
   if (typeof updateMapCountryLabel === 'function') {
     ALL_COUNTRIES.forEach(c => updateMapCountryLabel(c, c));
   }
+  if (typeof renderTerritoryColors === 'function') renderTerritoryColors();
 
   // Отношения игрока со всеми остальными странами сценария
   const relations = {};

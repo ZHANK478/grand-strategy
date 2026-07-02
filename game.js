@@ -179,6 +179,21 @@ function territoryOwnerOf(countryName) {
   return territoryOwners[countryName] || countryName;
 }
 
+// Передать ОДНУ провинцию другому владельцу (вызывается из EFFECTS.province_transfer).
+// provinceKey ищется сначала по id (точное совпадение), потом по названию (без учёта регистра) —
+// ИИ обычно ссылается на провинцию по имени, а не по служебному id.
+function transferProvince(provinceKey, newOwner) {
+  if (typeof scenarioProvinces === 'undefined' || !ALL_COUNTRIES.includes(newOwner)) return null;
+  const p = scenarioProvinces.find(x => x.id === provinceKey) ||
+            scenarioProvinces.find(x => x.name.toLowerCase() === String(provinceKey).toLowerCase());
+  if (!p) return null;
+  const oldOwner = provinceOwners[p.id] || p.owner;
+  if (oldOwner === newOwner) return null;
+  provinceOwners[p.id] = newOwner;
+  if (typeof renderTerritoryColors === 'function') renderTerritoryColors();
+  return { name: p.name, oldOwner };
+}
+
 // ============================================================
 // СОХРАНЕНИЯ — несколько слотов, каждый со своей партией
 // ============================================================

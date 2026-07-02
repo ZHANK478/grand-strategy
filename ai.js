@@ -79,6 +79,16 @@ function describeWorldState() {
   return `Отношения ${pc} со странами: ${relText}.\n${warText} ${allyText}\n\n${newsText}`;
 }
 
+// Компактный список провинций 6 стран сценария с текущим владельцем — нужен ИИ, чтобы ссылаться
+// на КОНКРЕТНУЮ провинцию (не всю страну) в province_transfer.
+function describeProvinces() {
+  if (typeof scenarioProvinces === 'undefined' || !scenarioProvinces.length) return 'Список провинций пока не загружен.';
+  return scenarioProvinces.map(p => {
+    const owner = (typeof provinceOwnerOf === 'function') ? provinceOwnerOf(p.id, p.owner) : p.owner;
+    return `${p.name}(${owner})`;
+  }).join(', ');
+}
+
 async function askGemini(prompt, maxTokens = 400) {
   try {
     const response = await fetch(GEMINI_URL, {
@@ -188,6 +198,18 @@ function parseAndApplyEffects(text) {
         transferTerritory(country, newOwner);
         showNotif(`🏳️ ${country} теперь под властью: ${newOwner}`);
         turnChanges.push({ label: '🏳️ Территория', value: country + ' → ' + newOwner, sign: newOwner === playerCountry ? 1 : (oldOwner === playerCountry ? -1 : 0) });
+      });
+    }
+
+    if (effects.province_transfer && Array.isArray(effects.province_transfer) && typeof transferProvince === 'function') {
+      effects.province_transfer.forEach(t => {
+        if (!t || !t.province || !t.new_owner) return;
+        const newOwner = normalizeCountryName(t.new_owner);
+        if (!ALL_COUNTRIES.includes(newOwner)) return;
+        const result = transferProvince(t.province, newOwner);
+        if (!result) return;
+        showNotif(`🏳️ Провинция «${result.name}» теперь под властью: ${newOwner}`);
+        turnChanges.push({ label: '🏳️ Провинция ' + result.name, value: result.oldOwner + ' → ' + newOwner, sign: newOwner === playerCountry ? 1 : (result.oldOwner === playerCountry ? -1 : 0) });
       });
     }
 
@@ -335,7 +357,7 @@ ${actions}
 Каждое событие с новой строки, без нумерации и символов. Пиши на русском языке.
 
 После 10 событий напиши ровно одну строку:
-EFFECTS:{"treasury_delta":0,"income_delta":0,"army_delta":0,"stability_delta":0,"relations":{${ALL_COUNTRIES.filter(c => c !== state.country).map(c => `"${c}":0`).join(',')}},"war_declared":[],"peace_made":[],"country_name":null,"country_color":null,"ruler_name":null,"ruler_title":null,"government":null,"pm_name":null,"pm_title":null,"map_objects":[],"territory_transfer":[],"foreign_leader_change":[]}
+EFFECTS:{"treasury_delta":0,"income_delta":0,"army_delta":0,"stability_delta":0,"relations":{${ALL_COUNTRIES.filter(c => c !== state.country).map(c => `"${c}":0`).join(',')}},"war_declared":[],"peace_made":[],"country_name":null,"country_color":null,"ruler_name":null,"ruler_title":null,"government":null,"pm_name":null,"pm_title":null,"map_objects":[],"territory_transfer":[],"province_transfer":[],"foreign_leader_change":[]}
 
 КРИТИЧЕСКИ ВАЖНО — заполняй числа исходя из действий игрока, не ставь нули без причины:
 - Казнил/убил солдат или людей → army_delta отрицательный (−количество), stability_delta −3 до −8
@@ -365,7 +387,12 @@ foreign_leader_change — смена правителя в ЧУЖОЙ стран
 
 ТЕРРИТОРИИ (territory_transfer) — если по итогам событий одна СТРАНА ЦЕЛИКОМ аннексирует/захватывает/уступает территорию другой страны ЦЕЛИКОМ (включая ${state.country}), отрази смену владельца:
 Формат: {"country":"Испания","new_owner":"${state.country}"}. country — одна из стран сценария (${ALL_COUNTRIES.join(', ')}), new_owner — страна, которая теперь ею владеет.
-ВАЖНО: territory_transfer работает ТОЛЬКО на уровне целых стран целиком — система пока не различает провинции ВНУТРИ страны. Если игрок уступает/получает лишь ЧАСТЬ территории страны (например одну область, а не всю страну) — НЕ используй territory_transfer (это исказит карту, отдав всю страну), просто опиши это в новостях текстом и отрази последствия через treasury/stability/relations. territory_transfer указывай ТОЛЬКО когда меняет владельца ВСЯ страна целиком. Иначе оставляй пустым массивом [].
+territory_transfer указывай ТОЛЬКО когда меняет владельца ВСЯ страна целиком. Иначе оставляй пустым массивом [].
+
+ОТДЕЛЬНЫЕ ПРОВИНЦИИ (province_transfer) — если по итогам событий одна страна забирает/уступает ЧАСТЬ территории другой страны (не всю страну целиком) — например одну провинцию по итогам локальной войны, пограничного конфликта, уступки по договору — используй province_transfer, указывая провинцию ПО НАЗВАНИЮ из списка ниже:
+Формат: [{"province":"Название провинции","new_owner":"${state.country}"}]. Название провинции бери ТОЧНО как в списке (в скобках — нынешний владелец). new_owner — одна из стран сценария (${ALL_COUNTRIES.join(', ')}).
+Список провинций 6 стран сценария (провинция(владелец)): ${describeProvinces()}
+Используй province_transfer ТОЛЬКО когда по сюжету реально меняется владелец конкретной провинции (военный захват с занятием территории, уступка по мирному договору и т.п.) — не придумывай это просто так. Если действие не приводит к смене владения землёй — оставляй province_transfer пустым массивом [].
 
 ОБЪЕКТЫ НА КАРТЕ (map_objects) — если игрок явно упомянул создание армии, штаба, флота, отправку делегации/персоны в другую страну, расформирование/пополнение существующего объекта и т.п., отрази это:
 Разрешённые города (используй ТОЛЬКО эти названия для location/to): ${Object.keys(CITY_COORDS).join(', ')}.

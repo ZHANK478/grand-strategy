@@ -1,20 +1,12 @@
 // MAP.JS v6 — карта + объекты на карте (армии, штабы, передвижения)
 const W = 960, H = 560;
 
-// Известные страны: ID в world-atlas → название (для кликов и тултипов)
-const KNOWN_COUNTRIES = {
-  '826': { name: 'Великобритания', label: '👑 Премьер-министр лорд Абердин' },
-  '643': { name: 'Россия',         label: '👑 Царь Николай I' },
-  '40':  { name: 'Австрия',        label: '👑 Император Франц Иосиф I' },
-  '276': { name: 'Пруссия',        label: '👑 Король Фридрих Вильгельм IV' },
-};
 const proj = d3.geoNaturalEarth1().scale(153).translate([W/2, H/2]);
 const pathGen = d3.geoPath(proj);
 const svgEl   = document.getElementById('map-svg');
 const mapWrap = document.getElementById('map-wrap');
 const tooltip = document.getElementById('tooltip');
 const svg     = d3.select('#map-svg');
-const worldG  = svg.select('#world-g');
 const franceG = svg.select('#france-g');
 const labelsG = svg.select('#labels-g');
 const objectsG = svg.select('#objects-g');
@@ -29,30 +21,11 @@ const COUNTRY_COLORS = {
   'Испания':        '#c8a040'
 };
 
-// Цвет страны с учётом переопределения игроком за текущую партию (countryColorOverrides из game.js)
+// Цвет страны с учётом переопределения игроком за текущую партию (countries[name].colorOverride из game.js)
 function getCountryColor(name) {
-  if (typeof countryColorOverrides !== 'undefined' && countryColorOverrides[name]) return countryColorOverrides[name];
+  if (typeof countries !== 'undefined' && countries[name] && countries[name].colorOverride) return countries[name].colorOverride;
   return COUNTRY_COLORS[name] || '#c8b870';
 }
-
-const PROVINCE_INFO = {
-  'Île-de-France':               { pop:'2.1 млн', income:'620 фр./мес' },
-  'Normandie':                   { pop:'1.4 млн', income:'240 фр./мес' },
-  'Bretagne':                    { pop:'2.0 млн', income:'160 фр./мес' },
-  'Pays de la Loire':            { pop:'1.6 млн', income:'200 фр./мес' },
-  'Centre-Val de Loire':         { pop:'1.1 млн', income:'150 фр./мес' },
-  'Bourgogne-Franche-Comté':     { pop:'1.1 млн', income:'190 фр./мес' },
-  'Grand Est':                   { pop:'1.4 млн', income:'210 фр./мес' },
-  'Hauts-de-France':             { pop:'1.0 млн', income:'180 фр./мес' },
-  'Auvergne-Rhône-Alpes':        { pop:'1.8 млн', income:'230 фр./мес' },
-  "Provence-Alpes-Côte d'Azur":  { pop:'0.8 млн', income:'140 фр./мес' },
-  'Occitanie':                   { pop:'1.4 млн', income:'155 фр./мес' },
-  'Nouvelle-Aquitaine':          { pop:'2.1 млн', income:'170 фр./мес' },
-  'Corse':                       { pop:'0.2 млн', income:'60 фр./мес'  },
-};
-
-// ID Франции в world-atlas (250 = France)
-const FRANCE_ID = '250';
 
 // ---- НАСТРОЙКИ ОТОБРАЖЕНИЯ (сохраняются в localStorage) ----
 // showCountryLabels — показывать ли подписи с названиями стран (сами страны/границы видны всегда, иначе по ним нельзя будет кликать)
@@ -242,8 +215,6 @@ mapWrap.addEventListener('wheel', e=>{
 },{passive:false});
 
 drawMap();
-
-const spainG = svg.select('#spain-g'); // слой больше не используется для рисования (заменён провинциями), оставлен для совместимости с index.html
 
 // ============================================================
 // ПРОВИНЦИИ ИЗ СЦЕНАРИЯ (созданы в редакторе сценариев) — реальные границы вместо одной

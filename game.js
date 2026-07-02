@@ -2,7 +2,7 @@
 // GAME.JS — ходы, казна, время, сохранения (слоты), меню
 // ============================================================
 
-let turn = 1, month = 0, year = 1852, treasury = 4200, incomePerMonth = 580;
+let turn = 1, month = 0, year = 1852;
 const months = ['Январь','Февраль','Март','Апрель','Май','Июнь','Июль','Август','Сентябрь','Октябрь','Ноябрь','Декабрь'];
 
 let gameStarted = false;
@@ -16,12 +16,18 @@ const ALL_COUNTRIES = ['Франция', 'Великобритания', 'Рос
 let playerCountry = 'Франция'; // ключ для карты/цветов/отношений — не меняется
 let playerCountryDisplayName = 'Франция'; // отображаемое название — может меняться через события ИИ (например Пруссия → Германская империя)
 
-function renameCountry(newName) {
-  if (!newName) return;
-  playerCountryDisplayName = newName;
-  const badge = document.getElementById('country-name-badge');
-  if (badge) badge.textContent = '🏳️ ' + newName;
-  if (typeof updateMapCountryLabel === 'function') updateMapCountryLabel(playerCountry, newName);
+// Переименовать любую страну сценария (например Пруссия → "Германская империя" после объединения).
+// Подпись на карте обновляется всегда; бейдж в левой панели и playerCountryDisplayName — только
+// если переименовывается страна игрока.
+function renameCountry(country, newName) {
+  if (!country || !newName || !countries[country]) return;
+  countries[country].displayName = newName;
+  if (country === playerCountry) {
+    playerCountryDisplayName = newName;
+    const badge = document.getElementById('country-name-badge');
+    if (badge) badge.textContent = '🏳️ ' + newName;
+  }
+  if (typeof updateMapCountryLabel === 'function') updateMapCountryLabel(country, newName);
 }
 
 // Владелец каждой территории (по умолчанию каждая страна владеет собой).
@@ -34,12 +40,11 @@ let territoryOwners = {};
 let provinceOwners = {};
 
 // Цвет территории — переопределяется только В РАМКАХ ТЕКУЩЕЙ ПАРТИИ (сбрасывается на новую игру,
-// сохраняется/загружается вместе с сохранением). Игрок может попросить ИИ перекрасить свою страну.
-let countryColorOverrides = {};
-
+// сохраняется/загружается вместе с сохранением, как поле countries[country].colorOverride).
+// Игрок может попросить ИИ перекрасить свою страну.
 function setCountryColor(country, hexColor) {
-  if (!country || !/^#[0-9a-fA-F]{6}$/.test(hexColor || '')) return;
-  countryColorOverrides[country] = hexColor;
+  if (!country || !countries[country] || !/^#[0-9a-fA-F]{6}$/.test(hexColor || '')) return;
+  countries[country].colorOverride = hexColor;
   if (typeof renderTerritoryColors === 'function') renderTerritoryColors();
 }
 
@@ -73,22 +78,71 @@ function updateCountryInfoPanel(country) {
   if (badge) badge.textContent = '🏳️ ' + country;
 }
 
-// Динамическое состояние власти игрока — может меняться через события ИИ
-let stateOfPower = {
-  ruler: 'Луи-Наполеон Бонапарт',
-  rulerTitle: 'Президент Французской республики',
-  government: 'Президентская республика',
-  pm: 'Эжен Руэр',
-  pmTitle: 'Министр-президент'
-};
+// ============================================================
+// СТРАНЫ — единый реестр состояния ВСЕХ 6 стран сценария (игрока и ИИ).
+// Раньше игрок и ИИ-страны жили в разных, несовместимых структурах (stateOfPower для игрока,
+// countryRulers только с именами правителей для ИИ, без казны/армии/стабильности вовсе) — из-за
+// этого независимые события ИИ-стран были чистой декорацией и никак не влияли на их показатели.
+// Теперь страна — полноценный объект с тем же набором полей для игрока и ИИ, как и провинция.
+// ============================================================
+let countries = {};
 
-// Правители ВСЕХ стран сценария (не только игрока) — у ИИ-стран тоже может смениться власть
-// (например если игрок захватил территорию, "освободил" её и поставил марионеточного правителя).
-let countryRulers = {};
+function buildCountriesFromDefaults() {
+  countries = {};
+  ALL_COUNTRIES.forEach(c => {
+    const d = COUNTRY_DEFAULTS[c];
+    countries[c] = {
+      displayName: c,
+      ruler: d.ruler, rulerTitle: d.rulerTitle, government: d.government, pm: d.pm, pmTitle: d.pmTitle,
+      treasury: d.treasury, income: d.income, army: d.army, stability: d.stability,
+      colorOverride: null,
+      annexed: false, annexedBy: null
+    };
+  });
+}
 
-function setForeignRuler(country, fields) {
-  if (!countryRulers[country]) countryRulers[country] = {};
-  Object.assign(countryRulers[country], fields);
+// Изменить числовой показатель ЛЮБОЙ страны сценария (казна/доход/армия/стабильность).
+// Заменяет старый changeGameStat, который умел работать только со страной игрока через DOM.
+function changeCountryStat(country, stat, delta) {
+  const c = countries[country];
+  if (!c || !delta) return;
+  if (stat === 'treasury') c.treasury += delta;
+  if (stat === 'income') c.income += delta;
+  if (stat === 'army') c.army = Math.max(0, c.army + delta);
+  if (stat === 'stability') c.stability = Math.max(0, Math.min(100, c.stability + delta));
+  if (country === playerCountry) renderPlayerStats();
+}
+
+// Обновить верхнюю панель (казна/доход/армия/стабильность) из countries[playerCountry]
+function renderPlayerStats() {
+  const c = countries[playerCountry];
+  if (!c) return;
+  document.getElementById('treasury').textContent = c.treasury.toLocaleString('ru') + ' фр.';
+  document.getElementById('income').textContent = (c.income >= 0 ? '+' : '') + c.income.toLocaleString('ru') + ' фр.';
+  document.getElementById('army').textContent = c.army.toLocaleString('ru');
+  document.getElementById('stab').textContent = c.stability;
+}
+
+// Сменить главу государства/форму правления/премьер-министра ЛЮБОЙ страны сценария.
+// Заменяет старую пару changePowerState (только игрок) + setForeignRuler (только ИИ, без стат).
+function setCountryLeader(country, fields) {
+  const c = countries[country];
+  if (!c || !fields) return;
+  Object.assign(c, fields);
+  if (country === playerCountry) renderPlayerPowerPanel();
+}
+
+// Обновить левую панель власти (правитель/титул/форма правления/премьер) для страны игрока
+function renderPlayerPowerPanel() {
+  const c = countries[playerCountry];
+  if (!c) return;
+  const set = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
+  set('ruler-name', c.ruler);
+  set('ruler-title', c.rulerTitle);
+  set('pm-name', c.pm);
+  set('pm-title', c.pmTitle);
+  const govbadge = document.getElementById('govbadge-text');
+  if (govbadge) govbadge.textContent = '🏛 ' + c.government;
 }
 
 async function nextTurn() {
@@ -98,9 +152,9 @@ async function nextTurn() {
 
   turn++; month++;
   if (month >= 12) { month = 0; year++; }
-  treasury += incomePerMonth;
+  countries[playerCountry].treasury += countries[playerCountry].income;
+  renderPlayerStats();
 
-  document.getElementById('treasury').textContent = treasury.toLocaleString('ru') + ' фр.';
   document.getElementById('date-disp').textContent = months[month] + ' ' + year + ' г.';
   document.getElementById('turn-info').textContent = 'Ход ' + turn;
 
@@ -113,57 +167,13 @@ async function nextTurn() {
   btn.textContent = 'Следующий месяц ▶';
 }
 
-// Изменить показатели (вызывается из ИИ-триггеров)
-function changeGameStat(stat, delta) {
-  if (stat === 'treasury') { treasury += delta; document.getElementById('treasury').textContent = treasury.toLocaleString('ru') + ' фр.'; }
-  if (stat === 'army') {
-    const cur = parseInt(document.getElementById('army').textContent.replace(/\s/g,''));
-    document.getElementById('army').textContent = (cur + delta).toLocaleString('ru');
-  }
-  if (stat === 'stability') {
-    const cur = parseInt(document.getElementById('stab').textContent);
-    document.getElementById('stab').textContent = Math.max(0, Math.min(100, cur + delta));
-  }
-  if (stat === 'income') {
-    incomePerMonth += delta;
-    document.getElementById('income').textContent = (incomePerMonth >= 0 ? '+' : '') + incomePerMonth.toLocaleString('ru') + ' фр.';
-  }
-}
-
-// Изменить главу государства / форму правления / премьер-министра (название может быть любым)
-function changePowerState(field, value) {
-  if (!value) return;
-  if (field === 'ruler') {
-    stateOfPower.ruler = value;
-    const el = document.getElementById('ruler-name');
-    if (el) el.textContent = value;
-  }
-  if (field === 'government') {
-    stateOfPower.government = value;
-    const badgeEl = document.getElementById('govbadge-text');
-    if (badgeEl) badgeEl.textContent = '🏛 ' + value;
-  }
-  if (field === 'rulerTitle') {
-    stateOfPower.rulerTitle = value;
-    const el = document.getElementById('ruler-title');
-    if (el) el.textContent = value;
-  }
-  if (field === 'pm') {
-    stateOfPower.pm = value;
-    const el = document.getElementById('pm-name');
-    if (el) el.textContent = value;
-  }
-  if (field === 'pmTitle') {
-    stateOfPower.pmTitle = value;
-    const el = document.getElementById('pm-title');
-    if (el) el.textContent = value;
-  }
-}
-
-// Передать территорию другому владельцу (вызывается из EFFECTS.territory_transfer)
+// Передать территорию другому владельцу (вызывается из EFFECTS.territory_transfer). Страна не
+// удаляется из реестра countries — помечается как аннексированная, чтобы ИИ и панели переставали
+// считать её самостоятельным игроком, но история/подписи на карте оставались доступны.
 function transferTerritory(countryName, newOwner) {
   if (!ALL_COUNTRIES.includes(countryName) || !ALL_COUNTRIES.includes(newOwner)) return;
   territoryOwners[countryName] = newOwner;
+  if (countries[countryName]) { countries[countryName].annexed = true; countries[countryName].annexedBy = newOwner; }
   // Страна аннексирована целиком — переносим ВСЕ её провинции на нового владельца тоже,
   // иначе карта провинций разойдётся с таблицей владения странами.
   if (typeof scenarioProvinces !== 'undefined') {
@@ -204,12 +214,16 @@ function listSaves() {
     if (k && k.startsWith(SAVE_PREFIX)) {
       try {
         const d = JSON.parse(localStorage.getItem(k));
+        const savedPlayerCountry = d.playerCountry || 'Франция';
+        const ruler = d.countries && d.countries[savedPlayerCountry] ? d.countries[savedPlayerCountry].ruler
+          : (d.stateOfPower ? d.stateOfPower.ruler : ''); // старый формат сейва (до countries)
+        const treasury = d.countries && d.countries[savedPlayerCountry] ? d.countries[savedPlayerCountry].treasury : d.treasury;
         saves.push({
           id: k.slice(SAVE_PREFIX.length),
-          country: d.playerCountry || 'Франция',
-          ruler: d.stateOfPower ? d.stateOfPower.ruler : '',
+          country: savedPlayerCountry,
+          ruler,
           turn: d.turn, year: d.year, month: d.month,
-          treasury: d.treasury,
+          treasury,
           savedAt: d.savedAt || 0
         });
       } catch (e) { /* повреждённый слот — пропускаем */ }
@@ -226,18 +240,13 @@ function hasSave() {
 function saveGame() {
   try {
     if (!currentSlotId) currentSlotId = 'slot_' + Date.now();
-    const army = document.getElementById('army').textContent.replace(/\s/g,'');
-    const stab = document.getElementById('stab').textContent;
     const data = {
-      turn, month, year, treasury, incomePerMonth,
-      army: parseInt(army), stability: parseInt(stab),
-      stateOfPower,
-      countryRulers,
+      turn, month, year,
+      countries,
       playerCountry,
       playerCountryDisplayName,
       territoryOwners,
       provinceOwners,
-      countryColorOverrides,
       worldState,
       playerActions,
       advisorHistory: typeof advisorHistory !== 'undefined' ? advisorHistory : [],
@@ -250,6 +259,35 @@ function saveGame() {
   }
 }
 
+// Сборка countries из СТАРОГО формата сейва (до появления единого реестра стран) — тогда у игрока
+// были stateOfPower+DOM-числа, а у ИИ-стран только countryRulers без казны/армии/стабильности,
+// так что для ИИ эти числа берём из COUNTRY_DEFAULTS (других данных о них никогда не сохранялось).
+function migrateLegacySaveToCountries(d) {
+  buildCountriesFromDefaults();
+  const pc = d.playerCountry || 'Франция';
+  if (d.stateOfPower) {
+    Object.assign(countries[pc], d.stateOfPower, {
+      treasury: d.treasury, income: d.incomePerMonth, army: d.army, stability: d.stability
+    });
+  }
+  if (d.playerCountryDisplayName) countries[pc].displayName = d.playerCountryDisplayName;
+  if (d.countryRulers) {
+    Object.entries(d.countryRulers).forEach(([c, fields]) => {
+      if (countries[c] && c !== pc) Object.assign(countries[c], fields);
+    });
+  }
+  if (d.countryColorOverrides) {
+    Object.entries(d.countryColorOverrides).forEach(([c, color]) => {
+      if (countries[c]) countries[c].colorOverride = color;
+    });
+  }
+  if (d.territoryOwners) {
+    Object.entries(d.territoryOwners).forEach(([c, newOwner]) => {
+      if (countries[c]) { countries[c].annexed = true; countries[c].annexedBy = newOwner; }
+    });
+  }
+}
+
 function loadGameSlot(id) {
   const raw = localStorage.getItem(SAVE_PREFIX + id);
   if (!raw) return false;
@@ -257,20 +295,25 @@ function loadGameSlot(id) {
     const d = JSON.parse(raw);
     currentSlotId = id;
     turn = d.turn; month = d.month; year = d.year;
-    treasury = d.treasury; incomePerMonth = d.incomePerMonth;
     playerCountry = d.playerCountry || 'Франция';
     playerCountryDisplayName = d.playerCountryDisplayName || playerCountry;
     territoryOwners = d.territoryOwners || {};
     provinceOwners = d.provinceOwners || {};
-    countryColorOverrides = d.countryColorOverrides || {};
+
+    if (d.countries) {
+      countries = d.countries;
+      ALL_COUNTRIES.forEach(c => { if (!countries[c]) countries[c] = { ...COUNTRY_DEFAULTS[c], displayName: c, colorOverride: null, annexed: false, annexedBy: null }; });
+    } else {
+      migrateLegacySaveToCountries(d); // сейв в старом формате (stateOfPower/countryRulers)
+    }
+    if (!countries[playerCountry].rulerTitle) countries[playerCountry].rulerTitle = COUNTRY_DEFAULTS[playerCountry].rulerTitle;
+    if (!countries[playerCountry].pmTitle) countries[playerCountry].pmTitle = COUNTRY_DEFAULTS[playerCountry].pmTitle;
+
     if (typeof updateMapCountryLabel === 'function') {
-      ALL_COUNTRIES.forEach(c => updateMapCountryLabel(c, c === playerCountry ? playerCountryDisplayName : c));
+      ALL_COUNTRIES.forEach(c => updateMapCountryLabel(c, countries[c].displayName));
     }
     if (typeof renderTerritoryColors === 'function') renderTerritoryColors();
-    stateOfPower = d.stateOfPower || stateOfPower;
-    if (!stateOfPower.rulerTitle) stateOfPower.rulerTitle = 'Президент Французской республики';
-    if (!stateOfPower.pmTitle) stateOfPower.pmTitle = 'Министр-президент';
-    countryRulers = d.countryRulers || countryRulers;
+
     worldState = d.worldState || worldState;
     if (!worldState.mapObjects) worldState.mapObjects = [];
     playerActions = d.playerActions || [];
@@ -280,20 +323,13 @@ function loadGameSlot(id) {
       Object.assign(diplomacyHistories, d.diplomacyHistories || {});
     }
 
-    document.getElementById('treasury').textContent = treasury.toLocaleString('ru') + ' фр.';
-    document.getElementById('income').textContent = (incomePerMonth >= 0 ? '+' : '') + incomePerMonth.toLocaleString('ru') + ' фр.';
-    document.getElementById('army').textContent = d.army.toLocaleString('ru');
-    document.getElementById('stab').textContent = d.stability;
     document.getElementById('date-disp').textContent = months[month] + ' ' + year + ' г.';
     document.getElementById('turn-info').textContent = 'Ход ' + turn;
 
-    changePowerState('ruler', stateOfPower.ruler);
-    changePowerState('rulerTitle', stateOfPower.rulerTitle);
-    changePowerState('government', stateOfPower.government);
-    changePowerState('pm', stateOfPower.pm);
-    changePowerState('pmTitle', stateOfPower.pmTitle);
+    renderPlayerStats();
+    renderPlayerPowerPanel();
     updateCountryInfoPanel(playerCountry);
-    renameCountry(playerCountryDisplayName);
+    renameCountry(playerCountry, countries[playerCountry].displayName);
 
     renderActionsList();
     if (typeof renderMapObjects === 'function') renderMapObjects();
@@ -314,22 +350,13 @@ function deleteSave(id) {
 function resetGame(country) {
   playerCountry = country && COUNTRY_DEFAULTS[country] ? country : 'Франция';
   playerCountryDisplayName = playerCountry;
-  const d = COUNTRY_DEFAULTS[playerCountry];
 
-  // Правители всех стран сценария — у игрока источник истины stateOfPower,
-  // у остальных (ИИ) — countryRulers, изначально из COUNTRY_DEFAULTS
-  countryRulers = {};
-  ALL_COUNTRIES.forEach(c => {
-    const cd = COUNTRY_DEFAULTS[c];
-    countryRulers[c] = { ruler: cd.ruler, rulerTitle: cd.rulerTitle, government: cd.government, pm: cd.pm, pmTitle: cd.pmTitle };
-  });
+  // Все 6 стран сценария (игрок и ИИ) заводятся одинаково — единый реестр countries.
+  buildCountriesFromDefaults();
 
   turn = 1; month = 0; year = 1852;
-  treasury = d.treasury; incomePerMonth = d.income;
-  stateOfPower = { ruler: d.ruler, rulerTitle: d.rulerTitle, government: d.government, pm: d.pm, pmTitle: d.pmTitle };
   territoryOwners = {};
   provinceOwners = {};
-  countryColorOverrides = {};
 
   // Сбрасываем подписи стран на карте к каноническим названиям — иначе переименование
   // из ПРЕДЫДУЩЕЙ партии (например Пруссия → "Германская империя") оставалось видно и в новой игре
@@ -349,20 +376,13 @@ function resetGame(country) {
   if (typeof advisorHistory !== 'undefined') advisorHistory = [];
   if (typeof diplomacyHistories !== 'undefined') Object.keys(diplomacyHistories).forEach(k => delete diplomacyHistories[k]);
 
-  document.getElementById('treasury').textContent = treasury.toLocaleString('ru') + ' фр.';
-  document.getElementById('income').textContent = (incomePerMonth >= 0 ? '+' : '') + incomePerMonth.toLocaleString('ru') + ' фр.';
-  document.getElementById('army').textContent = d.army.toLocaleString('ru');
-  document.getElementById('stab').textContent = d.stability;
   document.getElementById('date-disp').textContent = months[month] + ' ' + year + ' г.';
   document.getElementById('turn-info').textContent = 'Ход ' + turn;
 
-  changePowerState('ruler', stateOfPower.ruler);
-  changePowerState('rulerTitle', stateOfPower.rulerTitle);
-  changePowerState('government', stateOfPower.government);
-  changePowerState('pm', stateOfPower.pm);
-  changePowerState('pmTitle', stateOfPower.pmTitle);
+  renderPlayerStats();
+  renderPlayerPowerPanel();
   updateCountryInfoPanel(playerCountry);
-  renameCountry(playerCountryDisplayName);
+  renameCountry(playerCountry, playerCountryDisplayName);
 
   document.getElementById('events-box').style.display = 'none';
   document.getElementById('changes-box').style.display = 'none';

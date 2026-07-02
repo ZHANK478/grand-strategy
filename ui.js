@@ -153,13 +153,25 @@ function openCountryRelations(countryName) {
   const isWar = (typeof worldState !== 'undefined') && worldState.atWarWith.includes(countryName);
   const isAlly = (typeof worldState !== 'undefined') && worldState.alliedWith.includes(countryName);
 
-  // Правитель берётся из countryRulers (game.js) — эта запись реально меняется через
-  // foreign_leader_change от ИИ, в отличие от прежнего статичного списка имён.
-  const r = (typeof countryRulers !== 'undefined') ? countryRulers[countryName] : null;
-  const leaderText = r ? `${r.ruler} (${r.rulerTitle})` : '';
+  // Страна — единый объект countries[] (game.js), меняется через setCountryLeader/changeCountryStat
+  // и для игрока, и для ИИ-стран одинаково — здесь показываем её текущий срез целиком.
+  const c = (typeof countries !== 'undefined') ? countries[countryName] : null;
+  const leaderText = c ? `${c.ruler} (${c.rulerTitle})` : '';
 
   document.getElementById('rel-country-name').textContent = countryName;
   document.getElementById('rel-leader').textContent = leaderText;
+
+  const annexedEl = document.getElementById('rel-annexed');
+  if (c && c.annexed) {
+    annexedEl.textContent = `🏳️ Аннексирована: ${c.annexedBy}`;
+    annexedEl.style.display = 'block';
+  } else {
+    annexedEl.style.display = 'none';
+  }
+  document.getElementById('rel-treasury').textContent = c ? c.treasury.toLocaleString('ru') + ' фр.' : '—';
+  document.getElementById('rel-army').textContent = c ? c.army.toLocaleString('ru') : '—';
+  document.getElementById('rel-stability').textContent = c ? c.stability : '—';
+  document.getElementById('rel-government').textContent = c ? c.government : '—';
 
   // Полоска отношений: от -100 до +100, центр = 50%
   const pct = (rel + 100) / 2;

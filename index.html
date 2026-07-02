@@ -261,8 +261,16 @@ body.menu-mode .game-ui{display:none !important;}
     </div>
     <div class="editor-body">
 
+      <!-- Главный экран редактора: два независимых раздела -->
+      <div id="editor-view-hub">
+        <div class="editor-hint">«Карты» — рисуете/импортируете контуры провинций (без стран). «Создать сценарий» — берёте готовую карту и назначаете провинциям владельцев (страны).</div>
+        <button class="editor-btn" onclick="backToMapsList()" style="margin-bottom:10px">🗺️ Карты</button>
+        <button class="editor-btn" onclick="openScenarioPicker()" style="margin-bottom:10px">🏳️ Создать сценарий</button>
+        <button class="editor-btn ghost" onclick="closeScenarioEditor()">🚪 Выйти в меню</button>
+      </div>
+
       <!-- Вкладка: список карт -->
-      <div id="editor-view-maps">
+      <div id="editor-view-maps" style="display:none">
         <div class="editor-hint">Карты — отдельная песочница. Здесь нет стран и игровой механики, только контуры для рисования провинций.</div>
         <div class="map-tpl-item" onclick="newMapFromTemplate('nuts-europe')">
           <div><div class="map-item-name">🌐 Мир по уровням</div><div class="map-item-sub">Крупно — страны мира · Средне/Мелко — субрегионы Европы (NUTS) · плюс отдельный слой областей/штатов мира</div></div>
@@ -272,7 +280,37 @@ body.menu-mode .game-ui{display:none !important;}
         </div>
         <div style="margin:14px 0 8px;font-size:10px;text-transform:uppercase;color:#999;letter-spacing:.05em">Сохранённые карты</div>
         <div id="editor-saved-maps-list"></div>
-        <button class="editor-btn ghost" onclick="closeScenarioEditor()" style="margin-top:14px">🚪 Выйти в меню</button>
+        <button class="editor-btn ghost" onclick="openScenarioHub()" style="margin-top:14px">◀ Назад</button>
+      </div>
+
+      <!-- Создание сценария: шаг 1 — выбрать карту -->
+      <div id="editor-view-scenario-pick" style="display:none">
+        <div class="editor-hint">Выберите сохранённую карту — на её основе назначите провинциям владельцев (страны).</div>
+        <div id="editor-scenario-pick-list"></div>
+        <button class="editor-btn ghost" onclick="openScenarioHub()" style="margin-top:14px">◀ Назад</button>
+      </div>
+
+      <!-- Создание сценария: шаг 2 — назначение владельцев -->
+      <div id="editor-view-scenario-build" style="display:none">
+        <div class="editor-hint">Выберите страну и цвет, затем кликайте провинции на карте — они выделятся. Нажмите «Готово», чтобы закрепить их за этой страной. Повторите для других стран. Провинции без владельца останутся ничейными.</div>
+        <div class="setting-row" style="margin-bottom:8px">
+          <label style="display:block;margin-bottom:4px">Страна</label>
+          <select id="scenario-country-select" style="width:100%;padding:6px;font-family:Georgia,serif;font-size:12px">
+            <option>Франция</option><option>Великобритания</option><option>Россия</option>
+            <option>Австрия</option><option>Пруссия</option><option>Испания</option>
+          </select>
+        </div>
+        <div class="setting-row" style="margin-bottom:10px">
+          <label style="display:block;margin-bottom:4px">Цвет страны</label>
+          <input type="color" id="scenario-color-input" value="#2a5aa8" style="width:100%;height:32px;border:1px solid #ccc;border-radius:3px">
+        </div>
+        <div style="font-size:11px;color:#555;margin-bottom:8px">Выделено кликами: <b id="scenario-selected-count">0</b></div>
+        <button class="editor-btn" onclick="assignScenarioSelectionToCountry()" style="margin-bottom:10px">✅ Готово (закрепить за страной)</button>
+        <button class="editor-btn ghost" onclick="clearSelection()" style="margin-bottom:14px">✖ Снять выделение</button>
+        <div style="font-size:10px;text-transform:uppercase;color:#999;letter-spacing:.05em;margin-bottom:6px">Уже назначено</div>
+        <div id="scenario-summary-list" style="margin-bottom:14px"></div>
+        <button class="editor-btn" onclick="exportScenarioToFile()" style="margin-bottom:8px">📥 Скачать сценарий</button>
+        <button class="editor-btn ghost" onclick="openScenarioHub()">◀ Назад</button>
       </div>
 
       <!-- Вкладка: рисование -->
@@ -300,7 +338,6 @@ body.menu-mode .game-ui{display:none !important;}
           </label>
         </div>
         <button class="editor-btn ghost" id="clear-sel-btn" onclick="clearSelection()" style="display:none;margin-bottom:10px">✖ Снять выделение (<span id="sel-count">0</span>)</button>
-        <button class="editor-btn ghost" id="set-owner-btn" onclick="setOwnerForSelected()" style="display:none;margin-bottom:10px">👑 Назначить владельца выбранным</button>
         <button class="editor-btn danger" id="delete-sel-btn" onclick="deleteSelectedProvinces()" style="display:none;margin-bottom:10px">🗑 Удалить выбранные (<span id="del-count">0</span>)</button>
         <button class="editor-btn ghost" id="merge-selected-btn" onclick="mergeSelectedProvinces()" style="display:none;margin-bottom:10px">🔗 Объединить выбранные (<span id="merge-selected-count">0</span>)</button>
         <div class="setting-row" style="margin-bottom:6px">
@@ -580,11 +617,11 @@ body.menu-mode .game-ui{display:none !important;}
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/topojson/3.0.2/topojson.min.js"></script>
-<script src="map.js?v=24"></script>
-<script src="ai.js?v=24"></script>
-<script src="game.js?v=24"></script>
-<script src="ui.js?v=24"></script>
-<script src="editor.js?v=24"></script>
+<script src="map.js?v=25"></script>
+<script src="ai.js?v=25"></script>
+<script src="game.js?v=25"></script>
+<script src="ui.js?v=25"></script>
+<script src="editor.js?v=25"></script>
 <script>initMenu();</script>
 </body>
 </html>

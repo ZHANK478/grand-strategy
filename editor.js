@@ -176,7 +176,16 @@ function mapDataKey(id) { return 'gs1852_editor_map_' + id; }
 function openScenarioEditor() {
   document.getElementById('main-menu').style.display = 'none';
   document.getElementById('editor-screen').style.display = 'flex';
-  backToMapsList();
+  openScenarioHub();
+}
+
+// Главный экран редактора: два независимых раздела — «Карты» и «Создать сценарий».
+function openScenarioHub() {
+  cancelDrawingProvince();
+  scenarioBuildActive = false;
+  ['editor-view-maps', 'editor-view-draw', 'editor-view-scenario-pick', 'editor-view-scenario-build']
+    .forEach(id => document.getElementById(id).style.display = 'none');
+  document.getElementById('editor-view-hub').style.display = 'block';
 }
 
 function closeScenarioEditor() {
@@ -190,9 +199,13 @@ function closeScenarioEditor() {
 // ============================================================
 function backToMapsList() {
   cancelDrawingProvince();
+  scenarioBuildActive = false;
   currentMapId = null;
   currentMapTemplate = null;
   mapProvinces = [];
+  document.getElementById('editor-view-hub').style.display = 'none';
+  document.getElementById('editor-view-scenario-pick').style.display = 'none';
+  document.getElementById('editor-view-scenario-build').style.display = 'none';
   document.getElementById('editor-view-draw').style.display = 'none';
   document.getElementById('editor-view-maps').style.display = 'block';
   renderSavedMapsList();
@@ -659,10 +672,9 @@ function updateMergeButtonState() {
   document.getElementById('merge-selected-btn').style.display = n >= 2 ? 'block' : 'none';
   const clr = document.getElementById('clear-sel-btn');
   const del = document.getElementById('delete-sel-btn');
-  const own = document.getElementById('set-owner-btn');
   if (clr) { clr.style.display = n >= 1 ? 'block' : 'none'; document.getElementById('sel-count').textContent = n; }
   if (del) { del.style.display = n >= 1 ? 'block' : 'none'; document.getElementById('del-count').textContent = n; }
-  if (own) own.style.display = n >= 1 ? 'block' : 'none';
+  if (document.getElementById('scenario-selected-count')) updateScenarioSummary();
 }
 
 function clearSelection() {
@@ -1204,11 +1216,15 @@ function renderMapProvinces() {
     }
 
     const isSelected = selectedProvinceIds.has(p.id);
+    let fill = '#e8e4dc';
+    if (isSelected) fill = 'rgba(200,40,40,0.45)';
+    else if (scenarioBuildActive && p.owner && scenarioCountryColors[p.owner]) fill = scenarioCountryColors[p.owner];
+
     editorDrawG.insert('path', '.draw-preview')
       .attr('class', 'map-prov')
       .attr('data-prov-id', p.id)
       .attr('d', d)
-      .attr('fill', isSelected ? 'rgba(200,40,40,0.45)' : '#e8e4dc')
+      .attr('fill', fill)
       .attr('stroke', isSelected ? '#c02020' : '#555')
       .attr('stroke-width', isSelected ? strokeWidth + 1 : strokeWidth)
       .style('cursor', selectionMode ? 'pointer' : 'default')
@@ -1218,6 +1234,7 @@ function renderMapProvinces() {
         toggleProvinceSelection(p.id, !selectedProvinceIds.has(p.id));
         renderMapProvinces();
         renderEditorProvinceList();
+        if (scenarioBuildActive) updateScenarioSummary();
       });
 
     if (!showProvinceLabels) return;
@@ -1241,12 +1258,9 @@ function renderEditorProvinceList() {
     list.innerHTML = '<div class="chg-empty">Провинций пока нет</div>';
     return;
   }
-  const ownerOptions = ['(нет)'].concat(SCENARIO_OWNER_OPTIONS).map(o =>
-    `<option value="${o === '(нет)' ? '' : o}">${o}</option>`
-  ).join('');
   list.innerHTML = mapProvinces.map(p => `
-    <div class="eprov-item" style="flex-wrap:wrap">
-      <label style="display:flex;align-items:center;gap:5px;flex:1;cursor:pointer;min-width:120px">
+    <div class="eprov-item">
+      <label style="display:flex;align-items:center;gap:5px;flex:1;cursor:pointer">
         <input type="checkbox" ${selectedProvinceIds.has(p.id) ? 'checked' : ''} onchange="toggleProvinceSelection('${p.id}', this.checked)">
         <span class="eprov-name">${p.name}</span>
       </label>
@@ -1254,36 +1268,103 @@ function renderEditorProvinceList() {
         <button onclick="renameMapProvince('${p.id}')">✏️</button>
         <button onclick="deleteMapProvince('${p.id}')">🗑</button>
       </div>
-      <select style="width:100%;margin-top:4px;font-size:10px;padding:2px" onchange="setProvinceOwner('${p.id}', this.value)">
-        ${ownerOptions.replace(`value="${p.owner || ''}"`, `value="${p.owner || ''}" selected`)}
-      </select>
     </div>
   `).join('');
 }
 
-// Список стран, которых можно назначить владельцем провинции — 6 игровых стран + возможность
-// вписать своё название (для новых сценариев, где нужна страна, которой ещё нет в игре).
+// Список стран, которых можно назначить владельцем провинции при создании сценария.
 const SCENARIO_OWNER_OPTIONS = ['Франция', 'Великобритания', 'Россия', 'Австрия', 'Пруссия', 'Испания'];
 
-function setProvinceOwner(id, owner) {
-  const p = mapProvinces.find(x => x.id === id);
-  if (!p) return;
-  pushHistory();
-  p.owner = owner || null;
-  renderMapProvinces();
+// ============================================================
+// СОЗДАНИЕ СЦЕНАРИЯ — отдельный от «Карт» раздел: взять готовую сохранённую карту и
+// назначить провинциям владельцев (страны) с цветом, кликая прямо по карте. Работает поверх
+// той же mapProvinces/selectedProvinceIds/renderMapProvinces, что и обычное редактирование,
+// но в «только назначение владельца» режиме — рисование и импорт тут не нужны.
+// ============================================================
+let scenarioBuildActive = false;
+let scenarioCountryColors = {};
+
+function openScenarioPicker() {
+  document.getElementById('editor-view-hub').style.display = 'none';
+  document.getElementById('editor-view-scenario-pick').style.display = 'block';
+  const list = document.getElementById('editor-scenario-pick-list');
+  const idx = getMapsIndex();
+  if (idx.length === 0) {
+    list.innerHTML = '<div class="chg-empty">Нет сохранённых карт — сначала создайте карту в разделе «Карты»</div>';
+  } else {
+    list.innerHTML = idx.map(m => `
+      <div class="map-saved-item" onclick="startScenarioForMap('${m.id}')">
+        <div><div class="map-item-name">🗺️ ${m.name}</div><div class="map-item-sub">${m.provinceCount} провинций</div></div>
+      </div>
+    `).join('');
+  }
 }
 
-// Назначить владельца сразу всем выбранным (отмеченным галочкой) провинциям — быстрее,
-// чем щёлкать выпадающий список у каждой по отдельности.
-function setOwnerForSelected() {
-  if (selectedProvinceIds.size === 0) { showNotif('⚠️ Сначала выделите провинции'); return; }
-  const owner = prompt('Владелец для выбранных провинций (одно из: ' + SCENARIO_OWNER_OPTIONS.join(', ') + '), либо оставьте пустым для "нет":', SCENARIO_OWNER_OPTIONS[0]);
-  if (owner === null) return;
-  pushHistory();
-  mapProvinces.forEach(p => { if (selectedProvinceIds.has(p.id)) p.owner = owner.trim() || null; });
+function startScenarioForMap(id) {
+  const raw = localStorage.getItem(mapDataKey(id));
+  if (!raw) { showNotif('⚠️ Карта не найдена'); return; }
+  let d;
+  try { d = JSON.parse(raw); } catch (e) { showNotif('⚠️ Не удалось прочитать карту'); return; }
+  mapProvinces = (d.provinces || []).map(p => ({ ...p, owner: null })); // сценарий стартует с чистого листа владений
+  scenarioCountryColors = {};
+  selectedProvinceIds.clear();
+  selectionMode = true;
+  scenarioBuildActive = true;
+  currentMapTemplate = 'blank';
+  edVb = { x: 0, y: 0, w: 960, h: 560 };
+  applyEditorViewBox();
+
+  document.getElementById('editor-view-scenario-pick').style.display = 'none';
+  document.getElementById('editor-view-scenario-build').style.display = 'block';
+  document.getElementById('scenario-color-input').value = '#2a5aa8';
+  editorBgG.selectAll('*').remove();
   renderMapProvinces();
-  renderEditorProvinceList();
-  showNotif('✅ Владелец назначен: ' + (owner.trim() || '(нет)'));
+  updateScenarioSummary();
+}
+
+function updateScenarioSummary() {
+  const cnt = document.getElementById('scenario-selected-count');
+  if (cnt) cnt.textContent = selectedProvinceIds.size;
+  const el = document.getElementById('scenario-summary-list');
+  if (!el) return;
+  const counts = {};
+  mapProvinces.forEach(p => { if (p.owner) counts[p.owner] = (counts[p.owner] || 0) + 1; });
+  const entries = Object.entries(counts);
+  el.innerHTML = entries.length
+    ? entries.map(([c, n]) => `<div class="irow"><span class="k">${c}</span><span>${n}</span></div>`).join('')
+    : '<div class="chg-empty">Пока никому ничего не назначено</div>';
+}
+
+function assignScenarioSelectionToCountry() {
+  if (selectedProvinceIds.size === 0) { showNotif('⚠️ Сначала выделите провинции кликами по карте'); return; }
+  const country = document.getElementById('scenario-country-select').value;
+  const color = document.getElementById('scenario-color-input').value;
+  mapProvinces.forEach(p => { if (selectedProvinceIds.has(p.id)) p.owner = country; });
+  scenarioCountryColors[country] = color;
+  selectedProvinceIds.clear();
+  renderMapProvinces();
+  updateScenarioSummary();
+  showNotif('✅ Закреплено за: ' + country);
+}
+
+function exportScenarioToFile() {
+  const assigned = mapProvinces.filter(p => p.owner).length;
+  const payload = {
+    type: 'scenario',
+    exportedAt: new Date().toISOString(),
+    countryColors: scenarioCountryColors,
+    provinces: mapProvinces.map(p => ({ id: p.id, name: p.name, geometry: p.geometry || null, points: p.points || null, owner: p.owner || null }))
+  };
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'scenario_' + Date.now().toString(36) + '.json';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  showNotif(`📥 Сценарий скачан: ${assigned} провинций с владельцем из ${mapProvinces.length}`);
 }
 
 function renameMapProvince(id) {

@@ -304,6 +304,9 @@ function enterDrawView() {
   document.getElementById('nuts-level-switcher').style.display = currentMapTemplate === 'nuts-europe' ? 'block' : 'none';
   activeNutsOverrideLevel = null;
   admin1Showing = false;
+  selectionMode = false;
+  const selCheck = document.getElementById('selection-mode-check');
+  if (selCheck) selCheck.checked = false;
   selectedProvinceIds.clear();
   mapHistory = [];
   updateUndoButton();
@@ -554,6 +557,15 @@ async function toggleWorldAdmin1() {
 // ============================================================
 let selectedProvinceIds = new Set();
 
+// Режим выделения кликом прямо по карте — быстрее, чем искать провинцию в списке галочками.
+// Включили → клик по провинции на карте добавляет/убирает её из выделения (обычный импорт
+// в это время не срабатывает). Выключили → клики снова импортируют/рисуют как обычно.
+let selectionMode = false;
+function toggleSelectionMode(checked) {
+  selectionMode = checked;
+  renderMapProvinces();
+}
+
 // ============================================================
 // ИСТОРИЯ ИЗМЕНЕНИЙ (Undo) — снимок mapProvinces перед каждым изменением,
 // чтобы случайный клик/импорт можно было откатить как в редакторах.
@@ -638,6 +650,7 @@ function findOverlappingProvinces(feature) {
 function toggleProvinceSelection(id, checked) {
   if (checked) selectedProvinceIds.add(id); else selectedProvinceIds.delete(id);
   updateMergeButtonState();
+  renderMapProvinces(); // подсветить/снять подсветку на самой карте
 }
 
 function updateMergeButtonState() {
@@ -654,6 +667,7 @@ function clearSelection() {
   selectedProvinceIds.clear();
   updateMergeButtonState();
   renderEditorProvinceList();
+  renderMapProvinces();
 }
 
 function deleteSelectedProvinces() {
@@ -1187,12 +1201,22 @@ function renderMapProvinces() {
       return;
     }
 
+    const isSelected = selectedProvinceIds.has(p.id);
     editorDrawG.insert('path', '.draw-preview')
       .attr('class', 'map-prov')
+      .attr('data-prov-id', p.id)
       .attr('d', d)
-      .attr('fill', '#e8e4dc')
-      .attr('stroke', '#555')
-      .attr('stroke-width', strokeWidth);
+      .attr('fill', isSelected ? 'rgba(200,40,40,0.45)' : '#e8e4dc')
+      .attr('stroke', isSelected ? '#c02020' : '#555')
+      .attr('stroke-width', isSelected ? strokeWidth + 1 : strokeWidth)
+      .style('cursor', selectionMode ? 'pointer' : 'default')
+      .on('click', function(e) {
+        if (!selectionMode) return;
+        e.stopPropagation();
+        toggleProvinceSelection(p.id, !selectedProvinceIds.has(p.id));
+        renderMapProvinces();
+        renderEditorProvinceList();
+      });
 
     if (!showProvinceLabels) return;
     editorDrawG.insert('text', '.draw-preview')

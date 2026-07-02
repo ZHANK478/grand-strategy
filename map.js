@@ -164,101 +164,21 @@ function updateParis() {
     .attr('visibility', show ? 'visible' : 'hidden');
 }
 function drawMap() {
-  Promise.all([
-    d3.json('https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json'),
-    d3.json('https://raw.githubusercontent.com/gregoiredavid/france-geojson/master/regions-version-simplifiee.geojson')
-  ]).then(([world, franceGeo]) => {
+  d3.json('https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json').then(world => {
 
     const countries = topojson.feature(world, world.objects.countries);
 
-    // Мировые страны — пропускаем Францию (её рисуем отдельно точнее)
+    // Фон мира — просто контуры всех стран, без раскраски и кликов: настоящее владение
+    // теперь показывает слой провинций (drawScenarioProvinces ниже), этот слой — только подложка
+    // на случай пробелов в покрытии провинциями (Аляска, Азия, Африка и т.п. вне сценария).
     worldG.selectAll('path.country')
-      .data(countries.features.filter(d => String(d.id) !== FRANCE_ID))
+      .data(countries.features)
       .join('path')
       .attr('class','country')
-      .attr('data-country', d => KNOWN_COUNTRIES[String(d.id)] ? KNOWN_COUNTRIES[String(d.id)].name : '')
       .attr('d', pathGen)
-      .attr('fill', d => {
-        const known = KNOWN_COUNTRIES[String(d.id)];
-        if (!known) return '#e8e4dc';
-        const owner = (typeof territoryOwnerOf === 'function') ? territoryOwnerOf(known.name) : known.name;
-        return getCountryColor(owner);
-      })
+      .attr('fill', '#e8e4dc')
       .attr('stroke','#888')
-      .attr('stroke-width','0.25')
-      .style('cursor', d => KNOWN_COUNTRIES[String(d.id)] ? 'pointer' : 'default')
-      .on('mouseover',(e,d)=>{
-        const known = KNOWN_COUNTRIES[String(d.id)];
-        d3.select(e.currentTarget).style('opacity', known ? 0.8 : 1);
-        tooltip.style.display='block';
-        if (known) {
-          const owner = (typeof territoryOwnerOf === 'function') ? territoryOwnerOf(known.name) : known.name;
-          const ownerStr = owner !== known.name ? ` (владеет: ${owner})` : '';
-          const rel = (typeof worldState !== 'undefined') ? (worldState.relations[known.name] || 0) : 0;
-          const relStr = (rel > 0 ? '+' : '') + rel;
-          const war = (typeof worldState !== 'undefined') && worldState.atWarWith.includes(known.name) ? ' ⚔️ ВОЙНА' : '';
-          document.getElementById('t-name').textContent = known.name + ownerStr + war;
-          document.getElementById('t-info').textContent = known.label + ' · Отношения: ' + relStr;
-        } else {
-          document.getElementById('t-name').textContent='Страна';
-          document.getElementById('t-info').textContent='Нет данных';
-        }
-      })
-      .on('mousemove', e => positionTooltip(e))
-      .on('mouseleave', (e,d)=>{
-        d3.select(e.currentTarget).style('opacity', 1);
-        tooltip.style.display='none';
-      })
-      .on('click', (e, d) => {
-        const known = KNOWN_COUNTRIES[String(d.id)];
-        if (typeof gameStarted !== 'undefined' && !gameStarted) {
-          if (known && typeof selectPlayableCountry === 'function') selectPlayableCountry(known.name);
-          return;
-        }
-        if (known && typeof openCountryRelations === 'function') {
-          openCountryRelations(known.name);
-        }
-      });
-
-    // Подписи известных стран — отдельный слой, масштаб фиксирован на экране
-    countries.features
-      .filter(d => KNOWN_COUNTRIES[String(d.id)])
-      .forEach(d => addCountryLabel(KNOWN_COUNTRIES[String(d.id)].name, d, true));
-
-    // Регионы Франции — реальный GeoJSON поверх, все в одном цвете страны-владельца
-    franceGeo.features.forEach((feature, i) => {
-      const name   = feature.properties.nom;
-      const info   = PROVINCE_INFO[name] || { pop:'—', income:'—' };
-      const owner  = (typeof territoryOwnerOf === 'function') ? territoryOwnerOf('Франция') : 'Франция';
-      const color  = getCountryColor(owner);
-      const hcolor = lighten(color);
-
-      franceG.append('path')
-        .datum(feature)
-        .attr('class', 'france-province')
-        .attr('d', pathGen)
-        .attr('fill', color)
-        .attr('stroke','#6a9ac0')   // серо-голубая граница
-        .attr('stroke-width','0.4')
-        .style('cursor','pointer')
-        .on('mouseover', function(e){
-          d3.select(this).style('opacity', 0.8);
-          tooltip.style.display='block';
-          document.getElementById('t-name').textContent = name;
-          document.getElementById('t-info').textContent = '👥 '+info.pop+' · 💰 '+info.income;
-        })
-        .on('mousemove', e => positionTooltip(e))
-        .on('mouseleave', function(){
-          d3.select(this).style('opacity', 1);
-          tooltip.style.display='none';
-        })
-        .on('click', function(){
-          if (typeof gameStarted !== 'undefined' && !gameStarted) {
-            if (typeof selectPlayableCountry === 'function') selectPlayableCountry('Франция');
-          }
-        });
-      // Названия регионов больше не рисуются постоянно на карте — только во всплывающей подсказке при наведении
-    });
+      .attr('stroke-width','0.25');
 
     // Маркер Парижа — масштабируемый
     parisXY = proj([2.3488, 48.8534]);
@@ -278,7 +198,6 @@ function drawMap() {
       .attr('visibility','hidden')
       .text('★ Париж');
 
-    addCountryLabel('Франция', [2.3488, 46.6], false);
     labelsG.style('display', showCountryLabels ? null : 'none');
     updateLabels();
     renderMapObjects();
@@ -297,18 +216,9 @@ function updateLabels() {
   updateObjectScale();
 }
 
-// Перекрасить все территории по текущим владельцам (вызывается после аннексий/передач)
+// Перекрасить все территории по текущим владельцам (вызывается после аннексий/передач).
+// Владение теперь считается по провинциям — см. renderScenarioProvinces() ниже.
 function renderTerritoryColors() {
-  worldG.selectAll('path.country').each(function() {
-    const name = d3.select(this).attr('data-country');
-    if (!name) return;
-    const owner = territoryOwnerOf(name);
-    d3.select(this).attr('fill', getCountryColor(owner));
-  });
-  const franceOwner = territoryOwnerOf('Франция');
-  franceG.selectAll('.france-province').attr('fill', getCountryColor(franceOwner));
-  const spainOwner = territoryOwnerOf('Испания');
-  spainG.selectAll('.spain-territory').attr('fill', getCountryColor(spainOwner));
   if (typeof renderScenarioProvinces === 'function') renderScenarioProvinces();
 }
 
@@ -352,58 +262,7 @@ mapWrap.addEventListener('wheel', e=>{
 
 drawMap();
 
-// ============================================================
-// ИСПАНИЯ — отдельный слой
-// ============================================================
-const spainG = svg.select('#spain-g');
-
-function drawSpain() {
-  d3.json('https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json').then(world => {
-    const countries = topojson.feature(world, world.objects.countries);
-    // ID Испании = 724
-    const spain = countries.features.find(d => String(d.id) === '724');
-    if (!spain) return;
-
-    spainG.append('path')
-      .datum(spain)
-      .attr('class', 'spain-territory')
-      .attr('d', pathGen)
-      .attr('fill', () => {
-        const owner = (typeof territoryOwnerOf === 'function') ? territoryOwnerOf('Испания') : 'Испания';
-        return getCountryColor(owner);
-      })
-      .attr('stroke', '#7a5a10')
-      .attr('stroke-width', '0.5')
-      .style('cursor', 'pointer')
-      .on('mouseover', function(e) {
-        d3.select(this).style('opacity', 0.8);
-        tooltip.style.display = 'block';
-        const owner = (typeof territoryOwnerOf === 'function') ? territoryOwnerOf('Испания') : 'Испания';
-        const ownerStr = owner !== 'Испания' ? ` (владеет: ${owner})` : '';
-        const rel = (typeof worldState !== 'undefined') ? (worldState.relations['Испания'] || 0) : 0;
-        const war = (typeof worldState !== 'undefined') && worldState.atWarWith.includes('Испания') ? ' ⚔️ ВОЙНА' : '';
-        document.getElementById('t-name').textContent = 'Испания' + ownerStr + war;
-        document.getElementById('t-info').textContent = '👑 Королева Изабелла II · Отношения: ' + (rel > 0 ? '+' : '') + rel;
-      })
-      .on('mousemove', e => positionTooltip(e))
-      .on('mouseleave', function() {
-        d3.select(this).style('opacity', 1);
-        tooltip.style.display = 'none';
-      })
-      .on('click', function() {
-        if (typeof gameStarted !== 'undefined' && !gameStarted) {
-          if (typeof selectPlayableCountry === 'function') selectPlayableCountry('Испания');
-          return;
-        }
-        if (typeof openCountryRelations === 'function') openCountryRelations('Испания');
-      });
-
-    addCountryLabel('Испания', spain, true);
-    updateCountryLabels();
-  });
-}
-
-drawSpain();
+const spainG = svg.select('#spain-g'); // слой больше не используется для рисования (заменён провинциями), оставлен для совместимости с index.html
 
 // ============================================================
 // ПРОВИНЦИИ ИЗ СЦЕНАРИЯ (созданы в редакторе сценариев) — реальные границы вместо одной
@@ -425,9 +284,29 @@ function drawScenarioProvinces() {
   d3.json('scenario_1852.json').then(data => {
     scenarioProvinces = (data.provinces || []).filter(p => p.owner && ALL_COUNTRIES.includes(p.owner) && p.geometry);
     renderScenarioProvinces();
+    addCountryLabelsFromProvinces();
   }).catch(err => {
     console.warn('Провинции сценария не загрузились (карта останется на уровне стран):', err.message);
   });
+}
+
+// Подпись каждой страны ставим на её САМУЮ БОЛЬШУЮ провинцию (по площади) — надёжнее, чем
+// центроид всех кусков сразу, который может уехать в море при многочастной территории.
+function addCountryLabelsFromProvinces() {
+  const biggestByCountry = {};
+  scenarioProvinces.forEach(p => {
+    const feature = { type: 'Feature', geometry: p.geometry };
+    let area = 0;
+    try { area = Math.abs(d3.geoArea(feature)); } catch (e) { /* битая геометрия — пропускаем */ }
+    if (!biggestByCountry[p.owner] || area > biggestByCountry[p.owner].area) {
+      biggestByCountry[p.owner] = { area, feature };
+    }
+  });
+  labelsG.selectAll('.country-label').remove();
+  ALL_COUNTRIES.forEach(c => {
+    if (biggestByCountry[c]) addCountryLabel(c, biggestByCountry[c].feature, true);
+  });
+  updateCountryLabels();
 }
 
 function renderScenarioProvinces() {

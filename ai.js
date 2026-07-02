@@ -18,8 +18,9 @@ if (!GEMINI_API_KEY) {
 }
 const GEMINI_URL = 'https://openrouter.ai/api/v1/chat/completions';
 const MODEL = 'google/gemini-3.1-flash-lite';
-// Модель генерации изображений (портреты правителей). Работает через тот же OpenRouter ключ.
-const IMAGE_MODEL = 'google/gemini-2.5-flash-image-preview';
+// Модель генерации изображений (портреты правителей/премьеров). Работает через тот же
+// OpenRouter ключ. gemini-3.1-flash-image — актуальная модель генерации картинок.
+const IMAGE_MODEL = 'google/gemini-3.1-flash-image';
 
 // ============================================================
 // СОСТОЯНИЕ МИРА
@@ -71,8 +72,9 @@ function describeCountries() {
     const d = countries[c];
     const age = typeof d.rulerAge === 'number' ? `, ${d.rulerAge} лет` : '';
     const parl = d.parliament ? ` Парламент (${d.parliament.name}): поддержка правительства ${d.parliament.support}%, фракции: ${(d.parliament.factions||[]).map(f=>`${f.name} ${f.pct}%`).join(', ')}.` : '';
+    const rel = d.religion && d.religion.main ? ` Религия: ${Object.entries(d.religion.dist || {}).map(([k,v])=>`${k} ${v}%`).join(', ')} (главная ${d.religion.main}); вера правителя: ${d.rulerReligion || d.religion.main}.` : '';
     const agenda = d.agenda ? ` ИНТЕРЕСЫ: ${d.agenda}` : '';
-    return `${d.displayName}: казна ${d.treasury.toLocaleString('ru')} фр., доход ${d.income >= 0 ? '+' : ''}${d.income.toLocaleString('ru')} фр./мес, долг ${d.debt.toLocaleString('ru')} фр., инфляция ${d.inflation}%, армия ${d.army.toLocaleString('ru')}, стабильность ${d.stability}, правитель ${d.ruler} (${d.rulerTitle}${age}), правление: ${d.government}.${parl}${agenda}`;
+    return `${d.displayName}: казна ${d.treasury.toLocaleString('ru')} фр., доход ${d.income >= 0 ? '+' : ''}${d.income.toLocaleString('ru')} фр./мес, долг ${d.debt.toLocaleString('ru')} фр., инфляция ${d.inflation}%, армия ${d.army.toLocaleString('ru')}, стабильность ${d.stability}, правитель ${d.ruler} (${d.rulerTitle}${age}), правление: ${d.government}.${rel}${parl}${agenda}`;
   }).join('\n');
 }
 
@@ -192,24 +194,35 @@ async function askGeminiImage(promptText) {
   }
 }
 
+// Портрет персоны: role 'ruler' (правитель, поле portrait) или 'pm' (глава правительства,
+// поле pmPortrait). Единая функция — обе кнопки и автогенерация идут через неё.
 let portraitGenerating = false;
-async function generateRulerPortrait(country) {
+async function generatePersonPortrait(country, role) {
   const c = countries[country];
   if (!c || portraitGenerating) return null;
+  role = role === 'pm' ? 'pm' : 'ruler';
   portraitGenerating = true;
-  if (typeof setPortraitLoading === 'function') setPortraitLoading(true);
-  const age = typeof c.rulerAge === 'number' ? `${c.rulerAge} years old` : 'middle-aged';
-  const prompt = `Formal painted state portrait, oil painting, 19th century academic style. Subject: ${c.ruler}, ${c.rulerTitle} of ${c.displayName}, ${age}, year ${year}. Dignified pose, period-accurate formal attire and regalia of ${c.displayName}, muted palace background, 3:4 portrait crop, head and shoulders. No text, no frame.`;
+  if (typeof setPortraitLoading === 'function') setPortraitLoading(true, role);
+  const isPm = role === 'pm';
+  const name = isPm ? c.pm : c.ruler;
+  const title = isPm ? c.pmTitle : c.rulerTitle;
+  const age = !isPm && typeof c.rulerAge === 'number' ? `${c.rulerAge} years old` : 'middle-aged';
+  const faith = !isPm && c.rulerReligion ? `, ${c.rulerReligion} faith` : '';
+  const era = year < 1900 ? '19th century academic style' : 'early 20th century formal style';
+  const prompt = `Formal painted state portrait, oil painting, ${era}. Subject: ${name}, ${title} of ${c.displayName}, ${age}${faith}, year ${year}. Dignified pose, period-accurate formal attire${isPm ? '' : ' and regalia'} of ${c.displayName}, muted palace background, 3:4 portrait crop, head and shoulders. No text, no frame.`;
   const url = await askGeminiImage(prompt);
   portraitGenerating = false;
-  if (typeof setPortraitLoading === 'function') setPortraitLoading(false);
+  if (typeof setPortraitLoading === 'function') setPortraitLoading(false, role);
   if (url) {
-    c.portrait = url;
+    if (isPm) c.pmPortrait = url; else c.portrait = url;
     if (country === playerCountry && typeof renderRulerPortrait === 'function') renderRulerPortrait();
     saveGame();
   }
   return url;
 }
+
+// Обратная совместимость со старым именем
+function generateRulerPortrait(country) { return generatePersonPortrait(country, 'ruler'); }
 
 // Автогенерация портрета правителя страны игрока (вкл/выкл в настройках)
 function autoPortraitsEnabled() { return localStorage.getItem('gs1852_auto_portraits') !== '0'; }
@@ -217,7 +230,7 @@ function maybeAutoPortrait(country) {
   if (!autoPortraitsEnabled()) return;
   const c = countries[country];
   if (!c || c.portrait) return;
-  generateRulerPortrait(country);
+  generatePersonPortrait(country, 'ruler');
 }
 
 // ============================================================
@@ -250,8 +263,8 @@ async function generateCountryProfiles(names, full) {
   const prompt = `Ты — историк-справочник стратегической игры. Год: ${year}. Страны: ${names.join(', ')}.
 ${knownLine}
 Ответь ТОЛЬКО валидным JSON-массивом без пояснений, по объекту на страну:
-[{"country":"название как в списке","ruler":"имя реального/правдоподобного правителя на ${year} год","ruler_age":число (реальный возраст, обычно 30-75),"ruler_title":"титул","government":"форма правления","pm":"глава правительства","pm_title":"его должность","treasury":число (казна во франках, масштаб: великая держава 3000-5000, средняя 1500-2500, малая 400-1200),"income":число (доход/мес: великая 400-700, средняя 200-350, малая 60-180),"army":число солдат,"stability":число 0-100,"capital":"столица","pop":"население текстом","gdp":"ВВП текстом","blurb":"2 предложения о положении страны в ${year} году","agenda":"1-2 предложения: национальные интересы, чего страна боится, чего добивается, с кем соперничает","parliament":null или {"name":"название органа","support":число 0-100,"factions":[{"name":"фракция","pct":число}]}}]
-${full ? '' : 'Для этого списка заполни ТОЛЬКО поля country, agenda, parliament — остальные ставь null.'}`;
+[{"country":"название как в списке","ruler":"имя реального/правдоподобного правителя на ${year} год","ruler_age":число (реальный возраст, обычно 30-75),"ruler_title":"титул","government":"форма правления","pm":"глава правительства","pm_title":"его должность","treasury":число (казна во франках, масштаб: великая держава 3000-5000, средняя 1500-2500, малая 400-1200),"income":число (доход/мес: великая 400-700, средняя 200-350, малая 60-180),"army":число солдат,"stability":число 0-100,"capital":"столица","pop":"население текстом","gdp":"ВВП текстом","blurb":"2 предложения о положении страны в ${year} году","agenda":"1-2 предложения: национальные интересы, чего страна боится, чего добивается, с кем соперничает","religion":{"main":"главная религия","dist":{"Религия1":число%,"Религия2":число%}} (реальное распределение верующих, сумма ~100),"ruler_religion":"вера правителя","parliament":null или {"name":"название органа","support":число 0-100,"factions":[{"name":"фракция","pct":число}]}}]
+${full ? '' : 'Для этого списка заполни ТОЛЬКО поля country, agenda, religion, ruler_religion, parliament — остальные ставь null.'}`;
   const raw = await askGemini(prompt, Math.min(6000, 220 * names.length + 500));
   try {
     const start = raw.indexOf('[');
@@ -280,6 +293,8 @@ ${full ? '' : 'Для этого списка заполни ТОЛЬКО пол
         c.profilePending = false;
       }
       if (p.agenda) c.agenda = p.agenda;
+      if (p.religion && p.religion.dist) c.religion = p.religion;
+      if (p.ruler_religion) c.rulerReligion = p.ruler_religion;
       if (p.parliament && p.parliament.factions) c.parliament = p.parliament;
     });
     if (full) {
@@ -443,6 +458,49 @@ function parseAndApplyEffects(text, baseChanges) {
         if (w.status === 'start' && key(a, b) === -1) worldState.aiWars.push([a, b]);
         if (w.status === 'end') { const i = key(a, b); if (i > -1) worldState.aiWars.splice(i, 1); }
       });
+    }
+
+    // СРАЖЕНИЯ: ИИ объявляет бой, ПОТЕРИ считает движок (математика в game.js)
+    if (effects.battles && Array.isArray(effects.battles) && typeof resolveBattle === 'function') {
+      effects.battles.forEach(bt => {
+        if (!bt || !bt.a || !bt.b) return;
+        const a = normalizeCountryName(bt.a), b = normalizeCountryName(bt.b);
+        if (!countries[a] || !countries[b]) return;
+        const res = resolveBattle(a, b, bt.scale || 'battle', bt.location || null);
+        if (!res) return;
+        showNotif('⚔️ ' + res.summary);
+        if (a === playerCountry || b === playerCountry) {
+          const mine = a === playerCountry ? a : b;
+          turnChanges.push({ label: '⚔️ Потери в бою', value: '-' + (res.winner === mine ? res.winnerLosses : res.loserLosses).toLocaleString('ru'), sign: res.winner === mine ? 1 : -1 });
+          if ((bt.scale || 'battle') !== 'skirmish' && typeof showBreakingNews === 'function') {
+            showBreakingNews(res.winner === mine ? 'ПОБЕДА В СРАЖЕНИИ' : 'ПОРАЖЕНИЕ В СРАЖЕНИИ', res.summary);
+          }
+        }
+      });
+    }
+
+    // НОВЫЕ ГОСУДАРСТВА: мятежные режимы, марионеточные правительства, отделения.
+    // Доступно и игроку (свои/захваченные земли), и ИИ-странам. Страна создаётся движком
+    // и становится полноценной (профиль дозаполнит ИИ).
+    if (effects.new_countries && Array.isArray(effects.new_countries) && typeof createDynamicCountry === 'function') {
+      effects.new_countries.forEach(nc => {
+        const res = createDynamicCountry(nc);
+        if (!res) return;
+        showNotif(`🏳️ Новое государство: ${res.name}`);
+        if (typeof showBreakingNews === 'function') {
+          showBreakingNews(nc.type === 'rebel' ? 'ВОССТАНИЕ' : 'НОВОЕ ГОСУДАРСТВО',
+            `Провозглашено государство ${res.name}${res.from ? ' на землях ' + res.from : ''} (${res.provinces} провинций).`);
+        }
+        turnChanges.push({ label: '🏳️ Новое государство', value: res.name, sign: 0 });
+        if (typeof queueMissingProfiles === 'function') queueMissingProfiles();
+      });
+    }
+
+    // Религия страны игрока: сдвиги процентов и/или смена веры правителя
+    if (effects.religion && typeof shiftReligion === 'function') {
+      shiftReligion(playerCountry, effects.religion.shift || null, effects.religion.ruler_religion || null);
+      if (effects.religion.shift) turnChanges.push({ label: '⛪ Религия', value: Object.entries(effects.religion.shift).map(([k, v]) => `${k} ${v > 0 ? '+' : ''}${v}%`).join(', '), sign: 0 });
+      if (effects.religion.ruler_religion) turnChanges.push({ label: '⛪ Вера правителя', value: effects.religion.ruler_religion, sign: 0 });
     }
 
     // Парламент страны игрока
@@ -611,7 +669,11 @@ function parseDiploEffects(text, targetCountry) {
 // ============================================================
 // 1. СОБЫТИЯ ПОСЛЕ ХОДА — мировые новости + внутренние новости + BREAKING + JSON-эффекты
 // ============================================================
-async function generateEvents(deaths) {
+async function generateEvents(deaths, opts) {
+  opts = opts || {};
+  const newsCount = opts.newsCount || 10;
+  const domesticCount = opts.domesticCount || 3;
+  const periodLabel = opts.periodLabel || null;
   const state = getGameState();
   const actions = playerActions.length > 0
     ? playerActions.join('\n')
@@ -638,22 +700,24 @@ ${describeWorldState()}
 ${deathsLine}
 ${getRealismRules()}
 
-Действия игрока в этом месяце:
+Действия игрока за этот ход:
 ${actions}
 
-Напиши РОВНО 10 мировых новостных событий этого месяца. Каждое — 2-3 предложения (40-60 слов).
-- Минимум 4 из 10 — САМОСТОЯТЕЛЬНЫЕ действия других стран (${otherNames.join(', ')}): каждая преследует СВОИ ИНТЕРЕСЫ (поле ИНТЕРЕСЫ выше), боится и интригует против соседей согласно СКРЫТЫМ ОТНОШЕНИЯМ. Они воюют, торгуют, реформируются независимо от игрока.
+${periodLabel
+    ? `ЭТО ПРОПУСК ВРЕМЕНИ: прошёл целый период ${periodLabel}. Напиши РОВНО ${newsCount} КЛЮЧЕВЫХ событий всего этого периода (самое важное, что случилось в мире за это время) — крупные сдвиги, войны, реформы, кризисы. Каждое — 2-3 предложения.`
+    : `Напиши РОВНО ${newsCount} мировых новостных событий этого ${newsCount < 10 ? 'НЕДЕЛЬНОГО отрезка (мелкий масштаб: неделя, не месяц)' : 'месяца'}. Каждое — 2-3 предложения (40-60 слов).`}
+- Минимум ${Math.ceil(newsCount * 0.4)} из ${newsCount} — САМОСТОЯТЕЛЬНЫЕ действия других стран (${otherNames.join(', ')}): каждая преследует СВОИ ИНТЕРЕСЫ (поле ИНТЕРЕСЫ выше), боится и интригует против соседей согласно СКРЫТЫМ ОТНОШЕНИЯМ. Они воюют, торгуют, реформируются независимо от игрока. Другие страны ТОЖЕ двигают фигуры на карте (map_objects с owner=их название): стягивают армии к границам, шлют делегации, строят штабы — используй это, когда их политика этого требует.
 - Остальные — последствия действий игрока.
 Каждое событие с новой строки, без нумерации. На русском языке.
 
-После 10 мировых событий напиши строку "ВНУТРЕННИЕ:" и затем РОВНО 3 ВНУТРЕННИЕ новости страны игрока — громкие и важные внутренние дела: конкретные провинции (бери из списка ПРОВИНЦИИ выше), парламент/фракции, бюджет/долг/инфляция (по РЕАЛЬНЫМ числам из сводки БЮДЖЕТ), общественные настроения. Каждая 1-2 предложения, с новой строки.
+После мировых событий напиши строку "ВНУТРЕННИЕ:" и затем РОВНО ${domesticCount} ВНУТРЕННИЕ новости страны игрока — громкие и важные внутренние дела: конкретные провинции (бери из списка ПРОВИНЦИИ выше), парламент/фракции, религиозные общины, бюджет/долг/инфляция (по РЕАЛЬНЫМ числам из сводки БЮДЖЕТ), общественные настроения. Каждая 1-2 предложения, с новой строки.
 
 Раз в несколько ходов (РЕДКО, не чаще одного раза за 4-6 ходов и только если это логично следует из хроники) может случиться ОГРОМНОЕ событие: смерть очень крупной фигуры, крах банка, революция, эпидемия. Если такое происходит В ЭТОМ ходу — добавь строку:
 BREAKING:{"title":"КОРОТКИЙ ЗАГОЛОВОК","text":"1-2 предложения сути"}
 Если нет — строку BREAKING не пиши вовсе.
 
 В конце напиши ровно одну строку:
-EFFECTS:{"treasury_delta":0,"income_delta":0,"debt_delta":0,"army_delta":0,"stability_delta":0,"relations":{${otherNames.map(c => `"${c}":0`).join(',')}},"relations_between":[],"wars_between":[],"other_countries":{},"parliament":{"support_delta":0,"factions":null},"war_declared":[],"peace_made":[],"country_name":null,"country_color":null,"ruler_name":null,"ruler_age":null,"ruler_title":null,"government":null,"pm_name":null,"pm_title":null,"map_objects":[],"territory_transfer":[],"province_transfer":[],"foreign_leader_change":[]}
+EFFECTS:{"treasury_delta":0,"income_delta":0,"debt_delta":0,"army_delta":0,"stability_delta":0,"relations":{${otherNames.map(c => `"${c}":0`).join(',')}},"relations_between":[],"wars_between":[],"battles":[],"new_countries":[],"religion":null,"other_countries":{},"parliament":{"support_delta":0,"factions":null},"war_declared":[],"peace_made":[],"country_name":null,"country_color":null,"ruler_name":null,"ruler_age":null,"ruler_title":null,"government":null,"pm_name":null,"pm_title":null,"map_objects":[],"territory_transfer":[],"province_transfer":[],"foreign_leader_change":[]}
 
 КРИТИЧЕСКИ ВАЖНО — заполняй числа исходя из событий, не ставь нули без причины:
 - Казнил/убил солдат → army_delta отрицательный, stability_delta −3..−8
@@ -665,6 +729,13 @@ EFFECTS:{"treasury_delta":0,"income_delta":0,"debt_delta":0,"army_delta":0,"stab
 - other_countries: {"Страна":{"treasury_delta":0,"income_delta":0,"army_delta":0,"stability_delta":0}} — ТОЛЬКО для стран, у которых в новостях выше есть независимое событие с реальным эффектом. Соразмерно масштабу страны.
 - relations_between: [{"a":"Страна1","b":"Страна2","delta":число}] — сдвиги СКРЫТЫХ отношений между ДРУГИМИ странами, когда их события выше влияют друг на друга (союз, конфликт, торговая сделка). Игрока в паре быть не должно.
 - wars_between: [{"a":"Страна1","b":"Страна2","status":"start"|"end"}] — начало/конец войны МЕЖДУ другими странами.
+- battles: [{"a":"Атакующий","b":"Обороняющийся","scale":"skirmish|battle|decisive","location":"место"}] — РЕАЛЬНОЕ СРАЖЕНИЕ между воюющими странами (включая игрока). Указывай его, когда по хронике/действиям армии сходятся в бою: движок сам МАТЕМАТИЧЕСКИ посчитает потери из численности армий, стабильности и случайности — потери могут быть огромными, в решающем бою можно потерять почти всю задействованную армию. НЕ указывай army_delta за тот же бой — движок сам спишет потери. skirmish — стычка, battle — крупное сражение, decisive — генеральное сражение. Если страны воюют (⚔️ в сводке), сражения должны происходить регулярно, а не висеть в воздухе.
+- new_countries: [{"name":"Название","type":"rebel|puppet|independent","from":"Страна, из чьих земель","patron":"Страна-покровитель или null","provinces":["Название провинции",...],"color":"#RRGGBB","ruler":"имя","ruler_age":число,"ruler_title":"титул","government":"форма правления","army":число,"treasury":число,"stability":число,"agenda":"интересы","religion_main":"религия","blurb":"1-2 предложения"}] — СОЗДАНИЕ НОВОГО ГОСУДАРСТВА:
+  * rebel — мятежный режим/сепаратисты: возникает ТОЛЬКО при низкой стабильности (<40), гражданской войне или после разгрома в войне. Мятежники автоматически в войне с метрополией. Так делаются гражданские войны: часть провинций уходит новому образованию, дальше — battles между ними.
+  * puppet — марионеточное правительство: игрок (или ИИ-страна) СОЗНАТЕЛЬНО создаёт правительство на СВОИХ или ЗАХВАЧЕННЫХ землях и ставит кого-то у власти ("создать королевство в Ломбардии, посадить герцога X"). patron — создатель. Это законное право владельца земель.
+  * independent — мирное отделение/уния по договору.
+  Провинции бери ТОЧНО из списка провинций. ИИ-страны тоже могут создавать марионетки и переживать восстания — используй это как живой инструмент мира, но РЕДКО и обоснованно.
+- religion: {"shift":{"Религия":дельта_процентов,...},"ruler_religion":"новая вера правителя или null"} — сдвиг религиозного состава страны игрока (обращения, миграции, реформы; дельты малые, 1-3% за ход) и/или смена веры правителя (крупное событие!). Если ничего — null.
 - parliament: support_delta — сдвиг поддержки правительства в парламенте игрока от событий/действий (законы, скандалы, победы); factions — новый состав фракций ТОЛЬКО при выборах/роспуске, иначе null.
 - ruler_name/ruler_age/ruler_title/government/pm_name/pm_title — только при реальном перевороте/провозглашении/смерти/отставке в стране игрока. При смене правителя ВСЕГДА указывай ruler_age (возраст нового).
 - foreign_leader_change: [{"country":"...","ruler_name":"...","ruler_age":число,"ruler_title":"...","government":"...","pm_name":null,"pm_title":null}] — смена власти в чужой стране: только по её собственной логике или из реальных действий игрока (см. правило 5). ВСЕГДА с ruler_age.
@@ -676,7 +747,7 @@ ${worldState.mapObjects && worldState.mapObjects.length > 0
     : 'На карте пока нет объектов.'}
   Создание: {"action":"create","id":"id_латиницей","type":"army|hq|naval|diplomat|other","owner":"${state.country}","label":"...","troops":50000,"location":"..."}; изменение: {"action":"update","id":"...","troops":N}; перемещение: {"action":"move","id":"...","to":"..."}; удаление: {"action":"remove","id":"..."}. Только когда явно следует из событий.`;
 
-  const result = await askGemini(prompt, 2300);
+  const result = await askGemini(prompt, 2500);
 
   // Разбор секций: мировые новости / ВНУТРЕННИЕ / BREAKING / EFFECTS
   const effectsIndex = result.indexOf('EFFECTS:');
@@ -804,6 +875,7 @@ relations_delta: от -40 до +20. war_start: true только если сит
 // UI — Окно действий
 // ============================================================
 function openActionsPanel() {
+  if (typeof stopAutoPlay === 'function') stopAutoPlay(true);
   document.getElementById('actions-panel').style.display = 'block';
   document.getElementById('diplo-pop').style.display = 'none';
   document.getElementById('adv-pop').style.display = 'none';
@@ -843,7 +915,7 @@ function renderActionsList() {
 // ============================================================
 // Конец хода
 // ============================================================
-async function onTurnEnd(econChanges, deaths) {
+async function onTurnEnd(econChanges, deaths, opts) {
   const eventsBox = document.getElementById('events-box');
   const eventsList = document.getElementById('events-list');
 
@@ -856,7 +928,7 @@ async function onTurnEnd(econChanges, deaths) {
     playerActions.push('Дипломатические события этого хода: ' + worldState.diploLog.join('; '));
   }
 
-  const { events, domestic, breaking, raw } = await generateEvents(deaths);
+  const { events, domestic, breaking, raw } = await generateEvents(deaths, opts);
   parseAndApplyEffects(raw, econChanges);
 
   eventsList.innerHTML = events.map(e =>

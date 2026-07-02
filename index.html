@@ -152,6 +152,7 @@ body.menu-mode .game-ui{display:none !important;}
 .pause-box button.danger{background:#7a1a1a;}
 .pause-box button.danger:hover{background:#a02525;}
 #menu-btn{background:#333;border-color:#111;color:#fff;}
+#auto-btn.active-auto{background:#7a4a1a;border-color:#5a3a10;color:#fff;}
 #menu-btn:hover{background:#555;}
 
 /* ЭКРАН ЗАГРУЗКИ ИГРЫ */
@@ -241,7 +242,16 @@ body.menu-mode .game-ui{display:none !important;}
   <button class="abtn" onclick="togglePop('diplo-pop','adv-pop')">📜 Дипломатия</button>
   <button class="abtn" onclick="togglePop('adv-pop','diplo-pop')">🎭 Советник</button>
   <span class="turn-lbl" id="turn-info">Ход 1</span>
-  <button class="abtn next-btn" onclick="nextTurn()">Следующий месяц ▶</button>
+  <select id="skip-select" onchange="onSkipChange()" style="margin-left:auto;padding:5px 8px;font-family:Georgia,serif;font-size:12px;border:1px solid #aaa;border-radius:3px;background:#fff" title="Шаг времени за один ход">
+    <option value="week">Неделя</option>
+    <option value="m1" selected>Месяц</option>
+    <option value="m3">3 месяца</option>
+    <option value="m6">6 месяцев</option>
+    <option value="m12">Год</option>
+    <option value="m60">5 лет</option>
+  </select>
+  <button class="abtn next-btn" style="margin-left:0" onclick="nextTurn()">Следующий ход ▶</button>
+  <button class="abtn" id="auto-btn" onclick="toggleAutoPlay()" title="Автоматически пропускать время выбранным шагом, пока не остановите">⏩ Авто</button>
   <button class="abtn" id="menu-btn" onclick="openPauseMenu()">☰ Меню</button>
 </div>
 
@@ -498,6 +508,7 @@ body.menu-mode .game-ui{display:none !important;}
       <div class="ph-row"><span class="k">Возраст</span><span id="ph-age">—</span></div>
       <div class="ph-row"><span class="k">Правит с</span><span id="ph-since">—</span></div>
       <div class="ph-row"><span class="k">Правление</span><span id="ph-gov">—</span></div>
+      <div class="ph-row"><span class="k">Вера</span><span id="ph-faith">—</span></div>
     </div>
   </div>
   <div class="portrait-caption">
@@ -512,11 +523,14 @@ body.menu-mode .game-ui{display:none !important;}
     <button class="cbtn" onclick="toggle('pm')">▶ Глава правительства</button>
     <div class="ccont" id="pm">
       <div class="portrait-block">
-        <div class="portrait-emoji" style="font-size:48px;">🎩</div>
+        <img class="portrait-img" id="pm-portrait" style="display:none" alt="Портрет главы правительства"
+          onerror="this.style.display='none';this.nextElementSibling.style.display='flex';">
+        <div class="portrait-emoji" id="pm-portrait-emoji" style="font-size:48px;">🎩</div>
       </div>
       <div class="portrait-caption">
         <div class="pc-name" id="pm-name" style="font-size:13px">Эжен Руэр</div>
         <div class="pc-title" id="pm-title">Министр-президент</div>
+        <button class="cbtn" id="pm-portrait-gen-btn" onclick="onGeneratePmPortraitClick()" style="margin-top:6px">🎨 Портрет премьера (ИИ)</button>
       </div>
     </div>
   </div>
@@ -525,6 +539,13 @@ body.menu-mode .game-ui{display:none !important;}
     <button class="cbtn" onclick="toggle('parl')">▶ Парламент</button>
     <div class="ccont" id="parl">
       <div id="parliament-box"></div>
+    </div>
+  </div>
+
+  <div class="psec">
+    <button class="cbtn" onclick="toggle('religion')">▶ Религия</button>
+    <div class="ccont" id="religion">
+      <div id="religion-box"></div>
     </div>
   </div>
 
@@ -653,11 +674,11 @@ body.menu-mode .game-ui{display:none !important;}
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/topojson/3.0.2/topojson.min.js"></script>
-<script src="map.js?v=30"></script>
-<script src="ai.js?v=30"></script>
-<script src="game.js?v=30"></script>
-<script src="ui.js?v=30"></script>
-<script src="editor.js?v=30"></script>
-<script>initMenu();</script>
+<script src="map.js?v=31"></script>
+<script src="ai.js?v=31"></script>
+<script src="game.js?v=31"></script>
+<script src="ui.js?v=31"></script>
+<script src="editor.js?v=31"></script>
+<script>initMenu(); initSkipSelect();</script>
 </body>
 </html>

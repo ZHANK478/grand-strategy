@@ -4,8 +4,16 @@
 // правителей, парламент, сохранения (слоты), меню
 // ============================================================
 
-let turn = 1, month = 0, year = 1852;
+let turn = 1, month = 0, year = 1852, week = 0; // week 0-3 внутри месяца
 const months = ['Январь','Февраль','Март','Апрель','Май','Июнь','Июль','Август','Сентябрь','Октябрь','Ноябрь','Декабрь'];
+
+function dateLabel() {
+  return (week > 0 ? `Неделя ${week + 1} · ` : '') + months[month] + ' ' + year + ' г.';
+}
+function renderDate() {
+  document.getElementById('date-disp').textContent = dateLabel();
+  document.getElementById('turn-info').textContent = 'Ход ' + turn;
+}
 
 let gameStarted = false;
 const SAVE_PREFIX = 'gs1852_save_';
@@ -68,22 +76,22 @@ function setCountryColor(country, hexColor) {
 // ============================================================
 const COUNTRY_DEFAULTS = {
   'Франция':         { ruler:'Луи-Наполеон Бонапарт', rulerAge:44, rulerTitle:'Президент Французской республики', government:'Президентская республика', pm:'Эжен Руэр', pmTitle:'Министр-президент', treasury:4200, income:580, army:400000, stability:81,
-    pop:'35.8 млн', area:'551 000 км²', capital:'Париж', gdp:'~14 млрд фр.', blurb:'Франция в 1852 году переживает переходный период. Луи-Наполеон готовится провозгласить Вторую империю. Экономика растёт, но политическое напряжение высоко.',
+    religion:{"main":"Католицизм","dist":{"Католицизм":97,"Протестантизм":2,"Иудаизм":1}}, rulerReligion:"Католицизм", pop:'35.8 млн', area:'551 000 км²', capital:'Париж', gdp:'~14 млрд фр.', blurb:'Франция в 1852 году переживает переходный период. Луи-Наполеон готовится провозгласить Вторую империю. Экономика растёт, но политическое напряжение высоко.',
     parliament:{ name:'Законодательный корпус', support:67, factions:[{name:'Бонапартисты',pct:67},{name:'Республиканцы',pct:18},{name:'Монархисты',pct:15}] } },
   'Великобритания':  { ruler:'Королева Виктория', rulerAge:33, rulerTitle:'Королева Соединённого Королевства', government:'Конституционная монархия', pm:'Лорд Абердин', pmTitle:'Премьер-министр', treasury:5000, income:650, army:250000, stability:78,
-    pop:'27.5 млн', area:'315 000 км²', capital:'Лондон', gdp:'~20 млрд фр.', blurb:'Великобритания в 1852 году — ведущая промышленная держава мира с крупнейшим флотом и обширными колониями.',
+    religion:{"main":"Англиканство","dist":{"Англиканство":68,"Пресвитерианство":16,"Католицизм":12,"Иудаизм":1,"Прочие":3}}, rulerReligion:"Англиканство", pop:'27.5 млн', area:'315 000 км²', capital:'Лондон', gdp:'~20 млрд фр.', blurb:'Великобритания в 1852 году — ведущая промышленная держава мира с крупнейшим флотом и обширными колониями.',
     parliament:{ name:'Парламент', support:54, factions:[{name:'Виги/Пилиты',pct:52},{name:'Тори',pct:42},{name:'Радикалы',pct:6}] } },
   'Россия':          { ruler:'Николай I', rulerAge:56, rulerTitle:'Император Всероссийский', government:'Абсолютная монархия', pm:'Карл Нессельроде', pmTitle:'Государственный канцлер', treasury:3800, income:500, army:900000, stability:70,
-    pop:'68 млн', area:'~18 млн км²', capital:'Санкт-Петербург', gdp:'~11 млрд фр.', blurb:'Российская империя в 1852 году — крупнейшая по территории и армии держава Европы. Крепостное право сдерживает экономику.',
+    religion:{"main":"Православие","dist":{"Православие":72,"Ислам":9,"Католицизм":8,"Иудаизм":4,"Протестантизм":3,"Прочие":4}}, rulerReligion:"Православие", pop:'68 млн', area:'~18 млн км²', capital:'Санкт-Петербург', gdp:'~11 млрд фр.', blurb:'Российская империя в 1852 году — крупнейшая по территории и армии держава Европы. Крепостное право сдерживает экономику.',
     parliament:null },
   'Австрия':         { ruler:'Франц Иосиф I', rulerAge:22, rulerTitle:'Император Австрийский', government:'Абсолютная монархия', pm:'Феликс Шварценберг', pmTitle:'Министр-президент', treasury:2900, income:420, army:400000, stability:65,
-    pop:'36 млн', area:'~700 000 км²', capital:'Вена', gdp:'~8 млрд фр.', blurb:'Австрийская империя в 1852 году — многонациональная держава, ещё не оправившаяся от революций 1848 года.',
+    religion:{"main":"Католицизм","dist":{"Католицизм":78,"Православие":10,"Протестантизм":7,"Иудаизм":3,"Прочие":2}}, rulerReligion:"Католицизм", pop:'36 млн', area:'~700 000 км²', capital:'Вена', gdp:'~8 млрд фр.', blurb:'Австрийская империя в 1852 году — многонациональная держава, ещё не оправившаяся от революций 1848 года.',
     parliament:null },
   'Пруссия':         { ruler:'Фридрих Вильгельм IV', rulerAge:57, rulerTitle:'Король Пруссии', government:'Конституционная монархия', pm:'Отто фон Мантойфель', pmTitle:'Министр-президент', treasury:3200, income:460, army:300000, stability:74,
-    pop:'17 млн', area:'~280 000 км²', capital:'Берлин', gdp:'~7 млрд фр.', blurb:'Пруссия в 1852 году усиливает влияние среди немецких государств через Таможенный союз.',
+    religion:{"main":"Протестантизм","dist":{"Протестантизм":62,"Католицизм":34,"Иудаизм":1,"Прочие":3}}, rulerReligion:"Протестантизм", pop:'17 млн', area:'~280 000 км²', capital:'Берлин', gdp:'~7 млрд фр.', blurb:'Пруссия в 1852 году усиливает влияние среди немецких государств через Таможенный союз.',
     parliament:{ name:'Ландтаг', support:60, factions:[{name:'Консерваторы',pct:55},{name:'Либералы',pct:30},{name:'Католики',pct:15}] } },
   'Испания':         { ruler:'Изабелла II', rulerAge:22, rulerTitle:'Королева Испании', government:'Конституционная монархия', pm:'Хуан Браво Мурильо', pmTitle:'Председатель совета министров', treasury:1800, income:280, army:150000, stability:60,
-    pop:'15.5 млн', area:'~500 000 км²', capital:'Мадрид', gdp:'~4 млрд фр.', blurb:'Испания в 1852 году переживает политическую нестабильность после десятилетий гражданских войн.',
+    religion:{"main":"Католицизм","dist":{"Католицизм":99,"Прочие":1}}, rulerReligion:"Католицизм", pop:'15.5 млн', area:'~500 000 км²', capital:'Мадрид', gdp:'~4 млрд фр.', blurb:'Испания в 1852 году переживает политическую нестабильность после десятилетий гражданских войн.',
     parliament:{ name:'Кортесы', support:48, factions:[{name:'Модерадос',pct:58},{name:'Прогрессисты',pct:32},{name:'Карлисты',pct:10}] } }
 };
 
@@ -125,6 +133,7 @@ function placeholderCountry(name) {
     treasury: 1200 + Math.round(r * 2500), income: 180 + Math.round(r * 300),
     army: 40000 + Math.round(r * 160000), stability: 55 + Math.round(r * 20),
     pop: '', area: '', capital: '', gdp: '', blurb: 'Сведения об этой стране собираются...',
+    religion: null, rulerReligion: null,
     parliament: null, profilePending: true
   };
 }
@@ -138,6 +147,9 @@ function normalizeCountry(c) {
   if (c.rulerSince === undefined) c.rulerSince = null;
   if (c.parliament === undefined) c.parliament = null;
   if (c.portrait === undefined) c.portrait = null;
+  if (c.pmPortrait === undefined) c.pmPortrait = null;
+  if (c.religion === undefined) c.religion = null;
+  if (c.rulerReligion === undefined) c.rulerReligion = null;
   if (c.pendingSuccession === undefined) c.pendingSuccession = false;
   return c;
 }
@@ -153,8 +165,10 @@ function buildCountriesFromScenario() {
       treasury: d.treasury, income: d.income, army: d.army, stability: d.stability,
       pop: d.pop, area: d.area, capital: d.capital, gdp: d.gdp, blurb: d.blurb,
       parliament: d.parliament ? JSON.parse(JSON.stringify(d.parliament)) : null,
+      religion: d.religion ? JSON.parse(JSON.stringify(d.religion)) : null,
+      rulerReligion: d.rulerReligion || null,
       agenda: '', profilePending: !!d.profilePending,
-      colorOverride: null, portrait: null,
+      colorOverride: null, portrait: null, pmPortrait: null,
       annexed: false, annexedBy: null
     });
   });
@@ -324,6 +338,110 @@ function resolvePendingSuccessions() {
 }
 
 // ============================================================
+// БОЕВАЯ МАТЕМАТИКА. Сражения объявляет ИИ (эффект battles), но ПОТЕРИ считает движок:
+// задействованная часть армии зависит от масштаба боя, сила — от численности, стабильности
+// и случайности. Проигравший теряет намного больше; в решающем сражении можно потерять
+// практически всю задействованную армию. Результат идёт в сводку, хронику и обратно в ИИ.
+// ============================================================
+const BATTLE_SCALES = { skirmish: 0.06, battle: 0.22, decisive: 0.55 };
+
+function resolveBattle(aName, bName, scale, location) {
+  const A = countries[aName], B = countries[bName];
+  if (!A || !B || A.annexed || B.annexed) return null;
+  const f = BATTLE_SCALES[scale] || BATTLE_SCALES.battle;
+  const engA = Math.max(500, Math.round(A.army * f));
+  const engB = Math.max(500, Math.round(B.army * f));
+  const strA = engA * (0.8 + Math.random() * 0.4) * (0.85 + A.stability / 500);
+  const strB = engB * (0.8 + Math.random() * 0.4) * (0.85 + B.stability / 500);
+  const aWins = strA >= strB;
+  const winner = aWins ? aName : bName, loser = aWins ? bName : aName;
+  const engW = aWins ? engA : engB, engL = aWins ? engB : engA;
+  const loserLosses = Math.min(countries[loser].army, Math.round(engL * (0.45 + Math.random() * 0.45)));
+  const winnerLosses = Math.min(countries[winner].army, Math.round(engW * (0.15 + Math.random() * 0.25)));
+  changeCountryStat(loser, 'army', -loserLosses);
+  changeCountryStat(winner, 'army', -winnerLosses);
+  const stabHit = scale === 'decisive' ? 8 : scale === 'battle' ? 4 : 1;
+  changeCountryStat(loser, 'stability', -stabHit);
+  changeCountryStat(winner, 'stability', Math.ceil(stabHit / 3));
+  const summary = `Сражение${location ? ' при ' + location : ''}: ${winner} одержала верх над ${loser}. Потери: ${loser} −${loserLosses.toLocaleString('ru')}, ${winner} −${winnerLosses.toLocaleString('ru')}.`;
+  worldState.pastEvents.push('⚔️ ' + summary);
+  return { winner, loser, loserLosses, winnerLosses, summary };
+}
+
+// ============================================================
+// ДИНАМИЧЕСКОЕ СОЗДАНИЕ СТРАН во время партии: мятежные режимы, гражданские войны,
+// марионеточные правительства на своих/захваченных землях — доступно и игроку (через
+// действия), и ИИ-странам (через эффект new_countries). Новая страна становится
+// полноценной: со своим ИИ-профилем, отношениями, экономикой провинций.
+// ============================================================
+function createDynamicCountry(spec) {
+  if (!spec || !spec.name || countries[spec.name] || typeof scenarioProvinces === 'undefined') return null;
+  const name = spec.name;
+  ALL_COUNTRIES.push(name);
+  const base = placeholderCountry(name);
+  countries[name] = normalizeCountry({
+    displayName: name,
+    ruler: spec.ruler || base.ruler,
+    rulerAge: typeof spec.ruler_age === 'number' ? spec.ruler_age : null,
+    rulerSince: year,
+    rulerTitle: spec.ruler_title || 'Глава государства',
+    government: spec.government || 'Временное правительство',
+    pm: spec.pm || '—', pmTitle: spec.pm_title || 'Глава правительства',
+    treasury: typeof spec.treasury === 'number' ? spec.treasury : Math.round(base.treasury * 0.4),
+    income: typeof spec.income === 'number' ? spec.income : 0, // пересчитается из провинций
+    army: typeof spec.army === 'number' ? spec.army : 25000,
+    stability: typeof spec.stability === 'number' ? spec.stability : 40,
+    pop: '', area: '', capital: spec.capital || '', gdp: '',
+    blurb: spec.blurb || 'Новообразованное государство.',
+    religion: spec.religion_main ? { main: spec.religion_main, dist: { [spec.religion_main]: 85, 'Прочие': 15 } } : null,
+    rulerReligion: spec.ruler_religion || spec.religion_main || null,
+    agenda: spec.agenda || '',
+    parliament: null,
+    profilePending: !spec.agenda, // если ИИ не дал интересы — дозаполнит генератор профилей
+    colorOverride: (spec.color && /^#[0-9a-fA-F]{6}$/.test(spec.color)) ? spec.color : null,
+    portrait: null, pmPortrait: null,
+    annexed: false, annexedBy: null
+  });
+
+  // Передаём провинции новой стране (по названиям), считаем её экономику
+  let got = 0;
+  (spec.provinces || []).forEach(pn => {
+    const p = scenarioProvinces.find(x => x.name.toLowerCase() === String(pn).toLowerCase() || x.id === pn);
+    if (!p) return;
+    provinceOwners[p.id] = name;
+    if (!provinceEcon[p.id]) provinceEcon[p.id] = { income: 20, dev: 2 };
+    got++;
+  });
+  countries[name].incomeModifier = typeof spec.income === 'number' ? Math.round(spec.income * 0.35) : 30;
+  recomputeIncomes();
+
+  // Отношения: со всеми 0; патрон дружелюбен, метрополия враждебна (мятеж = война)
+  const from = spec.from ? (typeof normalizeCountryName === 'function' ? normalizeCountryName(spec.from) : spec.from) : null;
+  const patron = spec.patron ? (typeof normalizeCountryName === 'function' ? normalizeCountryName(spec.patron) : spec.patron) : null;
+  if (name !== playerCountry) {
+    worldState.relations[name] = patron === playerCountry ? 50 : (from === playerCountry && spec.type === 'rebel' ? -80 : 0);
+    ALL_COUNTRIES.filter(c => c !== name && c !== playerCountry).forEach(c => {
+      let v = 0;
+      if (c === patron) v = 60;
+      if (c === from && spec.type === 'rebel') v = -80;
+      worldState.relationsAmong[mutualRelKey(name, c)] = v;
+    });
+    if (from === playerCountry && spec.type === 'rebel' && !worldState.atWarWith.includes(name)) {
+      worldState.atWarWith.push(name);
+    }
+    if (from && from !== playerCountry && spec.type === 'rebel') {
+      worldState.aiWars.push([name, from]);
+    }
+  }
+
+  if (typeof renderTerritoryColors === 'function') renderTerritoryColors();
+  if (typeof addCountryLabelsFromProvinces === 'function') addCountryLabelsFromProvinces();
+  if (typeof renderCountryList === 'function') renderCountryList();
+  worldState.pastEvents.push(`🏳️ Провозглашено новое государство: ${name}${from ? ' (на землях ' + from + ')' : ''}, провинций: ${got}.`);
+  return { name, provinces: got, from };
+}
+
+// ============================================================
 // Изменение показателей и власти
 // ============================================================
 function changeCountryStat(country, stat, delta) {
@@ -382,28 +500,38 @@ function renderPlayerPowerPanel() {
   set('ph-age', typeof c.rulerAge === 'number' ? c.rulerAge + ' лет' : '—');
   set('ph-since', c.rulerSince ? c.rulerSince + ' г.' : '—');
   set('ph-gov', c.government);
+  set('ph-faith', c.rulerReligion || '—');
   const govbadge = document.getElementById('govbadge-text');
   if (govbadge) govbadge.textContent = '🏛 ' + c.government;
   if (typeof renderRulerPortrait === 'function') renderRulerPortrait();
   if (typeof renderParliamentPanel === 'function') renderParliamentPanel();
+  if (typeof renderReligionPanel === 'function') renderReligionPanel();
 }
 
-async function nextTurn() {
-  const btn = document.querySelector('.next-btn');
-  btn.disabled = true;
-  btn.textContent = '⏳ Симуляция...';
+// ============================================================
+// МАШИНА ВРЕМЕНИ. Варианты хода: неделя (лёгкий: новостей вдвое меньше), месяц
+// (стандарт), период 3/6/12/60 месяцев (экономика и смерти считаются помесячно,
+// ИИ пишет один дайджест ключевых событий периода). Плюс авторежим в ui.js.
+// ============================================================
+const SKIP_OPTIONS = {
+  week:  { label: 'Неделя',    months: 0 },
+  m1:    { label: 'Месяц',     months: 1 },
+  m3:    { label: '3 месяца',  months: 3 },
+  m6:    { label: '6 месяцев', months: 6 },
+  m12:   { label: 'Год',       months: 12 },
+  m60:   { label: '5 лет',     months: 60 }
+};
 
-  turn++; month++;
+// Прожить один календарный месяц в движке (экономика + возраст/смерти). Без ИИ.
+function stepOneMonth() {
+  month++;
   if (month >= 12) { month = 0; year++; }
-
-  const econChanges = simulateWorldEconomy();
+  const econ = simulateWorldEconomy();
   const deaths = checkRulerDeaths();
-  renderPlayerStats();
+  return { econ, deaths };
+}
 
-  document.getElementById('date-disp').textContent = months[month] + ' ' + year + ' г.';
-  document.getElementById('turn-info').textContent = 'Ход ' + turn;
-
-  // Смерть правителя — крупное событие: показываем сразу, ИИ обязан отработать преемника
+function announceDeaths(deaths) {
   deaths.forEach(d => {
     worldState.pastEvents.push(`${months[month]} ${year}: скончался ${d.title} ${d.ruler} (${d.country}) в возрасте ${d.age} лет.`);
     if (typeof showBreakingNews === 'function') {
@@ -411,16 +539,65 @@ async function nextTurn() {
         `${d.ruler} (${d.country}) скончался в возрасте ${d.age} лет. Страна ждёт преемника.`);
     }
   });
+}
 
-  // Запускаем ИИ-события (получают экономику и смерти этого хода)
-  await onTurnEnd(econChanges, deaths);
+let turnRunning = false;
+async function nextTurn(kind) {
+  if (turnRunning) return;
+  kind = kind || (typeof getSelectedSkip === 'function' ? getSelectedSkip() : 'm1');
+  const opt = SKIP_OPTIONS[kind] || SKIP_OPTIONS.m1;
+  turnRunning = true;
+  const btn = document.querySelector('.next-btn');
+  btn.disabled = true;
+  btn.textContent = '⏳ Симуляция...';
 
-  resolvePendingSuccessions();
-  renderPlayerStats();
-  saveGame();
+  try {
+    turn++;
+    let econChanges = [], deaths = [], periodLabel = null;
 
-  btn.disabled = false;
-  btn.textContent = 'Следующий месяц ▶';
+    if (kind === 'week') {
+      // Неделя: календарь двигается на неделю, экономика/смерти — только на границе месяца
+      week++;
+      if (week >= 4) { week = 0; const r = stepOneMonth(); econChanges = r.econ; deaths = r.deaths; }
+    } else if (opt.months === 1) {
+      week = 0;
+      const r = stepOneMonth(); econChanges = r.econ; deaths = r.deaths;
+    } else {
+      // Период: помесячная симуляция движка, один дайджест ИИ за весь срок
+      week = 0;
+      const startLabel = months[month] + ' ' + year;
+      let netSum = 0, borrowedSum = 0;
+      for (let i = 0; i < opt.months; i++) {
+        const r = stepOneMonth();
+        deaths.push(...r.deaths);
+        const b = countries[playerCountry].lastBudget;
+        if (b) { netSum += b.net; borrowedSum += b.borrowed || 0; }
+      }
+      periodLabel = `${startLabel} — ${months[month]} ${year}`;
+      econChanges = [{ label: '💰 Бюджет за период', value: (netSum >= 0 ? '+' : '') + netSum.toLocaleString('ru') + ' фр.', sign: netSum }];
+      if (borrowedSum) econChanges.push({ label: '🏦 Займы за период', value: '+' + borrowedSum.toLocaleString('ru') + ' фр. долга', sign: -1 });
+    }
+
+    renderPlayerStats();
+    renderDate();
+    announceDeaths(deaths);
+
+    // ИИ-события: неделя — лёгкий выпуск, период — дайджест, месяц — стандарт
+    await onTurnEnd(econChanges, deaths, {
+      newsCount: kind === 'week' ? 5 : 10,
+      domesticCount: kind === 'week' ? 2 : 3,
+      periodLabel
+    });
+
+    resolvePendingSuccessions();
+    renderPlayerStats();
+    saveGame();
+  } finally {
+    turnRunning = false;
+    btn.disabled = false;
+    btn.textContent = 'Следующий ход ▶';
+    if (typeof onTurnFinished === 'function') onTurnFinished(); // авторежим (ui.js)
+  }
 }
 
 // Передать территорию (страну целиком) другому владельцу
@@ -497,7 +674,7 @@ function saveGame() {
     if (!currentSlotId) currentSlotId = 'slot_' + Date.now();
     const data = {
       version: 3,
-      turn, month, year,
+      turn, month, year, week,
       scenarioRef: (typeof activeScenarioRef !== 'undefined') ? activeScenarioRef : 'builtin',
       scenarioName: (typeof activeScenario !== 'undefined' && activeScenario) ? activeScenario.name : 'Европа 1852',
       countries,
@@ -566,7 +743,7 @@ async function loadGameSlot(id) {
     }
 
     currentSlotId = id;
-    turn = d.turn; month = d.month; year = d.year;
+    turn = d.turn; month = d.month; year = d.year; week = d.week || 0;
     playerCountry = d.playerCountry || 'Франция';
     playerCountryDisplayName = d.playerCountryDisplayName || playerCountry;
     territoryOwners = d.territoryOwners || {};
@@ -603,8 +780,7 @@ async function loadGameSlot(id) {
       Object.assign(diplomacyHistories, d.diplomacyHistories || {});
     }
 
-    document.getElementById('date-disp').textContent = months[month] + ' ' + year + ' г.';
-    document.getElementById('turn-info').textContent = 'Ход ' + turn;
+    renderDate();
 
     renderPlayerStats();
     renderPlayerPowerPanel();
@@ -633,7 +809,7 @@ function resetGame(country) {
   playerCountry = ALL_COUNTRIES.includes(country) ? country : (ALL_COUNTRIES[0] || 'Франция');
   playerCountryDisplayName = playerCountry;
 
-  turn = 1; month = 0;
+  turn = 1; month = 0; week = 0;
   year = (typeof activeScenario !== 'undefined' && activeScenario && activeScenario.year) ? activeScenario.year : 1852;
   territoryOwners = {};
   provinceOwners = {};
@@ -667,8 +843,7 @@ function resetGame(country) {
   if (typeof advisorHistory !== 'undefined') advisorHistory = [];
   if (typeof diplomacyHistories !== 'undefined') Object.keys(diplomacyHistories).forEach(k => delete diplomacyHistories[k]);
 
-  document.getElementById('date-disp').textContent = months[month] + ' ' + year + ' г.';
-  document.getElementById('turn-info').textContent = 'Ход ' + turn;
+  renderDate();
 
   renderPlayerStats();
   renderPlayerPowerPanel();
@@ -687,6 +862,37 @@ function resetGame(country) {
   // ИИ заполняет профили стран без исторических данных + интересы (agenda) всех стран
   if (typeof queueMissingProfiles === 'function') queueMissingProfiles();
   if (typeof maybeAutoPortrait === 'function') maybeAutoPortrait(playerCountry);
+}
+
+// ============================================================
+// РЕЛИГИЯ. У страны — распределение верующих в процентах (главная religion.main +
+// второстепенные числами), у правителя — своя вера. ИИ может сдвигать проценты
+// (обращения, миграции, реформы) и менять веру правителя.
+// ============================================================
+function shiftReligion(country, shifts, newRulerReligion) {
+  const c = countries[country];
+  if (!c) return;
+  if (!c.religion) c.religion = { main: '', dist: {} };
+  if (shifts && typeof shifts === 'object') {
+    Object.entries(shifts).forEach(([rel, delta]) => {
+      if (typeof delta !== 'number' || !delta) return;
+      c.religion.dist[rel] = Math.max(0, Math.min(100, (c.religion.dist[rel] || 0) + delta));
+      if (c.religion.dist[rel] === 0) delete c.religion.dist[rel];
+    });
+    // Нормализуем к 100% и пересчитываем главную религию
+    const total = Object.values(c.religion.dist).reduce((s, v) => s + v, 0);
+    if (total > 0) {
+      Object.keys(c.religion.dist).forEach(k => {
+        c.religion.dist[k] = Math.round(c.religion.dist[k] / total * 1000) / 10;
+      });
+    }
+    let main = '', best = -1;
+    Object.entries(c.religion.dist).forEach(([k, v]) => { if (k !== 'Прочие' && v > best) { best = v; main = k; } });
+    if (main) c.religion.main = main;
+  }
+  if (newRulerReligion) c.rulerReligion = newRulerReligion;
+  if (country === playerCountry && typeof updateCountryInfoPanel === 'function') updateCountryInfoPanel(playerCountry);
+  if (country === playerCountry && typeof renderPlayerPowerPanel === 'function') renderPlayerPowerPanel();
 }
 
 // Скрытые отношения двух ИИ-стран между собой

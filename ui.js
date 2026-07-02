@@ -21,6 +21,7 @@ function toggle(id) {
 }
 
 function togglePop(show, hide) {
+  if (typeof stopAutoPlay === 'function') stopAutoPlay(true);
   document.getElementById(hide).style.display = 'none';
   document.getElementById('actions-panel').style.display = 'none';
   document.getElementById('relations-panel').style.display = 'none';
@@ -326,6 +327,7 @@ function deleteSaveAndRefresh(id) {
 
 // ---- Меню паузы (внутри игры) ----
 function openPauseMenu() {
+  stopAutoPlay(true);
   document.getElementById('pause-menu').style.display = 'flex';
 }
 
@@ -419,31 +421,106 @@ function renderParliamentPanel() {
 // ПОРТРЕТ ПРАВИТЕЛЯ — сгенерированный ИИ или эмодзи-заглушка
 // ============================================================
 function renderRulerPortrait() {
-  const img = document.getElementById('ruler-portrait');
-  const emoji = document.getElementById('ruler-portrait-emoji');
-  if (!img || typeof countries === 'undefined' || !countries[playerCountry]) return;
+  if (typeof countries === 'undefined' || !countries[playerCountry]) return;
   const c = countries[playerCountry];
-  if (c.portrait) {
-    img.src = c.portrait;
-    img.style.display = 'block';
-    emoji.style.display = 'none';
-  } else {
-    img.style.display = 'none';
-    emoji.style.display = 'flex';
-  }
+  const pair = [
+    ['ruler-portrait', 'ruler-portrait-emoji', c.portrait],
+    ['pm-portrait', 'pm-portrait-emoji', c.pmPortrait]
+  ];
+  pair.forEach(([imgId, emojiId, url]) => {
+    const img = document.getElementById(imgId);
+    const emoji = document.getElementById(emojiId);
+    if (!img || !emoji) return;
+    if (url) {
+      img.src = url;
+      img.style.display = 'block';
+      emoji.style.display = 'none';
+    } else {
+      img.style.display = 'none';
+      emoji.style.display = 'flex';
+    }
+  });
 }
 
-function setPortraitLoading(loading) {
-  const btn = document.getElementById('portrait-gen-btn');
-  if (!btn) return;
-  btn.disabled = loading;
-  btn.textContent = loading ? '⏳ ИИ рисует портрет...' : '🎨 Сгенерировать портрет (ИИ)';
+function setPortraitLoading(loading, role) {
+  const rb = document.getElementById('portrait-gen-btn');
+  const pb = document.getElementById('pm-portrait-gen-btn');
+  // Пока рисуется один портрет — обе кнопки заблокированы (модель одна)
+  if (rb) { rb.disabled = loading; rb.textContent = loading && role === 'ruler' ? '⏳ ИИ рисует портрет...' : '🎨 Сгенерировать портрет (ИИ)'; }
+  if (pb) { pb.disabled = loading; pb.textContent = loading && role === 'pm' ? '⏳ ИИ рисует портрет...' : '🎨 Портрет премьера (ИИ)'; }
 }
 
 function onGeneratePortraitClick() {
-  if (typeof generateRulerPortrait !== 'function') return;
+  if (typeof generatePersonPortrait !== 'function') return;
   countries[playerCountry].portrait = null;
-  generateRulerPortrait(playerCountry);
+  generatePersonPortrait(playerCountry, 'ruler');
+}
+
+function onGeneratePmPortraitClick() {
+  if (typeof generatePersonPortrait !== 'function') return;
+  countries[playerCountry].pmPortrait = null;
+  generatePersonPortrait(playerCountry, 'pm');
+}
+
+// ============================================================
+// РЕЛИГИЯ — панель: главная религия текстом, второстепенные цифрами
+// ============================================================
+function renderReligionPanel() {
+  const box = document.getElementById('religion-box');
+  if (!box || typeof countries === 'undefined' || !countries[playerCountry]) return;
+  const c = countries[playerCountry];
+  if (!c.religion || !c.religion.dist || !Object.keys(c.religion.dist).length) {
+    box.innerHTML = '<div class="chg-empty" style="padding:4px 0">Сведения о вероисповедании собираются...</div>';
+    return;
+  }
+  const entries = Object.entries(c.religion.dist).sort((a, b) => b[1] - a[1]);
+  box.innerHTML =
+    `<div class="irow"><span class="k">Главная религия</span><span style="font-weight:bold">${c.religion.main}</span></div>` +
+    entries.filter(([k]) => k !== c.religion.main).map(([k, v]) => `<div class="irow"><span class="k">${k}</span><span>${v}%</span></div>`).join('') +
+    (c.rulerReligion ? `<div class="irow"><span class="k">Вера правителя</span><span>${c.rulerReligion}</span></div>` : '');
+}
+
+// ============================================================
+// ПРОПУСК ВРЕМЕНИ — выпадающий выбор шага (неделя → 5 лет) и авторежим:
+// игра сама делает ходы выбранным шагом, пока игрок не остановит её
+// (повторное нажатие ⏩, открытие панелей или breaking news).
+// ============================================================
+function getSelectedSkip() {
+  const sel = document.getElementById('skip-select');
+  return sel ? sel.value : 'm1';
+}
+
+function onSkipChange() {
+  localStorage.setItem('gs1852_skip', getSelectedSkip());
+}
+
+function initSkipSelect() {
+  const sel = document.getElementById('skip-select');
+  if (!sel) return;
+  const saved = localStorage.getItem('gs1852_skip');
+  if (saved && sel.querySelector(`option[value="${saved}"]`)) sel.value = saved;
+}
+
+let autoPlay = false;
+function toggleAutoPlay() {
+  autoPlay = !autoPlay;
+  const btn = document.getElementById('auto-btn');
+  if (btn) { btn.textContent = autoPlay ? '⏸ Стоп' : '⏩ Авто'; btn.classList.toggle('active-auto', autoPlay); }
+  if (autoPlay) { showNotif('⏩ Автопропуск включён — шаг: ' + document.getElementById('skip-select').selectedOptions[0].text); nextTurn(); }
+}
+
+function stopAutoPlay(silent) {
+  if (!autoPlay) return;
+  autoPlay = false;
+  const btn = document.getElementById('auto-btn');
+  if (btn) { btn.textContent = '⏩ Авто'; btn.classList.remove('active-auto'); }
+  if (!silent) showNotif('⏸ Автопропуск остановлен');
+}
+
+// Вызывается движком после каждого завершённого хода
+function onTurnFinished() {
+  if (!autoPlay) return;
+  setTimeout(() => { if (autoPlay && gameStarted) nextTurn(); }, 1200);
 }
 
 // ============================================================
@@ -452,6 +529,7 @@ function onGeneratePortraitClick() {
 function showBreakingNews(title, text) {
   const box = document.getElementById('breaking-news');
   if (!box) return;
+  stopAutoPlay(true); // огромное событие — остановить автопропуск, игрок должен увидеть
   document.getElementById('breaking-title').textContent = title || 'СРОЧНАЯ НОВОСТЬ';
   document.getElementById('breaking-text').textContent = text || '';
   document.getElementById('breaking-date').textContent = document.getElementById('date-disp').textContent;

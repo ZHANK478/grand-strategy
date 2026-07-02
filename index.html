@@ -300,6 +300,7 @@ body.menu-mode .game-ui{display:none !important;}
           </label>
         </div>
         <button class="editor-btn ghost" id="clear-sel-btn" onclick="clearSelection()" style="display:none;margin-bottom:10px">✖ Снять выделение (<span id="sel-count">0</span>)</button>
+        <button class="editor-btn ghost" id="set-owner-btn" onclick="setOwnerForSelected()" style="display:none;margin-bottom:10px">👑 Назначить владельца выбранным</button>
         <button class="editor-btn danger" id="delete-sel-btn" onclick="deleteSelectedProvinces()" style="display:none;margin-bottom:10px">🗑 Удалить выбранные (<span id="del-count">0</span>)</button>
         <button class="editor-btn ghost" id="merge-selected-btn" onclick="mergeSelectedProvinces()" style="display:none;margin-bottom:10px">🔗 Объединить выбранные (<span id="merge-selected-count">0</span>)</button>
         <div class="setting-row" style="margin-bottom:6px">
@@ -326,6 +327,7 @@ body.menu-mode .game-ui{display:none !important;}
         <button class="editor-btn danger" id="editor-cancel-btn" onclick="cancelDrawingProvince()" style="display:none">✖ Отменить рисование</button>
         <div id="editor-province-list"></div>
         <button class="editor-btn" onclick="promptSaveMap()" style="margin-top:10px">💾 Сохранить карту</button>
+        <button class="editor-btn ghost" onclick="exportMapToFile()" style="margin-top:7px">📥 Скачать карту в файл</button>
         <button class="editor-btn ghost" onclick="backToMapsList()">◀ К списку карт</button>
       </div>
 
@@ -578,11 +580,11 @@ body.menu-mode .game-ui{display:none !important;}
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/topojson/3.0.2/topojson.min.js"></script>
-<script src="map.js?v=23"></script>
-<script src="ai.js?v=23"></script>
-<script src="game.js?v=23"></script>
-<script src="ui.js?v=23"></script>
-<script src="editor.js?v=23"></script>
+<script src="map.js?v=24"></script>
+<script src="ai.js?v=24"></script>
+<script src="game.js?v=24"></script>
+<script src="ui.js?v=24"></script>
+<script src="editor.js?v=24"></script>
 <script>initMenu();</script>
 </body>
 </html>

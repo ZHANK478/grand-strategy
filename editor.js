@@ -659,8 +659,10 @@ function updateMergeButtonState() {
   document.getElementById('merge-selected-btn').style.display = n >= 2 ? 'block' : 'none';
   const clr = document.getElementById('clear-sel-btn');
   const del = document.getElementById('delete-sel-btn');
+  const own = document.getElementById('set-owner-btn');
   if (clr) { clr.style.display = n >= 1 ? 'block' : 'none'; document.getElementById('sel-count').textContent = n; }
   if (del) { del.style.display = n >= 1 ? 'block' : 'none'; document.getElementById('del-count').textContent = n; }
+  if (own) own.style.display = n >= 1 ? 'block' : 'none';
 }
 
 function clearSelection() {
@@ -1239,9 +1241,12 @@ function renderEditorProvinceList() {
     list.innerHTML = '<div class="chg-empty">Провинций пока нет</div>';
     return;
   }
+  const ownerOptions = ['(нет)'].concat(SCENARIO_OWNER_OPTIONS).map(o =>
+    `<option value="${o === '(нет)' ? '' : o}">${o}</option>`
+  ).join('');
   list.innerHTML = mapProvinces.map(p => `
-    <div class="eprov-item">
-      <label style="display:flex;align-items:center;gap:5px;flex:1;cursor:pointer">
+    <div class="eprov-item" style="flex-wrap:wrap">
+      <label style="display:flex;align-items:center;gap:5px;flex:1;cursor:pointer;min-width:120px">
         <input type="checkbox" ${selectedProvinceIds.has(p.id) ? 'checked' : ''} onchange="toggleProvinceSelection('${p.id}', this.checked)">
         <span class="eprov-name">${p.name}</span>
       </label>
@@ -1249,8 +1254,36 @@ function renderEditorProvinceList() {
         <button onclick="renameMapProvince('${p.id}')">✏️</button>
         <button onclick="deleteMapProvince('${p.id}')">🗑</button>
       </div>
+      <select style="width:100%;margin-top:4px;font-size:10px;padding:2px" onchange="setProvinceOwner('${p.id}', this.value)">
+        ${ownerOptions.replace(`value="${p.owner || ''}"`, `value="${p.owner || ''}" selected`)}
+      </select>
     </div>
   `).join('');
+}
+
+// Список стран, которых можно назначить владельцем провинции — 6 игровых стран + возможность
+// вписать своё название (для новых сценариев, где нужна страна, которой ещё нет в игре).
+const SCENARIO_OWNER_OPTIONS = ['Франция', 'Великобритания', 'Россия', 'Австрия', 'Пруссия', 'Испания'];
+
+function setProvinceOwner(id, owner) {
+  const p = mapProvinces.find(x => x.id === id);
+  if (!p) return;
+  pushHistory();
+  p.owner = owner || null;
+  renderMapProvinces();
+}
+
+// Назначить владельца сразу всем выбранным (отмеченным галочкой) провинциям — быстрее,
+// чем щёлкать выпадающий список у каждой по отдельности.
+function setOwnerForSelected() {
+  if (selectedProvinceIds.size === 0) { showNotif('⚠️ Сначала выделите провинции'); return; }
+  const owner = prompt('Владелец для выбранных провинций (одно из: ' + SCENARIO_OWNER_OPTIONS.join(', ') + '), либо оставьте пустым для "нет":', SCENARIO_OWNER_OPTIONS[0]);
+  if (owner === null) return;
+  pushHistory();
+  mapProvinces.forEach(p => { if (selectedProvinceIds.has(p.id)) p.owner = owner.trim() || null; });
+  renderMapProvinces();
+  renderEditorProvinceList();
+  showNotif('✅ Владелец назначен: ' + (owner.trim() || '(нет)'));
 }
 
 function renameMapProvince(id) {
@@ -1305,4 +1338,27 @@ function confirmSaveMap() {
 
   document.getElementById('editor-map-name-form').style.display = 'none';
   showNotif('💾 Карта сохранена: ' + name);
+}
+
+// Скачать текущую карту как обычный файл на компьютер — карты хранятся только в браузере
+// (localStorage), поэтому это единственный способ передать карту куда-то ещё (например, мне
+// в чат, чтобы я мог зашить её как стартовый сценарий прямо в код игры).
+function exportMapToFile() {
+  if (mapProvinces.length === 0) { showNotif('⚠️ Нечего экспортировать — карта пуста'); return; }
+  const withoutOwner = mapProvinces.filter(p => !p.owner).length;
+  const payload = {
+    name: (currentMapId ? (getMapsIndex().find(m => m.id === currentMapId) || {}).name : null) || 'Экспортированная карта',
+    exportedAt: new Date().toISOString(),
+    provinces: mapProvinces
+  };
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = (payload.name.replace(/[^a-zA-Zа-яА-Я0-9_-]+/g, '_') || 'map') + '.json';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  showNotif('📥 Файл скачан: ' + a.download + (withoutOwner ? ` (⚠️ у ${withoutOwner} провинций не назначен владелец)` : ''));
 }

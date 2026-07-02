@@ -269,7 +269,7 @@ body.menu-mode .game-ui{display:none !important;}
           <div><div class="map-item-name">🗺️ Мир с провинциями</div><div class="map-item-sub">Natural Earth Admin-1 (10m) · ~4600 регионов по всему миру</div></div>
         </div>
         <div class="map-tpl-item" onclick="newMapFromTemplate('nuts-europe')">
-          <div><div class="map-item-name">🇪🇺 Европа (NUTS)</div><div class="map-item-sub">Eurostat NUTS · Франция, Британия, Австрия, Германия, Испания (без России)</div></div>
+          <div><div class="map-item-name">🌐 Мир по уровням</div><div class="map-item-sub">Крупно — страны мира · Средне/Мелко — субрегионы Европы (NUTS)</div></div>
         </div>
         <div class="map-tpl-item" onclick="newMapFromTemplate('blank')">
           <div><div class="map-item-name">⬜ Пустая карта</div><div class="map-item-sub">Чистый холст</div></div>
@@ -291,7 +291,7 @@ body.menu-mode .game-ui{display:none !important;}
             <button class="editor-btn" id="nuts-lvl-2-btn" onclick="switchNutsLevel(2)" style="font-size:11px">Средне (2)</button>
             <button class="editor-btn" id="nuts-lvl-3-btn" onclick="switchNutsLevel(3)" style="font-size:11px">Мелко (3)</button>
           </div>
-          <div style="font-size:10px;color:#888;margin-top:4px;line-height:1.4">Переключайте уровень, чтобы в одном месте карты импортировать крупные регионы, а в другом — мелкие. Уже импортированные провинции не пропадают.</div>
+          <div style="font-size:10px;color:#888;margin-top:4px;line-height:1.4">Крупно — целые страны всего мира. Средне/Мелко — субрегионы Европы. У больших стран берите мелкий уровень, у мелких — крупный. Уже импортированные провинции не пропадают.</div>
         </div>
         <button class="editor-btn ghost" id="merge-selected-btn" onclick="mergeSelectedProvinces()" style="display:none;margin-bottom:10px">🔗 Объединить выбранные (<span id="merge-selected-count">0</span>)</button>
         <div class="setting-row" style="margin-bottom:6px">
@@ -562,11 +562,11 @@ body.menu-mode .game-ui{display:none !important;}
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/topojson/3.0.2/topojson.min.js"></script>
-<script src="map.js?v=17"></script>
-<script src="ai.js?v=17"></script>
-<script src="game.js?v=17"></script>
-<script src="ui.js?v=17"></script>
-<script src="editor.js?v=17"></script>
+<script src="map.js?v=18"></script>
+<script src="ai.js?v=18"></script>
+<script src="game.js?v=18"></script>
+<script src="ui.js?v=18"></script>
+<script src="editor.js?v=18"></script>
 <script>initMenu();</script>
 </body>
 </html>

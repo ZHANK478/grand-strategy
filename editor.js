@@ -300,19 +300,9 @@ function renderBackground(template) {
   }
 
   if (template === 'nuts-europe') {
-    if (nutsCombinedCache) {
-      drawProvinceFeatures(nutsCombinedCache);
-      return;
-    }
-
-    editorBgG.append('text')
-      .attr('id', 'editor-loading-txt')
-      .attr('x', 480).attr('y', 280)
-      .attr('text-anchor', 'middle').attr('font-size', 13)
-      .attr('fill', '#fff').attr('font-family', 'Georgia,serif')
-      .text('⏳ Загрузка регионов Европы (Eurostat NUTS)...');
-
-    fetchNutsData();
+    // Карта "Мир по уровням": по умолчанию — крупный уровень (целые страны мира).
+    // Дальше игрок сам переключает детализацию кнопками (Средне=NUTS1, Мелко=NUTS2 по Европе).
+    switchNutsLevel(1);
   }
 }
 
@@ -403,47 +393,66 @@ async function fetchNutsData() {
   drawProvinceFeatures(combined);
 }
 
-// Активный уровень детализации для ручного переключения (по умолчанию — до первого клика
-// показываем результат обычной автоматической сборки по COUNTRY_NUTS_LEVEL выше).
+// Активный уровень детализации для ручного переключения.
 let activeNutsOverrideLevel = null;
 
-// Ручное переключение уровня: перерисовывает ФОН (доступные для импорта границы) с нужной
-// детализацией по ВСЕМ 5 странам сразу — не только выбранной стране. Так можно, например,
-// сперва импортировать всё крупно (уровень 1), а затем переключиться на уровень 3 и рядом
-// с уже импортированными провинциями доимпортировать более мелкие куски в нужном месте —
-// уже импортированные провинции при этом никуда не пропадают (mapProvinces не трогаем).
-async function switchNutsLevel(level) {
-  activeNutsOverrideLevel = level;
-  ['1', '2', '3'].forEach(l => document.getElementById('nuts-lvl-' + l + '-btn').classList.toggle('active', Number(l) === level));
+// Целые страны всего мира (крупный уровень) — грузим один раз за сессию.
+let worldCountriesCache = null;
+const WORLD_COUNTRIES_SOURCES = [
+  'https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json',
+  'https://unpkg.com/world-atlas@2/countries-110m.json',
+  'https://cdn.jsdelivr.net/npm/world-atlas@2/countries-50m.json'
+];
+function fetchWorldCountries(i) {
+  i = i || 0;
+  if (i >= WORLD_COUNTRIES_SOURCES.length) return Promise.reject(new Error('Не удалось загрузить контуры стран мира'));
+  return d3.json(WORLD_COUNTRIES_SOURCES[i]).then(world => {
+    const countries = topojson.feature(world, world.objects.countries);
+    if (!countries.features || countries.features.length < 50) throw new Error('Подозрительно мало стран');
+    return countries.features;
+  }).catch(err => {
+    console.warn('Источник стран мира ' + (i + 1) + ' не сработал:', err.message);
+    return fetchWorldCountries(i + 1);
+  });
+}
 
-  if (nutsLevelCache[level]) {
-    const feats = nutsLevelCache[level].filter(f => {
-      const id = f.id || (f.properties && f.properties.id) || '';
-      return Object.keys(COUNTRY_NUTS_LEVEL).includes(String(id).slice(0, 2));
-    });
-    drawProvinceFeatures(feats);
-    return;
-  }
-
+function showEditorLoadingText(msg) {
   editorBgG.selectAll('*').remove();
   editorBgG.append('text')
     .attr('id', 'editor-loading-txt')
     .attr('x', 480).attr('y', 280)
     .attr('text-anchor', 'middle').attr('font-size', 13)
     .attr('fill', '#fff').attr('font-family', 'Georgia,serif')
-    .text(`⏳ Загрузка регионов Европы (NUTS${level})...`);
+    .text(msg);
+}
 
-  try {
-    nutsLevelCache[level] = await fetchNutsLevel(level);
-  } catch (err) {
-    editorBgG.select('#editor-loading-txt').text('⚠️ Не удалось загрузить NUTS' + level + ': ' + err.message);
+// Переключение уровня детализации ФОНА (доступных для импорта границ):
+//   Крупно (1) — целые страны ВСЕГО МИРА, без внутреннего деления (world-atlas)
+//   Средне (2) — субрегионы Европы уровня NUTS1 (крупные земли/регионы)
+//   Мелко  (3) — субрегионы Европы уровня NUTS2 (более мелкие)
+// Уже импортированные провинции (mapProvinces) при переключении не трогаем — можно, например,
+// взять целую Россию на «Крупно», а потом переключиться на «Средне» и добрать регионы Франции.
+async function switchNutsLevel(level) {
+  activeNutsOverrideLevel = level;
+  ['1', '2', '3'].forEach(l => document.getElementById('nuts-lvl-' + l + '-btn').classList.toggle('active', Number(l) === level));
+
+  // Крупно — весь мир по странам
+  if (level === 1) {
+    if (worldCountriesCache) { drawProvinceFeatures(worldCountriesCache); return; }
+    showEditorLoadingText('⏳ Загрузка контуров стран мира...');
+    try { worldCountriesCache = await fetchWorldCountries(); }
+    catch (err) { editorBgG.select('#editor-loading-txt').text('⚠️ ' + err.message); return; }
+    drawProvinceFeatures(worldCountriesCache);
     return;
   }
-  const feats = nutsLevelCache[level].filter(f => {
-    const id = f.id || (f.properties && f.properties.id) || '';
-    return Object.keys(COUNTRY_NUTS_LEVEL).includes(String(id).slice(0, 2));
-  });
-  drawProvinceFeatures(feats);
+
+  // Средне/Мелко — субрегионы Европы (NUTS1 для уровня 2, NUTS2 для уровня 3), сразу по всей Европе
+  const nutsLevel = level === 2 ? 1 : 2;
+  if (nutsLevelCache[nutsLevel]) { drawProvinceFeatures(nutsLevelCache[nutsLevel]); return; }
+  showEditorLoadingText(`⏳ Загрузка субрегионов Европы (уровень ${level})...`);
+  try { nutsLevelCache[nutsLevel] = await fetchNutsLevel(nutsLevel); }
+  catch (err) { editorBgG.select('#editor-loading-txt').text('⚠️ Не удалось загрузить: ' + err.message); return; }
+  drawProvinceFeatures(nutsLevelCache[nutsLevel]);
 }
 
 // ============================================================

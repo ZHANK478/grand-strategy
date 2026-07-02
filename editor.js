@@ -1272,8 +1272,14 @@ function renderEditorProvinceList() {
   `).join('');
 }
 
-// Список стран, которых можно назначить владельцем провинции при создании сценария.
-const SCENARIO_OWNER_OPTIONS = ['Франция', 'Великобритания', 'Россия', 'Австрия', 'Пруссия', 'Испания'];
+// Страну для сценария игрок вводит СВОБОДНЫМ ТЕКСТОМ (любое количество стран, никакого
+// фиксированного списка) — уже введённые в этом сценарии страны подсказываются через datalist.
+function updateScenarioCountryDatalist() {
+  const dl = document.getElementById('scenario-country-datalist');
+  if (!dl) return;
+  const used = [...new Set(mapProvinces.map(p => p.owner).filter(Boolean))];
+  dl.innerHTML = used.map(c => `<option value="${c}">`).join('');
+}
 
 // ============================================================
 // СОЗДАНИЕ СЦЕНАРИЯ — отдельный от «Карт» раздел: взять готовую сохранённую карту и
@@ -1317,6 +1323,8 @@ function startScenarioForMap(id) {
   document.getElementById('editor-view-scenario-pick').style.display = 'none';
   document.getElementById('editor-view-scenario-build').style.display = 'block';
   document.getElementById('scenario-color-input').value = '#2a5aa8';
+  document.getElementById('scenario-country-input').value = '';
+  updateScenarioCountryDatalist();
   editorBgG.selectAll('*').remove();
   renderMapProvinces();
   updateScenarioSummary();
@@ -1337,23 +1345,64 @@ function updateScenarioSummary() {
 
 function assignScenarioSelectionToCountry() {
   if (selectedProvinceIds.size === 0) { showNotif('⚠️ Сначала выделите провинции кликами по карте'); return; }
-  const country = document.getElementById('scenario-country-select').value;
+  const country = document.getElementById('scenario-country-input').value.trim();
+  if (!country) { showNotif('⚠️ Введите название страны'); return; }
   const color = document.getElementById('scenario-color-input').value;
   mapProvinces.forEach(p => { if (selectedProvinceIds.has(p.id)) p.owner = country; });
   scenarioCountryColors[country] = color;
   selectedProvinceIds.clear();
   renderMapProvinces();
   updateScenarioSummary();
+  updateScenarioCountryDatalist();
   showNotif('✅ Закреплено за: ' + country);
+}
+
+function scenarioMetaFromForm() {
+  const name = (document.getElementById('scenario-name-input').value || '').trim() || 'Свой сценарий';
+  const year = parseInt(document.getElementById('scenario-year-input').value, 10) || 1852;
+  return { name, year };
+}
+
+// Провинции сценария для игры: геометрия обязательна (нарисованные точками переводятся
+// в geo-координаты), из владений берём только назначенное.
+function scenarioProvincesPayload() {
+  return mapProvinces.map(p => ({
+    id: p.id, name: p.name,
+    geometry: p.geometry || provinceToGeometry(p) || null,
+    owner: p.owner || null
+  }));
+}
+
+// Сохранить сценарий В ИГРУ (реестр в браузере) — после этого он появляется в главном меню
+// в «🎲 Сценарии» и по нему можно начать партию за любую из его стран.
+function saveScenarioToGame() {
+  const assigned = mapProvinces.filter(p => p.owner).length;
+  if (!assigned) { showNotif('⚠️ Сначала назначьте хотя бы одной провинции владельца'); return; }
+  const { name, year } = scenarioMetaFromForm();
+  const id = 'scn_' + Date.now().toString(36);
+  const provinces = scenarioProvincesPayload();
+  const countryCount = new Set(provinces.map(p => p.owner).filter(Boolean)).size;
+  const payload = { type: 'scenario', id, name, year, countryColors: scenarioCountryColors, provinces, createdAt: Date.now() };
+  try {
+    localStorage.setItem('gs1852_scenario_' + id, JSON.stringify(payload));
+    const idx = getScenariosIndex();
+    idx.push({ id, name, year, countryCount, provinceCount: provinces.length });
+    localStorage.setItem(SCENARIOS_INDEX_KEY, JSON.stringify(idx));
+    showNotif(`💾 Сценарий «${name}» сохранён в игру: ${countryCount} стран, ${assigned} провинций с владельцем`);
+  } catch (e) {
+    showNotif('⚠️ Не хватило места в браузере для сценария — скачайте его файлом');
+  }
 }
 
 function exportScenarioToFile() {
   const assigned = mapProvinces.filter(p => p.owner).length;
+  const { name, year } = scenarioMetaFromForm();
   const payload = {
     type: 'scenario',
+    name, year,
     exportedAt: new Date().toISOString(),
     countryColors: scenarioCountryColors,
-    provinces: mapProvinces.map(p => ({ id: p.id, name: p.name, geometry: p.geometry || null, points: p.points || null, owner: p.owner || null }))
+    provinces: mapProvinces.map(p => ({ id: p.id, name: p.name, geometry: p.geometry || provinceToGeometry(p) || null, points: p.points || null, owner: p.owner || null }))
   };
   const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
   const url = URL.createObjectURL(blob);

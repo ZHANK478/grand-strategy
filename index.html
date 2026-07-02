@@ -231,6 +231,8 @@ body.menu-mode .game-ui{display:none !important;}
   <div class="top-stat"><span class="icon">📈</span><div class="stat-b"><span class="lbl">Доход/мес</span><span class="val" id="income">+580 фр.</span></div></div>
   <div class="top-stat"><span class="icon">⚔️</span><div class="stat-b"><span class="lbl">Армия</span><span class="val" id="army">400 000</span></div></div>
   <div class="top-stat"><span class="icon">🌾</span><div class="stat-b"><span class="lbl">Стабильность</span><span class="val" id="stab">81</span></div></div>
+  <div class="top-stat"><span class="icon">🏦</span><div class="stat-b"><span class="lbl">Долг</span><span class="val" id="debt">—</span></div></div>
+  <div class="top-stat"><span class="icon">📉</span><div class="stat-b"><span class="lbl">Инфляция</span><span class="val" id="infl">0%</span></div></div>
   <div id="date-disp">Январь 1852 г.</div>
 </div>
 
@@ -247,12 +249,35 @@ body.menu-mode .game-ui{display:none !important;}
 
 <!-- ГЛАВНОЕ МЕНЮ -->
 <div id="main-menu">
-  <div class="menu-title">GRAND STRATEGY — 1852</div>
-  <div class="menu-hint">Нажмите на страну на карте (Франция, Великобритания, Россия, Австрия, Пруссия или Испания), чтобы начать за неё новую игру</div>
+  <div class="menu-title">GRAND STRATEGY</div>
+  <div class="menu-hint" id="menu-hint">Нажмите на страну на карте, чтобы начать за неё новую игру</div>
   <div class="menu-btns">
     <button id="continue-btn" class="menu-btn" onclick="continueGame()" style="display:none">▶ Продолжить</button>
     <button class="menu-btn" onclick="openLoadMenu()">🗂 Загрузить игру</button>
+    <button class="menu-btn" onclick="openScenarioMenu()">🎲 Сценарии</button>
     <button class="menu-btn" onclick="openScenarioEditor()">🛠 Редактор сценариев</button>
+  </div>
+</div>
+
+<!-- ВЫБОР СЦЕНАРИЯ -->
+<div id="scenario-menu" style="position:absolute;inset:0;z-index:500;background:rgba(10,10,15,0.65);display:none;align-items:center;justify-content:center;">
+  <div class="load-box">
+    <h3><span>🎲 Выбор сценария</span><span class="xbtn" onclick="closeScenarioMenu()">✕</span></h3>
+    <div style="font-size:11px;color:#666;margin-bottom:10px;line-height:1.5">Сценарии создаются в редакторе («Создать сценарий» → «Сохранить сценарий в игру»). Любая страна любого сценария играбельна — ИИ сам заполнит её правителя, показатели и интересы под год сценария.</div>
+    <div id="scenario-menu-list" style="overflow-y:auto;margin-bottom:12px"></div>
+    <button class="load-close-btn" onclick="closeScenarioMenu()">Закрыть</button>
+  </div>
+</div>
+
+<!-- BREAKING NEWS — большой экран для исторически значимых событий -->
+<div id="breaking-news" style="position:absolute;inset:0;z-index:600;background:rgba(8,8,10,0.82);display:none;align-items:center;justify-content:center;">
+  <div style="background:#f6f2e8;border:3px double #222;max-width:560px;width:86%;padding:30px 36px;box-shadow:0 12px 50px rgba(0,0,0,0.6);text-align:center;font-family:Georgia,serif;">
+    <div style="font-size:11px;letter-spacing:.35em;color:#8a1a1a;text-transform:uppercase;margin-bottom:8px">‼️ Срочно · Экстренный выпуск</div>
+    <div id="breaking-title" style="font-size:30px;font-weight:bold;color:#111;line-height:1.2;margin-bottom:12px;text-transform:uppercase"></div>
+    <div style="width:60px;height:2px;background:#222;margin:0 auto 14px"></div>
+    <div id="breaking-text" style="font-size:15px;color:#333;line-height:1.7;margin-bottom:16px"></div>
+    <div id="breaking-date" style="font-size:11px;color:#888;font-style:italic;margin-bottom:18px"></div>
+    <button class="menu-btn" onclick="closeBreakingNews()" style="background:#222">Прочитано</button>
   </div>
 </div>
 
@@ -296,13 +321,19 @@ body.menu-mode .game-ui{display:none !important;}
 
       <!-- Создание сценария: шаг 2 — назначение владельцев -->
       <div id="editor-view-scenario-build" style="display:none">
-        <div class="editor-hint">Выберите страну и цвет, затем кликайте провинции на карте — они выделятся. Нажмите «Готово», чтобы закрепить их за этой страной. Повторите для других стран. Провинции без владельца останутся ничейными.</div>
+        <div class="editor-hint">Введите ЛЮБУЮ страну (хоть сотню разных), выберите цвет, кликайте провинции на карте и жмите «Готово». Провинции без владельца останутся ничейными. ИИ сам заполнит правителей, показатели и интересы каждой страны под год сценария.</div>
         <div class="setting-row" style="margin-bottom:8px">
-          <label style="display:block;margin-bottom:4px">Страна</label>
-          <select id="scenario-country-select" style="width:100%;padding:6px;font-family:Georgia,serif;font-size:12px">
-            <option>Франция</option><option>Великобритания</option><option>Россия</option>
-            <option>Австрия</option><option>Пруссия</option><option>Испания</option>
-          </select>
+          <label style="display:block;margin-bottom:4px">Название сценария</label>
+          <input type="text" id="scenario-name-input" placeholder="Например: Мир 1900" style="width:100%;padding:6px;font-family:Georgia,serif;font-size:12px;border:1px solid #ccc;border-radius:3px">
+        </div>
+        <div class="setting-row" style="margin-bottom:8px">
+          <label style="display:block;margin-bottom:4px">Год начала</label>
+          <input type="number" id="scenario-year-input" value="1852" style="width:100%;padding:6px;font-family:Georgia,serif;font-size:12px;border:1px solid #ccc;border-radius:3px">
+        </div>
+        <div class="setting-row" style="margin-bottom:8px">
+          <label style="display:block;margin-bottom:4px">Страна (любая, свободный ввод)</label>
+          <input type="text" id="scenario-country-input" list="scenario-country-datalist" placeholder="Например: Османская империя" style="width:100%;padding:6px;font-family:Georgia,serif;font-size:12px;border:1px solid #ccc;border-radius:3px">
+          <datalist id="scenario-country-datalist"></datalist>
         </div>
         <div class="setting-row" style="margin-bottom:10px">
           <label style="display:block;margin-bottom:4px">Цвет страны</label>
@@ -313,7 +344,8 @@ body.menu-mode .game-ui{display:none !important;}
         <button class="editor-btn ghost" onclick="clearSelection()" style="margin-bottom:14px">✖ Снять выделение</button>
         <div style="font-size:10px;text-transform:uppercase;color:#999;letter-spacing:.05em;margin-bottom:6px">Уже назначено</div>
         <div id="scenario-summary-list" style="margin-bottom:14px"></div>
-        <button class="editor-btn" onclick="exportScenarioToFile()" style="margin-bottom:8px">📥 Скачать сценарий</button>
+        <button class="editor-btn" onclick="saveScenarioToGame()" style="margin-bottom:8px">🎲 Сохранить сценарий в игру</button>
+        <button class="editor-btn ghost" onclick="exportScenarioToFile()" style="margin-bottom:8px">📥 Скачать сценарий файлом</button>
         <button class="editor-btn ghost" onclick="openScenarioHub()">◀ Назад</button>
       </div>
 
@@ -446,28 +478,32 @@ body.menu-mode .game-ui{display:none !important;}
       <div style="font-size:10px;color:#999;margin-top:2px">Армии, делегации, штабы и другие объекты на карте</div>
       <input type="range" id="setting-obj-scale" min="0.5" max="3" step="0.1" value="1.8" oninput="onChangeObjectScale(this.value)">
     </div>
+    <div class="setting-row">
+      <label>
+        <input type="checkbox" id="setting-auto-portraits" checked onchange="onToggleAutoPortraits(this.checked)">
+        Автогенерация портрета правителя (ИИ)
+      </label>
+      <div style="font-size:10px;color:#999;margin-top:2px">Портрет рисуется ИИ при новой игре и каждой смене правителя</div>
+    </div>
     <button class="load-close-btn" onclick="closeSettings()">Закрыть</button>
   </div>
 </div>
 
 <div id="left-panel" class="game-ui">
   <div class="portrait-block">
-    <img class="portrait-img"
-      src="https://upload.wikimedia.org/wikipedia/commons/thumb/b/b4/Portrait_de_Louis-Napoléon_Bonaparte_%283x4_cropped%29.jpg/400px-Portrait_de_Louis-Napoléon_Bonaparte_%283x4_cropped%29.jpg"
-      onerror="this.style.display='none';this.nextElementSibling.style.display='flex';" alt="Луи-Наполеон">
-    <div class="portrait-emoji" style="display:none">👑</div>
+    <img class="portrait-img" id="ruler-portrait" style="display:none" alt="Портрет правителя"
+      onerror="this.style.display='none';this.nextElementSibling.style.display='flex';">
+    <div class="portrait-emoji" id="ruler-portrait-emoji">👑</div>
     <div class="portrait-hover">
-      <div class="ph-row"><span class="k">Правит с</span><span>1848 г.</span></div>
-      <div class="ph-row"><span class="k">Партия</span><span>Бонапартисты</span></div>
-      <div class="ph-row"><span class="k">Популярность</span><span>74%</span></div>
-      <div class="ph-row"><span class="k">Харизма</span><span>Высокая</span></div>
-      <div class="ph-row"><span class="k">Военный талант</span><span>Средний</span></div>
-      <div class="ph-row"><span class="k">Дипломатия</span><span>Высокая</span></div>
+      <div class="ph-row"><span class="k">Возраст</span><span id="ph-age">—</span></div>
+      <div class="ph-row"><span class="k">Правит с</span><span id="ph-since">—</span></div>
+      <div class="ph-row"><span class="k">Правление</span><span id="ph-gov">—</span></div>
     </div>
   </div>
   <div class="portrait-caption">
     <div class="pc-name" id="ruler-name">Луи-Наполеон Бонапарт</div>
     <div class="pc-title" id="ruler-title">Президент Французской республики</div>
+    <button class="cbtn" id="portrait-gen-btn" onclick="onGeneratePortraitClick()" style="margin-top:6px">🎨 Сгенерировать портрет (ИИ)</button>
   </div>
   <div class="govbadge" id="country-name-badge" style="font-weight:bold">🏳️ Франция</div>
   <div class="govbadge" id="govbadge-text">🏛 Президентская республика</div>
@@ -476,15 +512,7 @@ body.menu-mode .game-ui{display:none !important;}
     <button class="cbtn" onclick="toggle('pm')">▶ Глава правительства</button>
     <div class="ccont" id="pm">
       <div class="portrait-block">
-        <img class="portrait-img"
-          src="https://upload.wikimedia.org/wikipedia/commons/thumb/6/6e/Eug%C3%A8ne_Rouher_Pierson_%28cropped%29.jpg/400px-Eug%C3%A8ne_Rouher_Pierson_%28cropped%29.jpg"
-          onerror="this.style.display='none';this.nextElementSibling.style.display='flex';" alt="Руэр">
-        <div class="portrait-emoji" style="display:none;font-size:48px;">🎩</div>
-        <div class="portrait-hover">
-          <div class="ph-row"><span class="k">Партия</span><span>Бонапартисты</span></div>
-          <div class="ph-row"><span class="k">Влияние</span><span>Среднее</span></div>
-          <div class="ph-row"><span class="k">Лояльность</span><span>Высокая</span></div>
-        </div>
+        <div class="portrait-emoji" style="font-size:48px;">🎩</div>
       </div>
       <div class="portrait-caption">
         <div class="pc-name" id="pm-name" style="font-size:13px">Эжен Руэр</div>
@@ -494,13 +522,9 @@ body.menu-mode .game-ui{display:none !important;}
   </div>
 
   <div class="psec">
-    <button class="cbtn" onclick="toggle('parl')">▶ Законодательное собрание</button>
+    <button class="cbtn" onclick="toggle('parl')">▶ Парламент</button>
     <div class="ccont" id="parl">
-      <div class="irow"><span class="k">Тип</span><span>Однопалатное</span></div>
-      <div class="irow"><span class="k">Мест</span><span>750</span></div>
-      <div class="irow"><span class="k">Бонапартисты</span><span>67%</span></div>
-      <div class="irow"><span class="k">Республиканцы</span><span>18%</span></div>
-      <div class="irow"><span class="k">Монархисты</span><span>15%</span></div>
+      <div id="parliament-box"></div>
     </div>
   </div>
 
@@ -550,6 +574,8 @@ body.menu-mode .game-ui{display:none !important;}
     <span class="xbtn" onclick="document.getElementById('events-box').style.display='none'">✕</span>
   </div>
   <div id="events-list"></div>
+  <div class="events-hdr" style="border-top:1px solid #ddd;position:static">🏠 Внутри страны</div>
+  <div id="domestic-list"></div>
 </div>
 
 <!-- ДЕЙСТВИЯ -->
@@ -560,7 +586,7 @@ body.menu-mode .game-ui{display:none !important;}
   </div>
   <div class="actions-body">
     <div id="actions-list"><div style="color:#888;font-size:11px;font-style:italic">Нет действий на этот ход</div></div>
-    <textarea id="action-input" placeholder="Опишите действие Франции... (например: отправить войска в Алжир)"></textarea>
+    <textarea id="action-input" placeholder="Опишите действие вашей страны... (например: отправить войска к границе)"></textarea>
     <button class="add-action-btn" onclick="addAction()">+ Добавить действие</button>
   </div>
 </div>
@@ -589,11 +615,9 @@ body.menu-mode .game-ui{display:none !important;}
   <div class="rel-body">
     <div class="rel-leader" id="rel-leader"></div>
     <div class="rel-annexed" id="rel-annexed" style="display:none"></div>
-    <div class="rel-stats">
-      <div><span class="lbl">💰 Казна</span><span class="val" id="rel-treasury"></span></div>
-      <div><span class="lbl">⚔️ Армия</span><span class="val" id="rel-army"></span></div>
-      <div><span class="lbl">🌾 Стабильность</span><span class="val" id="rel-stability"></span></div>
+    <div class="rel-stats" style="grid-template-columns:1fr">
       <div><span class="lbl">🏛 Правление</span><span class="val" id="rel-government"></span></div>
+      <div style="font-size:10px;color:#999;line-height:1.5">Казна, армия и стабильность чужих держав скрыты — судите о них по новостям, слухам и переговорам.</div>
     </div>
     <div class="rel-bar-track">
       <div class="rel-bar" id="rel-bar" style="width:50%;background:#8a7a20;"></div>
@@ -629,11 +653,11 @@ body.menu-mode .game-ui{display:none !important;}
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/topojson/3.0.2/topojson.min.js"></script>
-<script src="map.js?v=29"></script>
-<script src="ai.js?v=29"></script>
-<script src="game.js?v=29"></script>
-<script src="ui.js?v=29"></script>
-<script src="editor.js?v=29"></script>
+<script src="map.js?v=30"></script>
+<script src="ai.js?v=30"></script>
+<script src="game.js?v=30"></script>
+<script src="ui.js?v=30"></script>
+<script src="editor.js?v=30"></script>
 <script>initMenu();</script>
 </body>
 </html>

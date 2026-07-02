@@ -156,9 +156,10 @@ function openCountryRelations(countryName) {
   // Страна — единый объект countries[] (game.js), меняется через setCountryLeader/changeCountryStat
   // и для игрока, и для ИИ-стран одинаково — здесь показываем её текущий срез целиком.
   const c = (typeof countries !== 'undefined') ? countries[countryName] : null;
-  const leaderText = c ? `${c.ruler} (${c.rulerTitle})` : '';
+  const age = c && typeof c.rulerAge === 'number' ? `, ${c.rulerAge} лет` : '';
+  const leaderText = c ? `${c.ruler} (${c.rulerTitle}${age})` : '';
 
-  document.getElementById('rel-country-name').textContent = countryName;
+  document.getElementById('rel-country-name').textContent = (c && c.displayName) || countryName;
   document.getElementById('rel-leader').textContent = leaderText;
 
   const annexedEl = document.getElementById('rel-annexed');
@@ -168,9 +169,8 @@ function openCountryRelations(countryName) {
   } else {
     annexedEl.style.display = 'none';
   }
-  document.getElementById('rel-treasury').textContent = c ? c.treasury.toLocaleString('ru') + ' фр.' : '—';
-  document.getElementById('rel-army').textContent = c ? c.army.toLocaleString('ru') : '—';
-  document.getElementById('rel-stability').textContent = c ? c.stability : '—';
+  // Казну/армию/стабильность чужой страны игрок НЕ видит — только форму правления
+  // (публичный факт). Остальное он узнаёт из новостей, слухов и дипломатии.
   document.getElementById('rel-government').textContent = c ? c.government : '—';
 
   // Полоска отношений: от -100 до +100, центр = 50%
@@ -270,10 +270,10 @@ function newGame(country) {
 }
 
 // "Продолжить" в главном меню — грузит последнюю по времени партию
-function continueGame() {
+async function continueGame() {
   const saves = listSaves();
   if (!saves.length) return;
-  loadGameSlot(saves[0].id);
+  await loadGameSlot(saves[0].id); // сначала сценарий партии, потом её состояние
   startGame();
   showNotif('▶ Игра продолжена');
 }
@@ -299,8 +299,8 @@ function renderSaveList() {
     const date = months[s.month] + ' ' + s.year + ' г.';
     return `<div class="save-item">
       <div class="save-info">
-        <div class="save-title">🇫🇷 ${s.country} — ${s.ruler || ''}</div>
-        <div class="save-sub">Ход ${s.turn} · ${date} · ${s.treasury.toLocaleString('ru')} фр.</div>
+        <div class="save-title">🏳️ ${s.country} — ${s.ruler || ''}</div>
+        <div class="save-sub">${s.scenarioName || ''} · Ход ${s.turn} · ${date} · ${(s.treasury || 0).toLocaleString('ru')} фр.</div>
       </div>
       <div class="save-actions">
         <button class="save-play-btn" onclick="loadSaveAndPlay('${s.id}')">▶</button>
@@ -310,8 +310,8 @@ function renderSaveList() {
   }).join('');
 }
 
-function loadSaveAndPlay(id) {
-  loadGameSlot(id);
+async function loadSaveAndPlay(id) {
+  await loadGameSlot(id);
   closeLoadMenu();
   startGame();
   showNotif('▶ Игра загружена');
@@ -367,6 +367,8 @@ function openSettings() {
   document.getElementById('setting-label-scale-val').textContent = countryLabelScale.toFixed(1) + '×';
   document.getElementById('setting-obj-scale').value = objectScale;
   document.getElementById('setting-obj-scale-val').textContent = objectScale.toFixed(1) + '×';
+  const ap = document.getElementById('setting-auto-portraits');
+  if (ap && typeof autoPortraitsEnabled === 'function') ap.checked = autoPortraitsEnabled();
 }
 
 function closeSettings() {
@@ -387,4 +389,107 @@ function onChangeObjectScale(val) {
   const v = parseFloat(val);
   document.getElementById('setting-obj-scale-val').textContent = v.toFixed(1) + '×';
   setObjectScale(v);
+}
+
+function onToggleAutoPortraits(checked) {
+  localStorage.setItem('gs1852_auto_portraits', checked ? '1' : '0');
+  if (checked && typeof maybeAutoPortrait === 'function' && gameStarted) maybeAutoPortrait(playerCountry);
+}
+
+// ============================================================
+// ПАРЛАМЕНТ — динамическая панель (фракции и поддержка из объекта страны, не из хардкода)
+// ============================================================
+function renderParliamentPanel() {
+  const box = document.getElementById('parliament-box');
+  if (!box || typeof countries === 'undefined' || !countries[playerCountry]) return;
+  const parl = countries[playerCountry].parliament;
+  if (!parl || !parl.factions || !parl.factions.length) {
+    box.innerHTML = '<div class="chg-empty" style="padding:4px 0">Представительный орган в стране отсутствует</div>';
+    return;
+  }
+  const supColor = parl.support >= 60 ? '#1a7a1a' : parl.support >= 40 ? '#8a7a20' : '#b02020';
+  box.innerHTML =
+    `<div class="irow"><span class="k">Орган</span><span>${parl.name || 'Парламент'}</span></div>
+     <div class="irow"><span class="k">Поддержка правительства</span><span style="color:${supColor};font-weight:bold">${parl.support}%</span></div>` +
+    parl.factions.map(f => `<div class="irow"><span class="k">${f.name}</span><span>${f.pct}%</span></div>`).join('') +
+    `<div style="font-size:10px;color:#999;margin-top:6px;line-height:1.5">Поддержка ниже 35% подтачивает стабильность каждый ход. Законы, победы и скандалы двигают её через события.</div>`;
+}
+
+// ============================================================
+// ПОРТРЕТ ПРАВИТЕЛЯ — сгенерированный ИИ или эмодзи-заглушка
+// ============================================================
+function renderRulerPortrait() {
+  const img = document.getElementById('ruler-portrait');
+  const emoji = document.getElementById('ruler-portrait-emoji');
+  if (!img || typeof countries === 'undefined' || !countries[playerCountry]) return;
+  const c = countries[playerCountry];
+  if (c.portrait) {
+    img.src = c.portrait;
+    img.style.display = 'block';
+    emoji.style.display = 'none';
+  } else {
+    img.style.display = 'none';
+    emoji.style.display = 'flex';
+  }
+}
+
+function setPortraitLoading(loading) {
+  const btn = document.getElementById('portrait-gen-btn');
+  if (!btn) return;
+  btn.disabled = loading;
+  btn.textContent = loading ? '⏳ ИИ рисует портрет...' : '🎨 Сгенерировать портрет (ИИ)';
+}
+
+function onGeneratePortraitClick() {
+  if (typeof generateRulerPortrait !== 'function') return;
+  countries[playerCountry].portrait = null;
+  generateRulerPortrait(playerCountry);
+}
+
+// ============================================================
+// BREAKING NEWS — большой экран для катастрофических/эпохальных событий
+// ============================================================
+function showBreakingNews(title, text) {
+  const box = document.getElementById('breaking-news');
+  if (!box) return;
+  document.getElementById('breaking-title').textContent = title || 'СРОЧНАЯ НОВОСТЬ';
+  document.getElementById('breaking-text').textContent = text || '';
+  document.getElementById('breaking-date').textContent = document.getElementById('date-disp').textContent;
+  box.style.display = 'flex';
+}
+
+function closeBreakingNews() {
+  document.getElementById('breaking-news').style.display = 'none';
+}
+
+// ============================================================
+// ВЫБОР СЦЕНАРИЯ в главном меню (встроенный + созданные в редакторе)
+// ============================================================
+function openScenarioMenu() {
+  const list = document.getElementById('scenario-menu-list');
+  const saved = (typeof getScenariosIndex === 'function') ? getScenariosIndex() : [];
+  const items = [{ ref: 'builtin', name: 'Европа 1852 (встроенный)', year: 1852, countries: 6 }]
+    .concat(saved.map(s => ({ ref: s.id, name: s.name, year: s.year, countries: s.countryCount })));
+  list.innerHTML = items.map(s => {
+    const active = (typeof activeScenarioRef !== 'undefined' && activeScenarioRef === s.ref) ? ' ✅' : '';
+    return `<div class="save-item" style="cursor:pointer" onclick="chooseScenario('${s.ref}')">
+      <div class="save-info">
+        <div class="save-title">🎲 ${s.name}${active}</div>
+        <div class="save-sub">${s.year} г.${s.countries ? ' · стран: ' + s.countries : ''}</div>
+      </div>
+    </div>`;
+  }).join('');
+  document.getElementById('scenario-menu').style.display = 'flex';
+}
+
+function closeScenarioMenu() {
+  document.getElementById('scenario-menu').style.display = 'none';
+}
+
+function chooseScenario(ref) {
+  if (typeof switchActiveScenario !== 'function') return;
+  switchActiveScenario(ref).then(data => {
+    closeScenarioMenu();
+    showNotif('🎲 Сценарий: ' + data.name + ' (' + data.year + ' г.). Кликните страну на карте.');
+  }).catch(() => showNotif('⚠️ Не удалось загрузить сценарий'));
 }

@@ -11,20 +11,18 @@ const franceG = svg.select('#france-g');
 const labelsG = svg.select('#labels-g');
 const objectsG = svg.select('#objects-g');
 
-// Цвет территории каждой страны — своя территория и всё захваченное красится в цвет владельца
-const COUNTRY_COLORS = {
-  'Франция':        '#2a5aa8',
-  'Великобритания': '#a82a2a',
-  'Россия':         '#3a7a3a',
-  'Австрия':        '#8a5a1a',
-  'Пруссия':        '#5a5a7a',
-  'Испания':        '#c8a040'
-};
+// Цвет территории страны: переопределение игрока за партию → цвет из сценария (задан в
+// редакторе) → автоцвет из названия. Хардкода списка стран больше нет.
+function autoCountryColor(name) {
+  let h = 0;
+  for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) >>> 0;
+  return `hsl(${h % 360}, ${38 + (h >> 9) % 25}%, ${42 + (h >> 5) % 18}%)`;
+}
 
-// Цвет страны с учётом переопределения игроком за текущую партию (countries[name].colorOverride из game.js)
 function getCountryColor(name) {
   if (typeof countries !== 'undefined' && countries[name] && countries[name].colorOverride) return countries[name].colorOverride;
-  return COUNTRY_COLORS[name] || '#c8b870';
+  if (activeScenario && activeScenario.countryColors && activeScenario.countryColors[name]) return activeScenario.countryColors[name];
+  return autoCountryColor(name);
 }
 
 // ---- НАСТРОЙКИ ОТОБРАЖЕНИЯ (сохраняются в localStorage) ----
@@ -136,10 +134,60 @@ function updateParis() {
     .attr('y', parisXY[1] + 0.5/zoom)
     .attr('visibility', show ? 'visible' : 'hidden');
 }
-// Карта теперь целиком строится из одного источника — сценария (scenario_1852.json),
-// созданного в редакторе сценариев. Никакой отдельной "фоновой" карты мира больше нет: смена
-// сценария (другой файл) полностью меняет карту игры, включая нейтральные земли. Это позволяет,
-// например, взять карту США и добавить туда Францию/Испанию — играть будет по тем же правилам.
+// ============================================================
+// РЕЕСТР СЦЕНАРИЕВ. Карта целиком строится из активного сценария: встроенного
+// (scenario_1852.json) или любого созданного в редакторе и сохранённого в браузере.
+// Смена сценария полностью меняет карту, список стран и год старта.
+// ============================================================
+const SCENARIOS_INDEX_KEY = 'gs1852_scenarios_index';
+const ACTIVE_SCENARIO_KEY = 'gs1852_active_scenario';
+let activeScenarioRef = localStorage.getItem(ACTIVE_SCENARIO_KEY) || 'builtin';
+let activeScenario = null; // {ref, name, year, countryColors, provinces}
+
+function getScenariosIndex() {
+  try { return JSON.parse(localStorage.getItem(SCENARIOS_INDEX_KEY)) || []; }
+  catch (e) { return []; }
+}
+function scenarioDataKey(id) { return 'gs1852_scenario_' + id; }
+
+function loadScenarioData(ref) {
+  if (ref === 'builtin') {
+    return d3.json('scenario_1852.json').then(d => ({
+      ref: 'builtin', name: 'Европа 1852', year: 1852,
+      countryColors: d.countryColors || {}, provinces: d.provinces || []
+    }));
+  }
+  const raw = localStorage.getItem(scenarioDataKey(ref));
+  if (!raw) return Promise.reject(new Error('Сценарий не найден: ' + ref));
+  try {
+    const d = JSON.parse(raw);
+    return Promise.resolve({
+      ref, name: d.name || 'Свой сценарий', year: d.year || 1852,
+      countryColors: d.countryColors || {}, provinces: d.provinces || []
+    });
+  } catch (e) { return Promise.reject(e); }
+}
+
+function switchActiveScenario(ref) {
+  return loadScenarioData(ref).then(data => {
+    activeScenario = data;
+    activeScenarioRef = ref;
+    localStorage.setItem(ACTIVE_SCENARIO_KEY, ref);
+    scenarioProvinces = (data.provinces || []).filter(p => p.geometry);
+    if (typeof applyScenarioToGame === 'function') applyScenarioToGame(data);
+    renderScenarioProvinces();
+    addCountryLabelsFromProvinces();
+    return data;
+  }).catch(err => {
+    console.error('Не удалось загрузить сценарий:', err.message);
+    if (ref !== 'builtin') return switchActiveScenario('builtin'); // откат на встроенный
+    svg.append('text').attr('x', W/2).attr('y', H/2)
+      .attr('text-anchor', 'middle').attr('font-size', '13')
+      .attr('fill', '#888').text('Ошибка загрузки карты сценария');
+    throw err;
+  });
+}
+
 function drawMap() {
   // Маркер Парижа — масштабируемый (остаётся как декоративная метка столицы игрока по умолчанию)
   parisXY = proj([2.3488, 48.8534]);
@@ -232,27 +280,13 @@ function provinceOwnerOf(id, scenarioOwner) {
   return scenarioOwner;
 }
 
-function drawScenarioProvinces() {
-  d3.json('scenario_1852.json').then(data => {
-    // Берём ВСЕ провинции сценария, не только те, что закреплены за 6 странами — нейтральные
-    // земли (owner:null) рисуются тоже, просто нейтральным цветом, чтобы карта была полной сама
-    // по себе, без обращения к внешним источникам (world-atlas больше не используется вообще).
-    scenarioProvinces = (data.provinces || []).filter(p => p.geometry);
-    renderScenarioProvinces();
-    addCountryLabelsFromProvinces();
-  }).catch(err => {
-    console.error('Не удалось загрузить карту сценария:', err.message);
-    svg.append('text').attr('x', W/2).attr('y', H/2)
-      .attr('text-anchor', 'middle').attr('font-size', '13')
-      .attr('fill', '#888').text('Ошибка загрузки карты сценария');
-  });
-}
-
 // Подпись каждой страны ставим на её САМУЮ БОЛЬШУЮ провинцию (по площади) — надёжнее, чем
 // центроид всех кусков сразу, который может уехать в море при многочастной территории.
+// Страны берутся из фактических владельцев провинций сценария — без хардкода.
 function addCountryLabelsFromProvinces() {
   const biggestByCountry = {};
   scenarioProvinces.forEach(p => {
+    if (!p.owner) return;
     const feature = { type: 'Feature', geometry: p.geometry };
     let area = 0;
     try { area = Math.abs(d3.geoArea(feature)); } catch (e) { /* битая геометрия — пропускаем */ }
@@ -261,8 +295,10 @@ function addCountryLabelsFromProvinces() {
     }
   });
   labelsG.selectAll('.country-label').remove();
-  ALL_COUNTRIES.forEach(c => {
-    if (biggestByCountry[c]) addCountryLabel(c, biggestByCountry[c].feature, true);
+  Object.keys(biggestByCountry).forEach(c => {
+    const display = (typeof countries !== 'undefined' && countries[c] && countries[c].displayName) || c;
+    addCountryLabel(c, biggestByCountry[c].feature, true);
+    if (display !== c) updateMapCountryLabel(c, display);
   });
   updateCountryLabels();
 }
@@ -311,7 +347,7 @@ function renderScenarioProvinces() {
     });
 }
 
-drawScenarioProvinces();
+switchActiveScenario(activeScenarioRef);
 
 // ============================================================
 // ОБЪЕКТЫ НА КАРТЕ — армии, штабы, передвижения (создаются через EFFECTS от ИИ)

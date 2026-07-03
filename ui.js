@@ -352,6 +352,13 @@ function closePauseMenu() {
   document.getElementById('pause-menu').style.display = 'none';
 }
 
+// Ручное сохранение из меню паузы. Сначала закрываем меню (оно перекрывает уведомления
+// по z-index), затем сохраняем с уведомлением об успехе/ошибке.
+function pauseSaveGame() {
+  closePauseMenu();
+  saveGame({ announce: true });
+}
+
 function pauseRestart() {
   if (!confirm('Начать заново? Текущий прогресс этой партии будет потерян.')) return;
   resetGame(playerCountry);

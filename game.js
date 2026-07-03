@@ -1413,13 +1413,18 @@ function hasSave() {
 
 // Портреты (base64) в localStorage не влезают при нескольких слотах — при переполнении
 // пересохраняем без них (они регенерируются кнопкой/автоматически).
-function saveGame() {
+// opts.announce — показать уведомление и при УСПЕХЕ (для ручного «Сохранить игру»).
+// Возвращает true/false. ГЛАВНОЕ: при нехватке места больше НЕ падаем молча —
+// иначе большая партия (48 стран) незаметно не сохранялась, и «Продолжить» открывал
+// старый слот на 6 стран.
+function saveGame(opts) {
+  opts = opts || {};
   try {
     if (!currentSlotId) currentSlotId = 'slot_' + Date.now();
     const data = {
       version: 3,
       turn, month, year, week,
-      scenarioRef: (typeof activeScenarioRef !== 'undefined') ? activeScenarioRef : 'builtin',
+      scenarioRef: (typeof activeScenarioRef !== 'undefined') ? activeScenarioRef : 'builtin-world',
       scenarioName: (typeof activeScenario !== 'undefined' && activeScenario) ? activeScenario.name : 'Европа 1852',
       countries,
       playerCountry,
@@ -1433,15 +1438,26 @@ function saveGame() {
       diplomacyHistories: typeof diplomacyHistories !== 'undefined' ? diplomacyHistories : {},
       savedAt: Date.now()
     };
+    const key = SAVE_PREFIX + currentSlotId;
     try {
-      localStorage.setItem(SAVE_PREFIX + currentSlotId, JSON.stringify(data));
+      // 1) полное сохранение
+      localStorage.setItem(key, JSON.stringify(data));
     } catch (quotaErr) {
+      // 2) резерв: без портретов правителя И премьера (они регенерируются)
       const slim = JSON.parse(JSON.stringify(data));
-      Object.values(slim.countries).forEach(c => { c.portrait = null; });
-      localStorage.setItem(SAVE_PREFIX + currentSlotId, JSON.stringify(slim));
+      Object.values(slim.countries).forEach(c => { c.portrait = null; c.pmPortrait = null; });
+      localStorage.setItem(key, JSON.stringify(slim));
+      if (typeof showNotif === 'function') showNotif('💾 Сохранено (портреты убраны — не хватало места)');
     }
+    if (opts.announce && typeof showNotif === 'function') showNotif('💾 Игра сохранена');
+    return true;
   } catch (e) {
     console.log('Ошибка сохранения:', e.message);
+    // Не хватило места даже без портретов — сообщаем ЯВНО, а не теряем партию втихую.
+    if (typeof showNotif === 'function') {
+      showNotif('⚠️ Не удалось сохранить: в браузере кончилось место. Удалите старые сценарии/сейвы (🗂 Загрузить игру → удалить) или скачайте партию файлом.');
+    }
+    return false;
   }
 }
 

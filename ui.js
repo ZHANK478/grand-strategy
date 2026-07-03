@@ -89,7 +89,7 @@ function renderCountryList() {
     : ['Франция', 'Испания', 'Великобритания', 'Россия', 'Австрия', 'Пруссия'].filter(c => c !== playerCountry);
   list.innerHTML = availableCountries.map(c => {
     const rel = (typeof worldState !== 'undefined') ? (worldState.relations[c] || 0) : 0;
-    const color = rel > 30 ? '#2a7a2a' : rel < -30 ? '#8a1a1a' : '#7a6a30';
+    const color = rel > 30 ? '#7cc47f' : rel < -30 ? '#e08072' : '#d9b45c';
     const war = (typeof worldState !== 'undefined') && worldState.atWarWith.includes(c) ? ' ⚔️' : '';
     return `<button class="country-btn" onclick="selectCountry('${c}')">
       ${c}${war} <span style="color:${color};font-size:11px;margin-left:4px">${rel > 0 ? '+' : ''}${rel}</span>
@@ -188,39 +188,39 @@ function openCountryRelations(countryName) {
       const bloc = allianceBlocOf(countryName);
       if (bloc) rows.push('🛡 Блок: ' + bloc.join(' + '));
     }
-    tEl.innerHTML = rows.length ? rows.map(r => `<div style="font-size:11px;color:#333;padding:2px 0">${r}</div>`).join('') : '<div style="font-size:10px;color:#999">Договоров с вами нет</div>';
+    tEl.innerHTML = rows.length ? rows.map(r => `<div style="font-size:11px;color:#c9c3b2;padding:2px 0">${r}</div>`).join('') : '<div style="font-size:10px;color:#8b94aa">Договоров с вами нет</div>';
   }
 
   // Полоска отношений: от -100 до +100, центр = 50%
   const pct = (rel + 100) / 2;
   const bar = document.getElementById('rel-bar');
   bar.style.width = pct + '%';
-  bar.style.background = rel > 30 ? '#2a7a2a' : rel < -30 ? '#8a1a1a' : '#8a7a20';
+  bar.style.background = rel > 30 ? '#7cc47f' : rel < -30 ? '#e08072' : '#d9b45c';
 
   document.getElementById('rel-value').textContent = (rel > 0 ? '+' : '') + rel;
 
   const statusEl = document.getElementById('rel-status');
   if (isWar) {
     statusEl.textContent = '⚔️ СОСТОЯНИЕ ВОЙНЫ';
-    statusEl.style.color = '#c00';
+    statusEl.style.color = '#e08072';
   } else if (isAlly) {
     statusEl.textContent = '🤝 Союзник';
-    statusEl.style.color = '#2a7a2a';
+    statusEl.style.color = '#7cc47f';
   } else if (rel > 60) {
     statusEl.textContent = '😊 Дружественные';
-    statusEl.style.color = '#2a7a2a';
+    statusEl.style.color = '#7cc47f';
   } else if (rel > 30) {
     statusEl.textContent = '🙂 Хорошие';
-    statusEl.style.color = '#4a9a4a';
+    statusEl.style.color = '#8fcf92';
   } else if (rel > -30) {
     statusEl.textContent = '😐 Нейтральные';
-    statusEl.style.color = '#7a6a20';
+    statusEl.style.color = '#d9b45c';
   } else if (rel > -60) {
     statusEl.textContent = '😠 Напряжённые';
-    statusEl.style.color = '#c06020';
+    statusEl.style.color = '#e0a060';
   } else {
     statusEl.textContent = '😡 Враждебные';
-    statusEl.style.color = '#c00';
+    statusEl.style.color = '#e08072';
   }
 
   // Кнопка "Открыть переговоры"
@@ -393,14 +393,6 @@ function openSettings() {
   document.getElementById('setting-label-scale-val').textContent = countryLabelScale.toFixed(1) + '×';
   document.getElementById('setting-obj-scale').value = objectScale;
   document.getElementById('setting-obj-scale-val').textContent = objectScale.toFixed(1) + '×';
-  if (typeof innerBorderWidth !== 'undefined') {
-    document.getElementById('setting-inner-border').value = innerBorderWidth;
-    document.getElementById('setting-inner-border-val').textContent = innerBorderWidth.toFixed(1);
-  }
-  if (typeof outerBorderWidth !== 'undefined') {
-    document.getElementById('setting-outer-border').value = outerBorderWidth;
-    document.getElementById('setting-outer-border-val').textContent = outerBorderWidth.toFixed(1);
-  }
   const ap = document.getElementById('setting-auto-portraits');
   if (ap && typeof autoPortraitsEnabled === 'function') ap.checked = autoPortraitsEnabled();
 }
@@ -425,18 +417,6 @@ function onChangeObjectScale(val) {
   setObjectScale(v);
 }
 
-function onChangeInnerBorder(val) {
-  const v = parseFloat(val);
-  document.getElementById('setting-inner-border-val').textContent = v.toFixed(1);
-  if (typeof setInnerBorderWidth === 'function') setInnerBorderWidth(v);
-}
-
-function onChangeOuterBorder(val) {
-  const v = parseFloat(val);
-  document.getElementById('setting-outer-border-val').textContent = v.toFixed(1);
-  if (typeof setOuterBorderWidth === 'function') setOuterBorderWidth(v);
-}
-
 function onToggleAutoPortraits(checked) {
   localStorage.setItem('gs1852_auto_portraits', checked ? '1' : '0');
   if (checked && typeof maybeAutoPortrait === 'function' && gameStarted) maybeAutoPortrait(playerCountry);
@@ -452,11 +432,11 @@ function renderParliamentPanel() {
   const parl = c.parliament;
   if (!parl || !parl.factions || !parl.factions.length) {
     box.innerHTML = `<div class="chg-empty" style="padding:4px 0">${c.parliamentSuspended ? 'Парламент РАСПУЩЕН указом правителя' : 'Представительный орган в стране отсутствует'}</div>
-      <div style="font-size:10px;color:#999;line-height:1.5">Его можно созвать решением правителя (действие «созвать парламент»).</div>`;
+      <div style="font-size:10px;color:#8b94aa;line-height:1.5">Его можно созвать решением правителя (действие «созвать парламент»).</div>`;
     return;
   }
-  const supColor = parl.support >= 60 ? '#1a7a1a' : parl.support >= 40 ? '#8a7a20' : '#b02020';
-  const powColor = (parl.power ?? 50) >= 60 ? '#1a4a8a' : '#666';
+  const supColor = parl.support >= 60 ? '#7cc47f' : parl.support >= 40 ? '#d9b45c' : '#e08072';
+  const powColor = (parl.power ?? 50) >= 60 ? '#7ba7e0' : '#8b94aa';
   box.innerHTML =
     `<div class="irow"><span class="k">Орган</span><span>${parl.name || 'Парламент'}</span></div>
      <div class="irow"><span class="k">Поддержка правительства</span><span style="color:${supColor};font-weight:bold">${parl.support}%</span></div>` +
@@ -464,7 +444,7 @@ function renderParliamentPanel() {
     ((parl.banned || []).length ? `<div class="irow"><span class="k">🚫 Запрещены</span><span>${parl.banned.join(', ')}</span></div>` : '') +
     `<div class="irow"><span class="k">🗳 Следующие выборы</span><span>${parl.nextElection || '—'} г. (раз в ${parl.termYears || '?'} л.)</span></div>
      <div class="irow"><span class="k">Власть парламента</span><span style="color:${powColor};font-weight:bold">${parl.power ?? 50}%</span></div>
-     <div style="font-size:10px;color:#999;margin-top:6px;line-height:1.5">Власть ≥50% и поддержка <40% — парламент может наложить ВЕТО на ваши законы. Поддержка <35% ест стабильность. Роспуск, перенос выборов и запрет партий — через действия правителя.</div>`;
+     <div style="font-size:10px;color:#8b94aa;margin-top:6px;line-height:1.5">Власть ≥50% и поддержка <40% — парламент может наложить ВЕТО на ваши законы. Поддержка <35% ест стабильность. Роспуск, перенос выборов и запрет партий — через действия правителя.</div>`;
 }
 
 // ============================================================
@@ -476,14 +456,14 @@ function renderChurchPanel() {
   const ch = countries[playerCountry].church;
   if (!ch || !ch.exists) {
     box.innerHTML = `<div class="chg-empty" style="padding:4px 0">Церковь лишена государственной власти</div>
-      <div style="font-size:10px;color:#999;line-height:1.5">Секуляризация: духовенство не влияет на政ику. Восстановить можно действием правителя (это вернёт лояльность верующих).</div>`.replace('政ику','политику');
+      <div style="font-size:10px;color:#8b94aa;line-height:1.5">Секуляризация: духовенство не влияет на政ику. Восстановить можно действием правителя (это вернёт лояльность верующих).</div>`.replace('政ику','политику');
     return;
   }
-  const infColor = ch.influence >= 65 ? '#7a4a1a' : '#666';
+  const infColor = ch.influence >= 65 ? '#d9a95c' : '#8b94aa';
   box.innerHTML =
     `<div class="irow"><span class="k">Институт</span><span>${ch.name}</span></div>
      <div class="irow"><span class="k">Влияние на государство</span><span style="color:${infColor};font-weight:bold">${ch.influence}%</span></div>
-     <div style="font-size:10px;color:#999;margin-top:6px;line-height:1.5">Влиятельная церковь (>50%) стоит казне 2% дохода, но поддерживает народ. Правитель может лишить её власти (секуляризация/атеизм) — ценой стабильности и гнева верующих.</div>`;
+     <div style="font-size:10px;color:#8b94aa;margin-top:6px;line-height:1.5">Влиятельная церковь (>50%) стоит казне 2% дохода, но поддерживает народ. Правитель может лишить её власти (секуляризация/атеизм) — ценой стабильности и гнева верующих.</div>`;
 }
 
 // ============================================================
@@ -510,11 +490,11 @@ function renderEconomyPanel() {
   }
   const b = c.lastBudget;
   const fmt = v => v.toLocaleString('ru');
-  const row = (name, val, sign) => `<div class="irow"><span class="k">${name}</span><span style="color:${sign > 0 ? '#1a7a1a' : sign < 0 ? '#b02020' : '#333'};font-weight:bold">${sign > 0 ? '+' : sign < 0 ? '−' : ''}${fmt(Math.abs(val))} фр.</span></div>`;
+  const row = (name, val, sign) => `<div class="irow"><span class="k">${name}</span><span style="color:${sign > 0 ? '#7cc47f' : sign < 0 ? '#e08072' : '#c9c3b2'};font-weight:bold">${sign > 0 ? '+' : sign < 0 ? '−' : ''}${fmt(Math.abs(val))} фр.</span></div>`;
   const classes = c.economy ? Object.entries(c.economy.classes).map(([key, k]) => {
-    const loyColor = k.loyalty >= 55 ? '#1a7a1a' : k.loyalty >= 35 ? '#8a7a20' : '#b02020';
-    return `<div style="border:1px solid #eee;border-radius:4px;padding:6px 8px;margin-bottom:6px">
-      <div style="font-size:12px;font-weight:bold;color:#222">${k.label} <span style="color:#999;font-weight:normal">(${k.share}% населения)</span></div>
+    const loyColor = k.loyalty >= 55 ? '#7cc47f' : k.loyalty >= 35 ? '#d9b45c' : '#e08072';
+    return `<div style="border:1px solid #223050;border-radius:4px;padding:6px 8px;margin-bottom:6px">
+      <div style="font-size:12px;font-weight:bold;color:#e4decd">${k.label} <span style="color:#8b94aa;font-weight:normal">(${k.share}% населения)</span></div>
       <div class="irow"><span class="k">Богатство</span><span>${fmt(k.wealth)}</span></div>
       <div class="irow"><span class="k">Налог</span><span>${k.tax}% → +${fmt(Math.round(k.wealth * k.tax / 100))} фр./мес</span></div>
       <div class="irow"><span class="k">Лояльность</span><span style="color:${loyColor};font-weight:bold">${k.loyalty}</span></div>
@@ -525,15 +505,15 @@ function renderEconomyPanel() {
     b.lines.income.map(l => row(l.name, l.value, 1)).join('') +
     `<div class="phdr" style="margin-top:10px">Расходы</div>` +
     b.lines.expense.map(l => row(l.name, l.value, -1)).join('') +
-    `<div style="margin-top:8px;border-top:2px solid #333;padding-top:6px">` + row('ИТОГ МЕСЯЦА', b.net, b.net >= 0 ? 1 : -1) + `</div>` +
-    (b.borrowed ? `<div style="font-size:11px;color:#b02020;margin-top:4px">🏦 Дефицит покрыт займом ${fmt(b.borrowed)} фр. — ${b.borrowedFrom}</div>` : '') +
+    `<div style="margin-top:8px;border-top:2px solid #c9a959;padding-top:6px">` + row('ИТОГ МЕСЯЦА', b.net, b.net >= 0 ? 1 : -1) + `</div>` +
+    (b.borrowed ? `<div style="font-size:11px;color:#e08072;margin-top:4px">🏦 Дефицит покрыт займом ${fmt(b.borrowed)} фр. — ${b.borrowedFrom}</div>` : '') +
     `<div class="phdr" style="margin-top:12px">Государственный долг</div>
      <div class="irow"><span class="k">Внутренний (буржуазия)</span><span>${fmt(c.debtDomestic || 0)} фр.</span></div>
      <div class="irow"><span class="k">Внешний (иностранные банки)</span><span>${fmt(c.debtForeign || 0)} фр.</span></div>
      <div class="irow"><span class="k">Проценты</span><span>0.5% в месяц</span></div>
      <div class="irow"><span class="k">Инфляция</span><span>${c.inflation}%</span></div>
      <div class="phdr" style="margin-top:12px">Сословия</div>` + classes +
-    `<div style="font-size:10px;color:#999;line-height:1.5;margin-top:4px">Налоги меняются действиями («поднять налог на народ до 25%») или советом экономиста. Ставка >25% душит богатство и лояльность; буржуазия при низких налогах богатеет и тянет доход вверх.</div>`;
+    `<div style="font-size:10px;color:#8b94aa;line-height:1.5;margin-top:4px">Налоги меняются действиями («поднять налог на народ до 25%») или советом экономиста. Ставка >25% душит богатство и лояльность; буржуазия при низких налогах богатеет и тянет доход вверх.</div>`;
 }
 
 async function sendEconomistMessage() {
@@ -597,38 +577,38 @@ function renderSocietyScreen() {
     const repealed = laws.filter(l => l.repealed);
     box.innerHTML =
       `<div class="phdr">Действующие законы (${active.length})</div>` +
-      (active.length ? active.map(l => `<div style="border:1px solid #e5e0d5;border-radius:4px;padding:8px 10px;margin-bottom:7px;background:#faf8f2">
-          <div style="font-size:13px;font-weight:bold;color:#222">📖 ${l.name} <span style="color:#999;font-weight:normal;font-size:10px">(${l.year} г.)</span></div>
-          ${l.description ? `<div style="font-size:11px;color:#555;margin-top:3px;line-height:1.5">${l.description}</div>` : ''}
+      (active.length ? active.map(l => `<div style="border:1px solid #223050;border-radius:4px;padding:8px 10px;margin-bottom:7px;background:#121e38">
+          <div style="font-size:13px;font-weight:bold;color:#e4decd">📖 ${l.name} <span style="color:#8b94aa;font-weight:normal;font-size:10px">(${l.year} г.)</span></div>
+          ${l.description ? `<div style="font-size:11px;color:#a6aec4;margin-top:3px;line-height:1.5">${l.description}</div>` : ''}
         </div>`).join('') : '<div class="chg-empty">Особых законов пока не принято. Принимайте законы через действия: «принять закон о всеобщем образовании».</div>') +
       (repealed.length ? `<div class="phdr" style="margin-top:12px">Отменённые</div>` +
-        repealed.map(l => `<div style="font-size:11px;color:#999;padding:3px 0;text-decoration:line-through">📖 ${l.name} (${l.year}—${l.repealedYear})</div>`).join('') : '');
+        repealed.map(l => `<div style="font-size:11px;color:#8b94aa;padding:3px 0;text-decoration:line-through">📖 ${l.name} (${l.year}—${l.repealedYear})</div>`).join('') : '');
     return;
   }
 
   const so = c.society;
   if (!so) { box.innerHTML = '<div class="chg-empty">Сделайте первый ход — данные о社ме появятся.</div>'.replace('社ме','обществе'); return; }
-  const bar = (val, color) => `<div style="background:#eee;border-radius:3px;height:8px;overflow:hidden;margin-top:3px"><div style="width:${val}%;height:100%;background:${color}"></div></div>`;
-  const metric = (icon, name, val, suffix, color, hint) => `<div style="border:1px solid #e5e0d5;border-radius:4px;padding:8px 10px;background:#faf8f2">
+  const bar = (val, color) => `<div style="background:#0c1526;border-radius:3px;height:8px;overflow:hidden;margin-top:3px"><div style="width:${val}%;height:100%;background:${color}"></div></div>`;
+  const metric = (icon, name, val, suffix, color, hint) => `<div style="border:1px solid #223050;border-radius:4px;padding:8px 10px;background:#121e38">
     <div style="display:flex;justify-content:space-between;font-size:12px"><span>${icon} ${name}</span><b>${val}${suffix}</b></div>
     ${bar(val, color)}
-    <div style="font-size:9px;color:#999;margin-top:3px">${hint}</div>
+    <div style="font-size:9px;color:#8b94aa;margin-top:3px">${hint}</div>
   </div>`;
   const wealthPerCapita = c.economy ? Math.round(Object.values(c.economy.classes).reduce((s, k) => s + k.wealth, 0) / 10) : 0;
   box.innerHTML =
     `<div class="phdr">Демография и общество</div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">` +
-    metric('🎓', 'Грамотность', so.literacy, '%', '#2a5aa8', 'Растёт от расходов на образование; >60% ускоряет буржуазию') +
-    metric('🥀', 'Бедность', so.poverty, '%', '#b02020', 'Снижается призрением; >70% злит народ') +
+    metric('🎓', 'Грамотность', so.literacy, '%', '#7ba7e0', 'Растёт от расходов на образование; >60% ускоряет буржуазию') +
+    metric('🥀', 'Бедность', so.poverty, '%', '#e08072', 'Снижается призрением; >70% злит народ') +
     metric('👩', 'Права женщин', so.womensRights, '/100', '#7a4a8a', 'Меняются законами') +
     metric('🕊', 'Свобода веры', so.religiousFreedom, '/100', '#3a7a3a', 'Меняются законами; злит/радует церковь') +
-    metric('🏙', 'Урбанизация', so.urbanization, '%', '#7a6a20', 'Растёт при стабильности и низких налогах на буржуазию') +
+    metric('🏙', 'Урбанизация', so.urbanization, '%', '#d9b45c', 'Растёт при стабильности и низких налогах на буржуазию') +
     metric('💰', 'Достаток на душу', Math.min(100, wealthPerCapita), ' у.е.', '#1a7a5a', 'Суммарное богатство сословий') +
     `</div>
     <div class="phdr" style="margin-top:12px">Социальные расходы (строки бюджета)</div>
     <div class="irow"><span class="k">🎓 Образование</span><span>${fmt(so.spending.education)} фр./мес</span></div>
     <div class="irow"><span class="k">🍞 Призрение бедных</span><span>${fmt(so.spending.welfare)} фр./мес</span></div>
-    <div style="font-size:10px;color:#999;line-height:1.5;margin-top:6px">Меняются действиями: «удвоить расходы на образование», «выделить 40 франков в месяц на призрение». Расходы >5% дохода дают заметный эффект (~2.4% в год).</div>`;
+    <div style="font-size:10px;color:#8b94aa;line-height:1.5;margin-top:6px">Меняются действиями: «удвоить расходы на образование», «выделить 40 франков в месяц на призрение». Расходы >5% дохода дают заметный эффект (~2.4% в год).</div>`;
 }
 
 async function sendSocietyMessage() {
@@ -697,8 +677,8 @@ function renderHistoryPanel() {
   const chapters = (typeof worldState !== 'undefined' && worldState.historySummary) || [];
   box.innerHTML = chapters.length
     ? chapters.map((ch, i) => `<div style="margin-bottom:12px">
-        <div style="font-size:13px;font-weight:bold;color:#222">Глава ${i + 1}. ${ch.title} <span style="color:#999;font-weight:normal;font-size:10px">(${ch.year} г.)</span></div>
-        <div style="font-size:12px;color:#444;line-height:1.7;margin-top:3px">${ch.text}</div>
+        <div style="font-size:13px;font-weight:bold;color:#e4decd">Глава ${i + 1}. ${ch.title} <span style="color:#8b94aa;font-weight:normal;font-size:10px">(${ch.year} г.)</span></div>
+        <div style="font-size:12px;color:#b9bfcf;line-height:1.7;margin-top:3px">${ch.text}</div>
       </div>`).join('')
     : '<div class="chg-empty">Летопись пока пуста — главы пишутся автоматически каждые 10 ходов, либо нажмите «Дописать главу».</div>';
 }

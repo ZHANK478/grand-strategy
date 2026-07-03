@@ -85,9 +85,11 @@ function setObjectScale(v) {
 }
 
 // Подпись страны — размер не зависит от зума карты, но масштабируется величиной страны
-// (szMul из addCountryLabelsFromProvinces: империя — крупно, княжество — мелко)
+// (szMul из addCountryLabelsFromProvinces: империя — крупно, княжество — мелко).
+// mode: true — feature (центроид посчитаем), 'xy' — готовые экранные координаты, иначе lon/lat.
 function addCountryLabel(name, coordsOrFeature, isFeature, szMul) {
-  const xy = isFeature ? pathGen.centroid(coordsOrFeature) : proj(coordsOrFeature);
+  const xy = isFeature === 'xy' ? coordsOrFeature
+    : isFeature ? pathGen.centroid(coordsOrFeature) : proj(coordsOrFeature);
   if (!xy || isNaN(xy[0])) return;
   labelsG.append('text')
     .attr('class', 'country-label')
@@ -97,7 +99,7 @@ function addCountryLabel(name, coordsOrFeature, isFeature, szMul) {
     .attr('x', xy[0]).attr('y', xy[1])
     .attr('text-anchor', 'middle').attr('dominant-baseline', 'middle')
     .attr('fill', '#f5f2e8').attr('font-family', 'Georgia,serif')
-    .attr('letter-spacing', '0.18em')
+    .attr('letter-spacing', '0.12em')
     .attr('pointer-events', 'none')
     .attr('paint-order', 'stroke')
     .attr('stroke', 'rgba(12,16,26,0.82)').attr('stroke-width', 2.2)
@@ -340,25 +342,39 @@ function provinceOwnerOf(id, scenarioOwner) {
 // центроид всех кусков сразу, который может уехать в море при многочастной территории.
 // Страны берутся из фактических владельцев провинций сценария — без хардкода.
 function addCountryLabelsFromProvinces() {
-  const biggestByCountry = {};
-  const totalAreaByCountry = {};
+  // Для каждой страны собираем центроиды и площади её провинций (в экранных координатах)
+  const byCountry = {};
   scenarioProvinces.forEach(p => {
     if (!p.owner) return;
     const feature = { type: 'Feature', geometry: p.geometry };
-    let area = 0;
-    try { area = Math.abs(d3.geoArea(feature)); } catch (e) { /* битая геометрия — пропускаем */ }
-    totalAreaByCountry[p.owner] = (totalAreaByCountry[p.owner] || 0) + area;
-    if (!biggestByCountry[p.owner] || area > biggestByCountry[p.owner].area) {
-      biggestByCountry[p.owner] = { area, feature };
-    }
+    let area = 0, cxy = null;
+    try {
+      area = Math.abs(d3.geoArea(feature));
+      cxy = pathGen.centroid(feature);
+    } catch (e) { return; /* битая геометрия — пропускаем */ }
+    if (!cxy || isNaN(cxy[0])) return;
+    (byCountry[p.owner] = byCountry[p.owner] || []).push({ area, x: cxy[0], y: cxy[1] });
   });
   labelsG.selectAll('.country-label').remove();
-  Object.keys(biggestByCountry).forEach(c => {
+  Object.keys(byCountry).forEach(c => {
+    const parts = byCountry[c];
+    let total = 0, biggest = parts[0];
+    parts.forEach(p => { total += p.area; if (p.area > biggest.area) biggest = p; });
+    // Подпись — взвешенный по площади центр ОСНОВНОГО массива страны (провинции рядом с
+    // крупнейшей): имя ложится в центр державы, а не в одну случайную провинцию. Дальние
+    // колонии в центр не тянут — иначе имя империи уехало бы в океан между материками.
+    const R = 90;
+    let sw = 0, sx = 0, sy = 0;
+    parts.forEach(p => {
+      if (Math.hypot(p.x - biggest.x, p.y - biggest.y) <= R) { sw += p.area; sx += p.x * p.area; sy += p.y * p.area; }
+    });
+    const xy = sw > 0 ? [sx / sw, sy / sw] : [biggest.x, biggest.y];
+    // Размер — 4 ровные ступени (империя/держава/страна/княжество) вместо произвольных
+    // множителей: подписи выглядят набором одной карты, а не случайным разнобоем.
+    const raw = Math.sqrt(total) * 9;
+    const szMul = raw >= 1.8 ? 2.0 : raw >= 1.15 ? 1.45 : raw >= 0.8 ? 1.0 : 0.7;
     const display = (typeof countries !== 'undefined' && countries[c] && countries[c].displayName) || c;
-    // Картографический масштаб подписи: у большой державы имя крупное, у княжества мелкое —
-    // иначе полсотни одинаковых подписей на мировой карте сливаются в кашу.
-    const szMul = Math.min(2.3, Math.max(0.55, Math.sqrt(totalAreaByCountry[c]) * 9));
-    addCountryLabel(c, biggestByCountry[c].feature, true, szMul);
+    addCountryLabel(c, xy, 'xy', szMul);
     if (display !== c) updateMapCountryLabel(c, display);
   });
   updateCountryLabels();

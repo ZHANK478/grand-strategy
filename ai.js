@@ -1210,7 +1210,7 @@ function removeAction(i) {
 function renderActionsList() {
   const list = document.getElementById('actions-list');
   if (playerActions.length === 0) {
-    list.innerHTML = '<div style="color:#888;font-size:11px;font-style:italic">Нет действий на этот ход</div>';
+    list.innerHTML = '<div style="color:#7e89a3;font-size:11px;font-style:italic">Нет действий на этот ход</div>';
     return;
   }
   list.innerHTML = playerActions.map((a, i) =>

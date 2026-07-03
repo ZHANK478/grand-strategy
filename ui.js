@@ -174,6 +174,23 @@ function openCountryRelations(countryName) {
   // (публичный факт). Остальное он узнаёт из новостей, слухов и дипломатии.
   document.getElementById('rel-government').textContent = c ? c.government : '—';
 
+  // Официальные договоры с этой страной и её блок — публичные факты
+  const tEl = document.getElementById('rel-treaties');
+  if (tEl) {
+    const rows = [];
+    if (typeof findTreaty === 'function') {
+      const al = findTreaty('alliance', playerCountry, countryName);
+      const nap = findTreaty('nonaggression', playerCountry, countryName);
+      if (al) rows.push(`🤝 Военный союз с вами (с ${al.since} г.)`);
+      if (nap) rows.push(`📜 Пакт о ненападении (с ${nap.since} г.)`);
+    }
+    if (typeof allianceBlocOf === 'function') {
+      const bloc = allianceBlocOf(countryName);
+      if (bloc) rows.push('🛡 Блок: ' + bloc.join(' + '));
+    }
+    tEl.innerHTML = rows.length ? rows.map(r => `<div style="font-size:11px;color:#333;padding:2px 0">${r}</div>`).join('') : '<div style="font-size:10px;color:#999">Договоров с вами нет</div>';
+  }
+
   // Полоска отношений: от -100 до +100, центр = 50%
   const pct = (rel + 100) / 2;
   const bar = document.getElementById('rel-bar');

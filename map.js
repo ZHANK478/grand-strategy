@@ -25,6 +25,29 @@ function getCountryColor(name) {
   return autoCountryColor(name);
 }
 
+// ---- РЕЖИМЫ КАРТЫ: 'political' (обычная) | 'alliance' (карта альянсов) ----
+// На карте альянсов весь блок союзников красится цветом лидера блока (сильнейшая армия),
+// страны без союзов — нейтральным серым. Так видно, какие силы противостоят друг другу.
+let mapMode = 'political';
+
+function setMapMode(mode) {
+  mapMode = mode === 'alliance' ? 'alliance' : 'political';
+  ['political', 'alliance'].forEach(m => {
+    const btn = document.getElementById('map-mode-' + m);
+    if (btn) btn.classList.toggle('active', m === mapMode);
+  });
+  renderScenarioProvinces();
+}
+
+function displayColorFor(owner) {
+  if (mapMode === 'alliance' && typeof allianceBlocOf === 'function' && typeof countries !== 'undefined' && countries[owner]) {
+    const bloc = allianceBlocOf(owner);
+    if (bloc) return getCountryColor(blocLeader(bloc));
+    return '#b8b2a4'; // без союзов — нейтральный серый
+  }
+  return getCountryColor(owner);
+}
+
 // ---- НАСТРОЙКИ ОТОБРАЖЕНИЯ (сохраняются в localStorage) ----
 // showCountryLabels — показывать ли подписи с названиями стран (сами страны/границы видны всегда, иначе по ним нельзя будет кликать)
 let showCountryLabels = localStorage.getItem('gs1852_show_labels') !== '0';
@@ -312,7 +335,7 @@ function renderScenarioProvinces() {
     .attr('d', d => pathGen({ type: 'Feature', geometry: d.geometry }))
     .attr('fill', d => {
       const owner = provinceOwnerOf(d.id, d.owner);
-      return owner ? getCountryColor(owner) : '#e8e4dc';
+      return owner ? displayColorFor(owner) : '#e8e4dc';
     })
     .attr('stroke', '#6a6a5a')
     .attr('stroke-width', '0.3')
@@ -329,7 +352,12 @@ function renderScenarioProvinces() {
       const rel = (typeof worldState !== 'undefined') ? (worldState.relations[owner] || 0) : 0;
       const war = (typeof worldState !== 'undefined') && worldState.atWarWith.includes(owner) ? ' ⚔️ ВОЙНА' : '';
       document.getElementById('t-name').textContent = d.name + ' (' + owner + ')' + war;
-      document.getElementById('t-info').textContent = 'Отношения: ' + (rel > 0 ? '+' : '') + rel;
+      if (mapMode === 'alliance' && typeof allianceBlocOf === 'function') {
+        const bloc = allianceBlocOf(owner);
+        document.getElementById('t-info').textContent = bloc ? 'Блок: ' + bloc.join(' + ') : 'Вне альянсов';
+      } else {
+        document.getElementById('t-info').textContent = 'Отношения: ' + (rel > 0 ? '+' : '') + rel;
+      }
     })
     .on('mousemove', e => positionTooltip(e))
     .on('mouseleave', function() {

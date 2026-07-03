@@ -4,7 +4,7 @@
 // правителей, парламент, сохранения (слоты), меню
 // ============================================================
 
-let turn = 1, month = 0, year = 1852, week = 0; // week 0-3 внутри месяца 
+let turn = 1, month = 0, year = 1852, week = 0; // week 0-3 внутри месяца
 const months = ['Январь','Февраль','Март','Апрель','Май','Июнь','Июль','Август','Сентябрь','Октябрь','Ноябрь','Декабрь'];
 
 function dateLabel() {
@@ -151,6 +151,7 @@ function normalizeCountry(c) {
   if (c.religion === undefined) c.religion = null;
   if (c.rulerReligion === undefined) c.rulerReligion = null;
   if (c.pendingSuccession === undefined) c.pendingSuccession = false;
+  if (c.reputation === undefined) c.reputation = 70;
   return c;
 }
 
@@ -335,6 +336,283 @@ function resolvePendingSuccessions() {
     cc.pendingSuccession = false;
     if (c === playerCountry) renderPlayerPowerPanel();
   });
+}
+
+// ============================================================
+// ДОГОВОРЫ И АЛЬЯНСЫ. Официальные договоры двух типов: alliance (военный союз) и
+// nonaggression (пакт о ненападении). Хранятся в worldState.treaties, доступны и игроку,
+// и ИИ-странам между собой. РАЗРЫВ договора — не бесплатный: предатель теряет стабильность,
+// репутацию и отношения СО ВСЕМИ странами (миру видно, кому нельзя верить).
+// ============================================================
+function findTreaty(type, a, b) {
+  return (worldState.treaties || []).find(t =>
+    t.type === type && ((t.a === a && t.b === b) || (t.a === b && t.b === a)));
+}
+
+function treatiesOf(country) {
+  return (worldState.treaties || []).filter(t => t.a === country || t.b === country);
+}
+
+function signTreaty(type, a, b) {
+  if (!countries[a] || !countries[b] || a === b || findTreaty(type, a, b)) return null;
+  if (!worldState.treaties) worldState.treaties = [];
+  const t = { type, a, b, since: year };
+  worldState.treaties.push(t);
+  addRelation(a, b, 15);
+  if (type === 'alliance') {
+    if (a === playerCountry && !worldState.alliedWith.includes(b)) worldState.alliedWith.push(b);
+    if (b === playerCountry && !worldState.alliedWith.includes(a)) worldState.alliedWith.push(a);
+  }
+  const label = type === 'alliance' ? 'военный союз' : 'пакт о ненападении';
+  worldState.pastEvents.push(`📜 ${a} и ${b} официально заключили ${label} (${year} г.).`);
+  showNotif(`📜 Договор подписан: ${a} + ${b} (${label})`);
+  if (typeof renderTerritoryColors === 'function') renderTerritoryColors(); // карта альянсов
+  return t;
+}
+
+// breaker — кто разорвал (он и платит цену). За нарушение ОФИЦИАЛЬНОГО договора:
+// стабильность −5, репутация −20, отношения с преданным −60, со ВСЕМИ остальными −10.
+function breakTreaty(type, breaker, other, silent) {
+  const t = findTreaty(type, breaker, other);
+  if (!t) return false;
+  worldState.treaties = worldState.treaties.filter(x => x !== t);
+  const bc = countries[breaker];
+  if (bc) {
+    bc.stability = Math.max(0, bc.stability - 5);
+    bc.reputation = Math.max(0, (bc.reputation ?? 70) - 20);
+  }
+  addRelation(breaker, other, -60);
+  ALL_COUNTRIES.forEach(c => {
+    if (c === breaker || c === other || !countries[c] || countries[c].annexed) return;
+    addRelation(breaker, c, -10);
+  });
+  if (type === 'alliance') {
+    if (breaker === playerCountry) worldState.alliedWith = worldState.alliedWith.filter(x => x !== other);
+    if (other === playerCountry) worldState.alliedWith = worldState.alliedWith.filter(x => x !== breaker);
+  }
+  const label = type === 'alliance' ? 'военный союз' : 'пакт о ненападении';
+  worldState.pastEvents.push(`💔 ${breaker} ВЕРОЛОМНО разорвала ${label} с ${other} — репутация ${breaker} подорвана во всех столицах.`);
+  if (!silent) {
+    showNotif(`💔 ${breaker} разорвала договор с ${other}!`);
+    if ((breaker === playerCountry || other === playerCountry) && typeof showBreakingNews === 'function') {
+      showBreakingNews('ДОГОВОР РАЗОРВАН', `${breaker} вероломно разорвала ${label} с ${other}. Дипломатическая репутация ${breaker} подорвана.`);
+    }
+  }
+  if (breaker === playerCountry) renderPlayerStats();
+  if (typeof renderTerritoryColors === 'function') renderTerritoryColors();
+  return true;
+}
+
+// Единый доступ к отношениям ЛЮБОЙ пары (игрок↔ИИ или ИИ↔ИИ)
+function getRelation(a, b) {
+  if (a === playerCountry) return worldState.relations[b] || 0;
+  if (b === playerCountry) return worldState.relations[a] || 0;
+  return (worldState.relationsAmong || {})[mutualRelKey(a, b)] || 0;
+}
+function addRelation(a, b, delta) {
+  if (a === playerCountry) { changeRelations(b, delta); return; }
+  if (b === playerCountry) { changeRelations(a, delta); return; }
+  changeMutualRelations(a, b, delta);
+}
+
+// Альянсовые блоки — связные компоненты по договорам alliance (для карты альянсов и
+// расчёта эффективной силы: союзники частично складывают армии).
+function allianceBlocs() {
+  const parent = {};
+  const find = x => { while (parent[x] !== x) { parent[x] = parent[parent[x]]; x = parent[x]; } return x; };
+  ALL_COUNTRIES.forEach(c => { parent[c] = c; });
+  (worldState.treaties || []).filter(t => t.type === 'alliance').forEach(t => {
+    if (parent[t.a] === undefined || parent[t.b] === undefined) return;
+    parent[find(t.a)] = find(t.b);
+  });
+  const blocs = {};
+  ALL_COUNTRIES.forEach(c => {
+    if (!countries[c] || countries[c].annexed) return;
+    const root = find(c);
+    (blocs[root] = blocs[root] || []).push(c);
+  });
+  return Object.values(blocs);
+}
+
+// Блок страны (или null, если она без союзов); лидер блока — сильнейшая армия
+function allianceBlocOf(country) {
+  const bloc = allianceBlocs().find(b => b.includes(country));
+  return bloc && bloc.length > 1 ? bloc : null;
+}
+function blocLeader(bloc) {
+  return bloc.reduce((best, c) => (countries[c].army > countries[best].army ? c : best), bloc[0]);
+}
+
+// ============================================================
+// ДИПЛОМАТИЧЕСКИЙ ДВИЖОК — «лестница эскалации», которая двигает мир каждый месяц.
+// Ключевая идея: поведение ИИ-страны к другой стране определяется ОТНОШЕНИЯМИ и
+// СООТНОШЕНИЕМ СИЛ (с учётом союзников). Слабая страна не нападает на сильную
+// (Венеция не объявит войну Австрии) — вместо этого она ищет союз против неё.
+//
+//   отношения > +65  → шанс предложить/заключить союз или пакт
+//   −35 … −55        → настороженность: войска к границе, торговые уколы, ноты
+//   −55 … −75        → кризис: ультиматумы, разрыв договоров, мобилизация
+//   < −75            → если сила (с союзниками) ≥ 0.75 противника — ШАНС ОБЪЯВИТЬ ВОЙНУ;
+//                      если слабее — ищет коалицию/покровителя против врага
+//
+// При объявлении войны движок сразу назначает ЦЕЛЬ ВОЙНЫ (не всегда аннексия!):
+// захват 1-3 конкретных провинций / контрибуция / марионетка / аннексия (только при
+// подавляющем превосходстве). Цель хранится и передаётся ИИ, чтобы война шла к развязке.
+// Движок также давит на мир: разбитая сторона получает директиву заключать мир по цели.
+// ============================================================
+function rawPower(c) {
+  const cc = countries[c];
+  return cc ? cc.army * (0.5 + cc.stability / 200) : 0;
+}
+function effectivePower(c) {
+  let p = rawPower(c);
+  const bloc = allianceBlocOf(c);
+  if (bloc) bloc.forEach(m => { if (m !== c) p += rawPower(m) * 0.5; });
+  return Math.max(1, p);
+}
+
+function warKey(a, b) { return mutualRelKey(a, b); }
+function isAtWar(a, b) {
+  if (a === playerCountry) return worldState.atWarWith.includes(b);
+  if (b === playerCountry) return worldState.atWarWith.includes(a);
+  return (worldState.aiWars || []).some(w => (w[0] === a && w[1] === b) || (w[0] === b && w[1] === a));
+}
+
+// Выбрать цель войны атакующего против защитника
+function makeWarGoal(attacker, defender) {
+  const ratio = effectivePower(attacker) / effectivePower(defender);
+  const defProvinces = scenarioProvinces
+    .filter(p => (provinceOwners[p.id] || p.owner) === defender)
+    .map(p => ({ name: p.name, income: (provinceEcon[p.id] || {}).income || 0 }))
+    .sort((x, y) => y.income - x.income);
+  let type;
+  if (ratio > 2.2 && defProvinces.length <= 4) type = 'annexation';
+  else {
+    const r = Math.random();
+    type = r < 0.55 ? 'provinces' : r < 0.78 ? 'tribute' : 'puppet';
+  }
+  const wanted = type === 'provinces' ? defProvinces.slice(0, Math.min(3, Math.max(1, Math.round(defProvinces.length * 0.25)))).map(p => p.name) : [];
+  return { attacker, defender, type, provinces: wanted, startYear: year, defStartArmy: countries[defender].army };
+}
+
+function warGoalLabel(g) {
+  if (!g) return '';
+  if (g.type === 'annexation') return 'полная аннексия';
+  if (g.type === 'provinces') return 'захват провинций: ' + g.provinces.join(', ');
+  if (g.type === 'tribute') return 'контрибуция и унижение';
+  return 'смена власти / марионеточное правительство';
+}
+
+function declareEngineWar(attacker, defender) {
+  // Война поверх пакта о ненападении = вероломство со всеми последствиями
+  if (findTreaty('nonaggression', attacker, defender)) breakTreaty('nonaggression', attacker, defender, true);
+  if (findTreaty('alliance', attacker, defender)) breakTreaty('alliance', attacker, defender, true);
+  if (attacker === playerCountry || defender === playerCountry) {
+    const other = attacker === playerCountry ? defender : attacker;
+    if (!worldState.atWarWith.includes(other)) worldState.atWarWith.push(other);
+  } else {
+    worldState.aiWars.push([attacker, defender]);
+  }
+  addRelation(attacker, defender, -40);
+  const goal = makeWarGoal(attacker, defender);
+  worldState.warGoals[warKey(attacker, defender)] = goal;
+  worldState.pastEvents.push(`⚔️ ${attacker} ОБЪЯВИЛА ВОЙНУ ${defender}. Цель войны: ${warGoalLabel(goal)}.`);
+  if (defender === playerCountry && typeof showBreakingNews === 'function') {
+    showBreakingNews('НАМ ОБЪЯВЛЕНА ВОЙНА', `${attacker} объявила войну! Разведка доносит: цель врага — ${warGoalLabel(goal)}.`);
+  } else if (attacker !== playerCountry && defender !== playerCountry) {
+    showNotif(`⚔️ ${attacker} объявила войну ${defender}`);
+  }
+  return goal;
+}
+
+// Директивы движка на этот ход — передаются ИИ-нарратору как ОБЯЗАТЕЛЬНЫЕ факты
+let pendingDirectives = [];
+
+function runDiplomacyEngine() {
+  const live = ALL_COUNTRIES.filter(c => countries[c] && !countries[c].annexed);
+
+  // 1) Дрейф: союзники медленно сближаются; союзники воюющих настораживаются к их врагам
+  (worldState.treaties || []).filter(t => t.type === 'alliance').forEach(t => {
+    if (getRelation(t.a, t.b) < 80) addRelation(t.a, t.b, 1);
+  });
+  const hostilePairs = [];
+  for (let i = 0; i < live.length; i++) for (let j = i + 1; j < live.length; j++) {
+    if (getRelation(live[i], live[j]) < -50 || isAtWar(live[i], live[j])) hostilePairs.push([live[i], live[j]]);
+  }
+  hostilePairs.forEach(([a, b]) => {
+    (allianceBlocOf(a) || []).forEach(ally => { if (ally !== a && ally !== b && getRelation(ally, b) > -80) addRelation(ally, b, -2); });
+    (allianceBlocOf(b) || []).forEach(ally => { if (ally !== b && ally !== a && getRelation(ally, a) > -80) addRelation(ally, a, -2); });
+  });
+
+  // 2) Лестница эскалации по каждой паре (ИИ-инициатива; игрок сам решает за себя)
+  for (let i = 0; i < live.length; i++) {
+    for (let j = i + 1; j < live.length; j++) {
+      const a = live[i], b = live[j];
+      if (isAtWar(a, b)) continue;
+      const rel = getRelation(a, b);
+
+      // Дружба → официальные договоры (ИИ-страны заключают сами; игроку — предложение)
+      if (rel > 65 && !findTreaty('alliance', a, b) && Math.random() < 0.12) {
+        if (a !== playerCountry && b !== playerCountry) {
+          signTreaty('alliance', a, b);
+          pendingDirectives.push(`${a} и ${b} заключили военный союз — опиши это событие в новостях.`);
+        } else {
+          const ai = a === playerCountry ? b : a;
+          pendingDirectives.push(`${ai} готова предложить ${playerCountryDisplayName} военный союз — вплети предложение в новости/дипломатию.`);
+        }
+        continue;
+      }
+      if (rel > 40 && rel <= 65 && !findTreaty('nonaggression', a, b) && !findTreaty('alliance', a, b) && Math.random() < 0.08 && a !== playerCountry && b !== playerCountry) {
+        signTreaty('nonaggression', a, b);
+        pendingDirectives.push(`${a} и ${b} подписали пакт о ненападении — упомяни в новостях.`);
+        continue;
+      }
+
+      if (rel >= -35) continue;
+
+      // Кто потенциальный агрессор — тот, кто сильнее (с союзниками)
+      const attacker = effectivePower(a) >= effectivePower(b) ? a : b;
+      const defender = attacker === a ? b : a;
+      if (attacker === playerCountry) continue; // за игрока движок войн не объявляет
+      const ratio = effectivePower(attacker) / effectivePower(defender);
+      const hasNAP = !!findTreaty('nonaggression', attacker, defender);
+
+      if (rel < -75 && ratio >= 0.75 && (!hasNAP || rel < -85)) {
+        // ВОЙНА (сквозь пакт — только при лютой ненависти, с ценой вероломства)
+        if (Math.random() < 0.18) {
+          const goal = declareEngineWar(attacker, defender);
+          pendingDirectives.push(`ДВИЖОК ОБЪЯВИЛ: ${attacker} начала войну против ${defender}. Цель: ${warGoalLabel(goal)}. ОБЯЗАТЕЛЬНО опиши вторжение в новостях, создай армии вторжения (map_objects, owner "${attacker}") и укажи первое сражение в battles.`);
+        }
+      } else if (rel < -75 && ratio < 0.75 && Math.random() < 0.15) {
+        // Слабый не нападает — ищет коалицию против сильного
+        const candidates = live.filter(c => c !== defender && c !== attacker && getRelation(c, attacker) < -20);
+        const partner = candidates[0];
+        if (partner) pendingDirectives.push(`${defender} слишком слаба для войны с ${attacker} — она ищет союз с ${partner} против общей угрозы (продвинь их отношения через relations_between, опиши переговоры).`);
+      } else if (rel < -55 && Math.random() < 0.25) {
+        pendingDirectives.push(`КРИЗИС между ${a} и ${b} (отношения ${rel}): ультиматумы, отзыв послов, мобилизация у границ (map_objects). Опиши обострение — оно должно быть видно на карте.`);
+      } else if (rel < -35 && Math.random() < 0.2) {
+        pendingDirectives.push(`Напряжённость между ${a} и ${b}: ${a === playerCountry ? b : a} стягивает войска к границе, вводит пошлины или устраивает дипломатический укол. Одна новость об этом.`);
+      }
+    }
+  }
+
+  // 3) Давление к миру: разбитая сторона просит мира согласно цели войны
+  Object.entries(worldState.warGoals || {}).forEach(([key, goal]) => {
+    if (!goal || !isAtWar(goal.attacker, goal.defender)) { delete worldState.warGoals[key]; return; }
+    const d = countries[goal.defender], atk = countries[goal.attacker];
+    if (!d || !atk) return;
+    const defBroken = d.stability < 25 || d.army < goal.defStartArmy * 0.3;
+    const atkExhausted = atk.stability < 25;
+    if (defBroken) {
+      pendingDirectives.push(`${goal.defender} разбита в войне с ${goal.attacker} — ЗАКЛЮЧИ МИР в этом ходу согласно цели войны (${warGoalLabel(goal)}): используй province_transfer/territory_transfer/new_countries/treasury по смыслу цели, затем peace_made/wars_between end.`);
+    } else if (atkExhausted) {
+      pendingDirectives.push(`${goal.attacker} истощена войной с ${goal.defender} — пусть предложит белый мир или урезанные требования (peace_made/wars_between end).`);
+    } else if (Math.random() < 0.5) {
+      pendingDirectives.push(`Война ${goal.attacker} против ${goal.defender} продолжается (цель: ${warGoalLabel(goal)}) — ОБЯЗАТЕЛЬНО battles в этом ходу, фронт должен двигаться.`);
+    }
+  });
+
+  if (pendingDirectives.length > 12) pendingDirectives = pendingDirectives.slice(0, 12);
 }
 
 // ============================================================
@@ -528,6 +806,7 @@ function stepOneMonth() {
   if (month >= 12) { month = 0; year++; }
   const econ = simulateWorldEconomy();
   const deaths = checkRulerDeaths();
+  runDiplomacyEngine();
   return { econ, deaths };
 }
 
@@ -773,6 +1052,9 @@ async function loadGameSlot(id) {
     if (!worldState.mapObjects) worldState.mapObjects = [];
     if (!worldState.relationsAmong) worldState.relationsAmong = {};
     if (!worldState.aiWars) worldState.aiWars = [];
+    if (!worldState.treaties) worldState.treaties = [];
+    if (!worldState.warGoals) worldState.warGoals = {};
+    pendingDirectives = [];
     playerActions = d.playerActions || [];
     if (typeof advisorHistory !== 'undefined') advisorHistory = d.advisorHistory || [];
     if (typeof diplomacyHistories !== 'undefined') {
@@ -837,8 +1119,11 @@ function resetGame(country) {
     relations,
     relationsAmong,
     aiWars: [],
+    treaties: [],
+    warGoals: {},
     atWarWith: [], alliedWith: [], pastEvents: [], diploLog: [], mapObjects: []
   };
+  pendingDirectives = [];
   playerActions = [];
   if (typeof advisorHistory !== 'undefined') advisorHistory = [];
   if (typeof diplomacyHistories !== 'undefined') Object.keys(diplomacyHistories).forEach(k => delete diplomacyHistories[k]);

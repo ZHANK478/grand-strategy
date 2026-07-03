@@ -2,7 +2,7 @@
 // AI.JS v5 — динамические страны (профили от ИИ, без хардкода),
 // субъектность каждой страны (интересы/agenda), скрытая дипломатия
 // между ИИ-странами, внутренние новости, breaking news,
-// экономика (долг/инфляция) в промптах, генерация портретов  
+// экономика (долг/инфляция) в промптах, генерация портретов
 // ============================================================
 
 // Ключ жёстко очищается от любых непечатаемых/неASCII символов — иначе Bearer-заголовок
@@ -29,6 +29,8 @@ let worldState = {
   relations: {},        // отношения игрока с другими странами (видны игроку)
   relationsAmong: {},   // СКРЫТЫЕ отношения ИИ-стран между собой ("A␟B" -> число)
   aiWars: [],           // войны между ИИ-странами (без участия игрока): [["A","B"], ...]
+  treaties: [],         // официальные договоры: {type:'alliance'|'nonaggression', a, b, since}
+  warGoals: {},         // цели активных войн: "A␟B" -> {attacker, defender, type, provinces}
   atWarWith: [],
   alliedWith: [],
   pastEvents: [],       // хроника — до 120 событий
@@ -116,7 +118,22 @@ function describeWorldState() {
 
   const pc = (typeof playerCountryDisplayName !== 'undefined') ? playerCountryDisplayName : playerCountry;
   const hidden = describeHiddenDiplomacy();
-  return `Отношения ${pc} со странами: ${relText}.\n${warText} ${allyText}\n${hidden ? hidden + '\n' : ''}\n${newsText}`;
+
+  const treatyText = (worldState.treaties || []).length
+    ? 'ОФИЦИАЛЬНЫЕ ДОГОВОРЫ (их разрыв — вероломство с тяжёлой ценой: −60 отношений с преданным, −10 со ВСЕМИ, −20 репутации, −5 стабильности): ' +
+      worldState.treaties.map(t => `${t.a}+${t.b} (${t.type === 'alliance' ? 'военный союз' : 'пакт о ненападении'}, с ${t.since} г.)`).join('; ') + '.'
+    : 'Официальных договоров в мире пока нет.';
+
+  const goalsText = Object.values(worldState.warGoals || {}).length
+    ? 'ЦЕЛИ АКТИВНЫХ ВОЙН (война должна идти к своей цели, а не висеть): ' +
+      Object.values(worldState.warGoals).map(g => `${g.attacker}→${g.defender}: ${typeof warGoalLabel === 'function' ? warGoalLabel(g) : g.type}`).join('; ') + '.'
+    : '';
+
+  const repText = ALL_COUNTRIES.filter(c => countries[c] && !countries[c].annexed && (countries[c].reputation ?? 70) < 50)
+    .map(c => `${c}: ${countries[c].reputation}`).join(', ');
+  const repLine = repText ? `ПОДОРВАННАЯ РЕПУТАЦИЯ (этим странам не верят, союзы с ними заключают неохотно): ${repText}.` : '';
+
+  return `Отношения ${pc} со странами: ${relText}.\n${warText} ${allyText}\n${treatyText}\n${goalsText}\n${repLine}\n${hidden ? hidden + '\n' : ''}\n${newsText}`;
 }
 
 // Компактный список провинций стран сценария с текущим владельцем
@@ -456,7 +473,10 @@ function parseAndApplyEffects(text, baseChanges) {
         if (!countries[a] || !countries[b] || a === playerCountry || b === playerCountry) return;
         const key = (x, y) => worldState.aiWars.findIndex(p => (p[0] === x && p[1] === y) || (p[0] === y && p[1] === x));
         if (w.status === 'start' && key(a, b) === -1) worldState.aiWars.push([a, b]);
-        if (w.status === 'end') { const i = key(a, b); if (i > -1) worldState.aiWars.splice(i, 1); }
+        if (w.status === 'end') {
+          const i = key(a, b); if (i > -1) worldState.aiWars.splice(i, 1);
+          if (worldState.warGoals) delete worldState.warGoals[mutualRelKey(a, b)];
+        }
       });
     }
 
@@ -501,6 +521,23 @@ function parseAndApplyEffects(text, baseChanges) {
       shiftReligion(playerCountry, effects.religion.shift || null, effects.religion.ruler_religion || null);
       if (effects.religion.shift) turnChanges.push({ label: '⛪ Религия', value: Object.entries(effects.religion.shift).map(([k, v]) => `${k} ${v > 0 ? '+' : ''}${v}%`).join(', '), sign: 0 });
       if (effects.religion.ruler_religion) turnChanges.push({ label: '⛪ Вера правителя', value: effects.religion.ruler_religion, sign: 0 });
+    }
+
+    // ДОГОВОРЫ: подписание и разрыв (последствия разрыва применяет движок)
+    if (effects.treaties && Array.isArray(effects.treaties) && typeof signTreaty === 'function') {
+      effects.treaties.forEach(tr => {
+        if (!tr || !tr.action || !tr.type || !tr.a || !tr.b) return;
+        if (tr.type !== 'alliance' && tr.type !== 'nonaggression') return;
+        const a = normalizeCountryName(tr.a), b = normalizeCountryName(tr.b);
+        if (!countries[a] || !countries[b]) return;
+        if (tr.action === 'sign') {
+          const t = signTreaty(tr.type, a, b);
+          if (t) turnChanges.push({ label: '📜 Договор', value: `${a} + ${b}`, sign: (a === playerCountry || b === playerCountry) ? 1 : 0 });
+        } else if (tr.action === 'break') {
+          const ok = breakTreaty(tr.type, a, b);
+          if (ok) turnChanges.push({ label: '💔 Разрыв договора', value: `${a} → ${b}`, sign: (a === playerCountry) ? -1 : 0 });
+        }
+      });
     }
 
     // Парламент страны игрока
@@ -563,6 +600,7 @@ function parseAndApplyEffects(text, baseChanges) {
       effects.peace_made.forEach(raw => {
         const c = normalizeCountryName(raw);
         worldState.atWarWith = worldState.atWarWith.filter(x => x !== c);
+        if (worldState.warGoals) delete worldState.warGoals[mutualRelKey(playerCountry, c)];
         changeRelations(c, 20);
         showNotif(`🕊️ Мир заключён с ${c}`);
         turnChanges.push({ label: '🕊️ Мир', value: c, sign: 1 });
@@ -654,9 +692,21 @@ function parseDiploEffects(text, targetCountry) {
         showNotif(`🤝 Отношения с ${targetCountry} улучшились`);
       }
     }
+    if (effects.treaty && effects.treaty.action && (effects.treaty.type === 'alliance' || effects.treaty.type === 'nonaggression') && typeof signTreaty === 'function') {
+      if (effects.treaty.action === 'sign') {
+        signTreaty(effects.treaty.type, playerCountry, targetCountry);
+      } else if (effects.treaty.action === 'break') {
+        const breaker = normalizeCountryName(effects.treaty.breaker) === playerCountry ? playerCountry : targetCountry;
+        const other = breaker === playerCountry ? targetCountry : playerCountry;
+        breakTreaty(effects.treaty.type, breaker, other);
+      }
+    }
     if (effects.war_start) {
       if (!worldState.atWarWith.includes(targetCountry)) {
         worldState.atWarWith.push(targetCountry);
+        if (worldState.warGoals && typeof makeWarGoal === 'function') {
+          worldState.warGoals[mutualRelKey(playerCountry, targetCountry)] = makeWarGoal(targetCountry, playerCountry);
+        }
         showNotif(`⚔️ ${targetCountry} объявляет войну!`);
         if (typeof showBreakingNews === 'function') showBreakingNews('ВОЙНА', `${targetCountry} объявляет войну ${playerCountryDisplayName}!`);
       }
@@ -685,6 +735,14 @@ async function generateEvents(deaths, opts) {
 
   const otherNames = ALL_COUNTRIES.filter(c => c !== playerCountry && countries[c] && !countries[c].annexed);
 
+  // Директивы дипломатического движка (войны/кризисы/союзы, решённые математикой) —
+  // обязательные факты этого хода; после использования очищаются
+  const directives = (typeof pendingDirectives !== 'undefined' && pendingDirectives.length)
+    ? '\nДИРЕКТИВЫ ДВИЖКА НА ЭТОТ ХОД (обязательные факты и задания — отработай КАЖДУЮ в новостях и эффектах):\n' +
+      pendingDirectives.map(d => '- ' + d).join('\n') + '\n'
+    : '';
+  if (typeof pendingDirectives !== 'undefined') pendingDirectives = [];
+
   const prompt = `Ты — нарратор исторической стратегической игры. Сейчас ${state.date}.
 Страна игрока: ${state.country}. Правитель: ${state.ruler}${state.rulerAge ? ` (${state.rulerAge} лет)` : ''} (${state.rulerTitle}). Форма правления: ${state.government}. Глава правительства: ${state.pm} (${state.pmTitle}).
 Казна: ${state.treasury}. Доход: ${state.income}. Армия: ${state.army}. Стабильность: ${state.stability}. Долг: ${state.debt}. Инфляция: ${state.inflation}.
@@ -697,7 +755,7 @@ ${describeCountries()}
 ${describePlayerProvinces()}
 
 ${describeWorldState()}
-${deathsLine}
+${deathsLine}${directives}
 ${getRealismRules()}
 
 Действия игрока за этот ход:
@@ -717,7 +775,7 @@ BREAKING:{"title":"КОРОТКИЙ ЗАГОЛОВОК","text":"1-2 предло
 Если нет — строку BREAKING не пиши вовсе.
 
 В конце напиши ровно одну строку:
-EFFECTS:{"treasury_delta":0,"income_delta":0,"debt_delta":0,"army_delta":0,"stability_delta":0,"relations":{${otherNames.map(c => `"${c}":0`).join(',')}},"relations_between":[],"wars_between":[],"battles":[],"new_countries":[],"religion":null,"other_countries":{},"parliament":{"support_delta":0,"factions":null},"war_declared":[],"peace_made":[],"country_name":null,"country_color":null,"ruler_name":null,"ruler_age":null,"ruler_title":null,"government":null,"pm_name":null,"pm_title":null,"map_objects":[],"territory_transfer":[],"province_transfer":[],"foreign_leader_change":[]}
+EFFECTS:{"treasury_delta":0,"income_delta":0,"debt_delta":0,"army_delta":0,"stability_delta":0,"relations":{${otherNames.map(c => `"${c}":0`).join(',')}},"relations_between":[],"wars_between":[],"battles":[],"new_countries":[],"treaties":[],"religion":null,"other_countries":{},"parliament":{"support_delta":0,"factions":null},"war_declared":[],"peace_made":[],"country_name":null,"country_color":null,"ruler_name":null,"ruler_age":null,"ruler_title":null,"government":null,"pm_name":null,"pm_title":null,"map_objects":[],"territory_transfer":[],"province_transfer":[],"foreign_leader_change":[]}
 
 КРИТИЧЕСКИ ВАЖНО — заполняй числа исходя из событий, не ставь нули без причины:
 - Казнил/убил солдат → army_delta отрицательный, stability_delta −3..−8
@@ -736,6 +794,7 @@ EFFECTS:{"treasury_delta":0,"income_delta":0,"debt_delta":0,"army_delta":0,"stab
   * independent — мирное отделение/уния по договору.
   Провинции бери ТОЧНО из списка провинций. ИИ-страны тоже могут создавать марионетки и переживать восстания — используй это как живой инструмент мира, но РЕДКО и обоснованно.
 - religion: {"shift":{"Религия":дельта_процентов,...},"ruler_religion":"новая вера правителя или null"} — сдвиг религиозного состава страны игрока (обращения, миграции, реформы; дельты малые, 1-3% за ход) и/или смена веры правителя (крупное событие!). Если ничего — null.
+- treaties: [{"action":"sign"|"break","type":"alliance"|"nonaggression","a":"Страна1","b":"Страна2"}] — заключение/разрыв ОФИЦИАЛЬНЫХ договоров. sign: только при хороших отношениях сторон (>+40 для пакта, >+60 для союза) и по логике их интересов; учитывай репутацию — с вероломными не подписывают. break: a — КТО разрывает (он платит цену: −60 с преданным, −10 со всеми, −20 репутации, −5 стабильности) — используй только при серьёзном расхождении интересов или подготовке удара в спину. Союз означает: нападение на одного втягивает другого — отражай это в войнах.
 - parliament: support_delta — сдвиг поддержки правительства в парламенте игрока от событий/действий (законы, скандалы, победы); factions — новый состав фракций ТОЛЬКО при выборах/роспуске, иначе null.
 - ruler_name/ruler_age/ruler_title/government/pm_name/pm_title — только при реальном перевороте/провозглашении/смерти/отставке в стране игрока. При смене правителя ВСЕГДА указывай ruler_age (возраст нового).
 - foreign_leader_change: [{"country":"...","ruler_name":"...","ruler_age":число,"ruler_title":"...","government":"...","pm_name":null,"pm_title":null}] — смена власти в чужой стране: только по её собственной логике или из реальных действий игрока (см. правило 5). ВСЕГДА с ruler_age.
@@ -836,11 +895,17 @@ async function sendDiplomacy(targetCountry, message) {
   const relLabel = relation > 30 ? 'дружелюбные' : relation < -30 ? 'враждебные' : 'нейтральные';
   const warLine = isWar ? `ВЫ СЕЙЧАС В СОСТОЯНИИ ВОЙНЫ С ${state.country.toUpperCase()}.` : '';
   const allyLine = isAlly ? `Вы союзники с ${state.country}.` : '';
+  const pactAB = (typeof findTreaty === 'function') ? findTreaty('nonaggression', playerCountry, targetCountry) : null;
+  const allianceAB = (typeof findTreaty === 'function') ? findTreaty('alliance', playerCountry, targetCountry) : null;
+  const treatyLine = allianceAB ? `Между вами ОФИЦИАЛЬНЫЙ ВОЕННЫЙ СОЮЗ (с ${allianceAB.since} г.).` : pactAB ? `Между вами пакт о ненападении (с ${pactAB.since} г.).` : 'Официальных договоров между вами нет.';
+  const playerRep = (countries[playerCountry].reputation ?? 70);
+  const trustLine = playerRep < 50 ? `ВАЖНО: у ${state.country} подорванная репутация (${playerRep}/100) — она уже нарушала договоры, будь осторожен с её обещаниями и неохотно заключай новые союзы.` : '';
 
   const selfStatsLine = cr ? `Твоя страна: казна ${cr.treasury.toLocaleString('ru')} фр., долг ${cr.debt.toLocaleString('ru')} фр., армия ${cr.army.toLocaleString('ru')}, стабильность ${cr.stability}.${cr.agenda ? ' ТВОИ НАЦИОНАЛЬНЫЕ ИНТЕРЕСЫ: ' + cr.agenda : ''}` : '';
   const prompt = `Ты — ${leader} страны ${targetCountry} в ${state.date}.
 ${selfStatsLine}
 Текущие отношения с ${state.country}: ${relation} (${relLabel}). ${warLine} ${allyLine}
+${treatyLine} ${trustLine}
 Ты ведёшь дипломатические переговоры с ${state.country} (правитель: ${state.ruler}).
 ${recentNews}
 
@@ -854,8 +919,9 @@ ${historyText}
 Ответ ${targetCountry}:
 
 После ответа напиши одну строку — твоя оценка этого обмена:
-DIPLO_EFFECTS:{"relations_delta":0,"war_start":false}
-relations_delta: от -40 до +20. war_start: true только если ситуация дошла до реального разрыва.`;
+DIPLO_EFFECTS:{"relations_delta":0,"war_start":false,"treaty":null}
+relations_delta: от -40 до +20. war_start: true только если ситуация дошла до реального разрыва.
+treaty: null, либо {"action":"sign","type":"alliance"|"nonaggression"} — если в ЭТОМ обмене вы РЕАЛЬНО договорились и ты СОГЛАСИЛСЯ заключить договор (соглашайся только при отношениях выше +40 для пакта, выше +60 для союза, с учётом своих интересов и репутации собеседника); либо {"action":"break","type":...,"breaker":"${targetCountry}"} — если ты объявляешь о разрыве существующего договора (помни о цене вероломства).`;
 
   const rawResponse = await askGemini(prompt, 350);
 

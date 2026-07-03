@@ -2,7 +2,7 @@
 <html lang="ru">
 <head>
 <meta charset="utf-8">
-<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"> 
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 <title>Grand Strategy — 1852</title> 
@@ -153,6 +153,11 @@ body.menu-mode .game-ui{display:none !important;}
 .pause-box button.danger:hover{background:#a02525;}
 #menu-btn{background:#333;border-color:#111;color:#fff;}
 #auto-btn.active-auto{background:#7a4a1a;border-color:#5a3a10;color:#fff;}
+#map-mode-tabs{position:absolute;bottom:14px;left:14px;z-index:95;display:flex;gap:0;border:1px solid #999;border-radius:4px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.25);}
+.map-mode-btn{background:#fff;border:none;color:#444;font-size:11px;padding:6px 12px;cursor:pointer;font-family:Georgia,serif;}
+.map-mode-btn:not(:last-child){border-right:1px solid #ccc;}
+.map-mode-btn:hover{background:#eee;}
+.map-mode-btn.active{background:#2a2a3a;color:#fff;}
 #menu-btn:hover{background:#555;}
 
 /* ЭКРАН ЗАГРУЗКИ ИГРЫ */
@@ -566,6 +571,10 @@ body.menu-mode .game-ui{display:none !important;}
 </div>
 
 <div id="map-wrap">
+  <div id="map-mode-tabs" class="game-ui">
+    <button id="map-mode-political" class="map-mode-btn active" onclick="setMapMode('political')">🗺 Политическая карта</button>
+    <button id="map-mode-alliance" class="map-mode-btn" onclick="setMapMode('alliance')">🤝 Карта альянсов</button>
+  </div>
   <svg id="map-svg" viewBox="0 0 960 560" xmlns="http://www.w3.org/2000/svg">
     <rect width="960" height="560" fill="#4a7aaa"/>
     <g id="world-g"></g>
@@ -639,6 +648,7 @@ body.menu-mode .game-ui{display:none !important;}
     <div class="rel-stats" style="grid-template-columns:1fr">
       <div><span class="lbl">🏛 Правление</span><span class="val" id="rel-government"></span></div>
       <div style="font-size:10px;color:#999;line-height:1.5">Казна, армия и стабильность чужих держав скрыты — судите о них по новостям, слухам и переговорам.</div>
+      <div id="rel-treaties" style="margin-top:4px"></div>
     </div>
     <div class="rel-bar-track">
       <div class="rel-bar" id="rel-bar" style="width:50%;background:#8a7a20;"></div>
@@ -674,11 +684,11 @@ body.menu-mode .game-ui{display:none !important;}
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/topojson/3.0.2/topojson.min.js"></script>
-<script src="map.js?v=31"></script>
-<script src="ai.js?v=31"></script>
-<script src="game.js?v=31"></script>
-<script src="ui.js?v=31"></script>
-<script src="editor.js?v=31"></script>
+<script src="map.js?v=32"></script>
+<script src="ai.js?v=32"></script>
+<script src="game.js?v=32"></script>
+<script src="ui.js?v=32"></script>
+<script src="editor.js?v=32"></script>
 <script>initMenu(); initSkipSelect();</script>
 </body>
 </html>

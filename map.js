@@ -11,19 +11,24 @@ const franceG = svg.select('#france-g');
 const labelsG = svg.select('#labels-g');
 const objectsG = svg.select('#objects-g');
 
+// ---- РЕЛЬЕФНАЯ ПОДЛОЖКА ----
+// Спутниковый рельеф Земли (NASA Blue Marble, public domain), заранее спроецированный
+// в ту же проекцию d3.geoNaturalEarth1 (scale 153, translate 480/280) — политическая
+// заливка стран лежит ПОЛУПРОЗРАЧНЫМ слоем поверх гор/пустынь/глубин океана,
+// как в современных стратегиях, вместо плоских залитых фигур на плоском фоне.
+svg.select('#world-g').append('image')
+  .attr('href', 'map_relief.jpg')
+  .attr('x', 0).attr('y', 0)
+  .attr('width', W).attr('height', H)
+  .attr('preserveAspectRatio', 'none')
+  .attr('pointer-events', 'none');
+
 // Цвет территории страны: переопределение игрока за партию → цвет из сценария (задан в
 // редакторе) → автоцвет из названия. Хардкода списка стран больше нет.
-// Атласная палитра — приглушённые тона старинной карты, соседи различимы. Пришла на смену
-// случайному HSL по хешу имени (давал грязные, сталкивающиеся цвета). Цвет, заданный в
-// редакторе (countryColors сценария) или игроком (colorOverride), по-прежнему главнее.
-const ATLAS_PALETTE = [
-  '#c79ea0','#a6b28f','#d8bf83','#8ea4bd','#c08a6b','#ab9cbb','#8bb0a6','#cbb078',
-  '#b98f86','#9aa878','#a8b8c4','#c9a679','#9fb59d','#bfa0ab','#b0a684','#93a9a0'
-];
 function autoCountryColor(name) {
   let h = 0;
   for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) >>> 0;
-  return ATLAS_PALETTE[h % ATLAS_PALETTE.length];
+  return `hsl(${h % 360}, ${38 + (h >> 9) % 25}%, ${42 + (h >> 5) % 18}%)`;
 }
 
 function getCountryColor(name) {
@@ -79,35 +84,24 @@ function setObjectScale(v) {
   renderMapObjects();
 }
 
-// Толщина границ: внутренние (между провинциями одной страны) и внешний контур державы.
-let innerBorderWidth = parseFloat(localStorage.getItem('gs1852_inner_border')) || 0.3;
-let outerBorderWidth = parseFloat(localStorage.getItem('gs1852_outer_border')) || 1.4;
-function setInnerBorderWidth(v) {
-  innerBorderWidth = parseFloat(v) || 0.3;
-  localStorage.setItem('gs1852_inner_border', innerBorderWidth);
-  renderScenarioProvinces();
-}
-function setOuterBorderWidth(v) {
-  outerBorderWidth = parseFloat(v) || 1.4;
-  localStorage.setItem('gs1852_outer_border', outerBorderWidth);
-  renderScenarioProvinces();
-}
-
-// Подпись страны — константный размер на экране независимо от зума карты
-function addCountryLabel(name, coordsOrFeature, isFeature) {
+// Подпись страны — размер не зависит от зума карты, но масштабируется величиной страны
+// (szMul из addCountryLabelsFromProvinces: империя — крупно, княжество — мелко)
+function addCountryLabel(name, coordsOrFeature, isFeature, szMul) {
   const xy = isFeature ? pathGen.centroid(coordsOrFeature) : proj(coordsOrFeature);
   if (!xy || isNaN(xy[0])) return;
   labelsG.append('text')
     .attr('class', 'country-label')
     .attr('data-country', name)
+    .attr('data-szmul', szMul || 1)
     .attr('data-cx', xy[0]).attr('data-cy', xy[1])
     .attr('x', xy[0]).attr('y', xy[1])
     .attr('text-anchor', 'middle').attr('dominant-baseline', 'middle')
-    .attr('fill', '#2c2114').attr('font-family', 'Georgia,serif')
+    .attr('fill', '#f5f2e8').attr('font-family', 'Georgia,serif')
+    .attr('letter-spacing', '0.18em')
     .attr('pointer-events', 'none')
     .attr('paint-order', 'stroke')
-    .attr('stroke', '#efe7d1').attr('stroke-width', 2.2)
-    .text(name);
+    .attr('stroke', 'rgba(12,16,26,0.82)').attr('stroke-width', 2.2)
+    .text(name.toUpperCase());
 }
 
 // Обновить подпись страны на карте под её текущее отображаемое название
@@ -115,13 +109,16 @@ function addCountryLabel(name, coordsOrFeature, isFeature) {
 function updateMapCountryLabel(canonicalName, displayName) {
   labelsG.selectAll('.country-label')
     .filter(function() { return d3.select(this).attr('data-country') === canonicalName; })
-    .text(displayName);
+    .text((displayName || '').toUpperCase());
 }
 
 function updateCountryLabels() {
   const zoom = W / vb.w;
   labelsG.selectAll('.country-label')
-    .attr('font-size', d => (9 * countryLabelScale) / zoom)
+    .attr('font-size', function() {
+      const m = parseFloat(d3.select(this).attr('data-szmul')) || 1;
+      return (9 * countryLabelScale * m) / zoom;
+    })
     .attr('stroke-width', 2.2 / zoom);
 }
 
@@ -344,11 +341,13 @@ function provinceOwnerOf(id, scenarioOwner) {
 // Страны берутся из фактических владельцев провинций сценария — без хардкода.
 function addCountryLabelsFromProvinces() {
   const biggestByCountry = {};
+  const totalAreaByCountry = {};
   scenarioProvinces.forEach(p => {
     if (!p.owner) return;
     const feature = { type: 'Feature', geometry: p.geometry };
     let area = 0;
     try { area = Math.abs(d3.geoArea(feature)); } catch (e) { /* битая геометрия — пропускаем */ }
+    totalAreaByCountry[p.owner] = (totalAreaByCountry[p.owner] || 0) + area;
     if (!biggestByCountry[p.owner] || area > biggestByCountry[p.owner].area) {
       biggestByCountry[p.owner] = { area, feature };
     }
@@ -356,28 +355,45 @@ function addCountryLabelsFromProvinces() {
   labelsG.selectAll('.country-label').remove();
   Object.keys(biggestByCountry).forEach(c => {
     const display = (typeof countries !== 'undefined' && countries[c] && countries[c].displayName) || c;
-    addCountryLabel(c, biggestByCountry[c].feature, true);
+    // Картографический масштаб подписи: у большой державы имя крупное, у княжества мелкое —
+    // иначе полсотни одинаковых подписей на мировой карте сливаются в кашу.
+    const szMul = Math.min(2.3, Math.max(0.55, Math.sqrt(totalAreaByCountry[c]) * 9));
+    addCountryLabel(c, biggestByCountry[c].feature, true, szMul);
     if (display !== c) updateMapCountryLabel(c, display);
   });
   updateCountryLabels();
 }
 
-function renderScenarioProvinces() {
+// Приглушение цвета страны под полупрозрачный политический слой: цвета сценария бывают
+// кислотными (#c5d11f и т.п.) — мягчим насыщенность и уводим светлоту в средний тон,
+// чтобы поверх рельефа они смотрелись как тонирование карты, а не как заливка краской.
+function politicalFill(color) {
+  try {
+    const c = d3.hsl(color);
+    if (isNaN(c.h)) c.h = 0;
+    c.s = Math.min(c.s * 0.72, 0.52);
+    c.l = Math.min(Math.max(c.l, 0.45), 0.70);
+    return c.formatHex();
+  } catch (e) { return color; }
+}
+
+// ОПТИМИЗАЦИЯ: геометрия 699 провинций (сотни тысяч точек) строится ОДИН раз на сценарий
+// (buildProvincePaths), а перекраска владений на каждом ходу трогает только fill
+// (recolorProvinces). Раньше каждый вызов пересчитывал все SVG-пути заново — отсюда фризы.
+let _provincesBuiltFor = null;
+
+function buildProvincePaths() {
+  _provincesBuiltFor = scenarioProvinces;
   provincesG.selectAll('path.scenario-province')
     .data(scenarioProvinces, d => d.id)
     .join('path')
     .attr('class', 'scenario-province')
     .attr('data-province-id', d => d.id)
     .attr('d', d => pathGen({ type: 'Feature', geometry: d.geometry }))
-    .attr('fill', d => {
-      const owner = provinceOwnerOf(d.id, d.owner);
-      return owner ? displayColorFor(owner) : '#e8e4dc';
-    })
-    .attr('stroke', '#8a7a5e')
-    .attr('stroke-width', innerBorderWidth)
-    .style('cursor', d => provinceOwnerOf(d.id, d.owner) ? 'pointer' : 'default')
+    .attr('stroke', 'rgba(15,20,30,0.55)')
+    .attr('stroke-width', '0.3')
     .on('mouseover', function(e, d) {
-      d3.select(this).style('opacity', 0.8);
+      d3.select(this).attr('fill-opacity', 0.78);
       tooltip.style.display = 'block';
       const owner = provinceOwnerOf(d.id, d.owner);
       if (!owner) {
@@ -396,8 +412,9 @@ function renderScenarioProvinces() {
       }
     })
     .on('mousemove', e => positionTooltip(e))
-    .on('mouseleave', function() {
-      d3.select(this).style('opacity', 1);
+    .on('mouseleave', function(e, d) {
+      const owner = provinceOwnerOf(d.id, d.owner);
+      d3.select(this).attr('fill-opacity', owner ? 0.62 : 0.10);
       tooltip.style.display = 'none';
     })
     .on('click', function(e, d) {
@@ -414,48 +431,25 @@ function renderScenarioProvinces() {
       }
       if (typeof openCountryRelations === 'function') openCountryRelations(owner);
     });
-
-  renderNationalBorders();
 }
 
-// Иерархия границ: тонкая внутренняя (штрих самих провинций выше) + ЖИРНЫЙ тёмный контур
-// державы поверх — границы между разными владельцами и побережья. Контур считается через
-// topojson (загружен в index.html). Топология строится ОДИН раз на сценарий и кэшируется;
-// на перекраске пересчитывается только меш границ (дёшево). Если топология не строится —
-// отдельного контура просто нет, тонкие границы остаются, ничего не ломается.
-let _topoCache = null, _topoSrcRef = null;
-function ensureScenarioTopo() {
-  if (_topoCache && _topoSrcRef === scenarioProvinces) return _topoCache;
-  if (typeof topojson === 'undefined' || !scenarioProvinces.length) return null;
-  try {
-    const fc = { type: 'FeatureCollection', features: scenarioProvinces.map(p => ({
-      type: 'Feature', properties: { id: p.id }, geometry: p.geometry
-    })) };
-    _topoCache = topojson.topology({ prov: fc }, 1e5);
-    _topoSrcRef = scenarioProvinces;
-  } catch (e) { _topoCache = null; _topoSrcRef = null; }
-  return _topoCache;
+// Дешёвая перекраска: только цвет и прозрачность, геометрия не пересчитывается.
+// Нейтральная земля почти не тонируется — сквозь неё виден чистый рельеф.
+function recolorProvinces() {
+  provincesG.selectAll('path.scenario-province')
+    .attr('fill', d => {
+      const owner = provinceOwnerOf(d.id, d.owner);
+      return owner ? politicalFill(displayColorFor(owner)) : '#b8b4a4';
+    })
+    .attr('fill-opacity', d => provinceOwnerOf(d.id, d.owner) ? 0.62 : 0.10)
+    .style('cursor', d => provinceOwnerOf(d.id, d.owner) ? 'pointer' : 'default');
 }
-function renderNationalBorders() {
-  provincesG.select('path.national-border').remove();
-  const topo = ensureScenarioTopo();
-  if (!topo) return;
-  const ownerById = {};
-  scenarioProvinces.forEach(p => { ownerById[p.id] = provinceOwnerOf(p.id, p.owner); });
-  let mesh;
-  try {
-    mesh = topojson.mesh(topo, topo.objects.prov, (a, b) =>
-      a === b || ownerById[a.properties.id] !== ownerById[b.properties.id]);
-  } catch (e) { return; }
-  provincesG.append('path')
-    .attr('class', 'national-border')
-    .attr('d', pathGen(mesh))
-    .attr('fill', 'none')
-    .attr('stroke', '#2c2114')
-    .attr('stroke-width', outerBorderWidth)
-    .attr('stroke-linejoin', 'round')
-    .attr('stroke-linecap', 'round')
-    .attr('pointer-events', 'none');
+
+// Совместимость: все существующие вызовы (смена владений, режим карты, загрузка сейва)
+// идут через эту функцию — она строит геометрию лишь при смене сценария.
+function renderScenarioProvinces() {
+  if (_provincesBuiltFor !== scenarioProvinces) buildProvincePaths();
+  recolorProvinces();
 }
 
 switchActiveScenario(activeScenarioRef);
@@ -466,14 +460,15 @@ switchActiveScenario(activeScenarioRef);
 const TYPE_ICONS = { army: '⚔️', hq: '🏛', naval: '⚓', diplomat: '🕊️', other: '📍' };
 const OWNER_COLORS = { rebel: '#7a1a1a', foreign: '#8a1a1a' };
 
-// Гравюрные символы объектов (SVG-пути в «единицах маркера» ~±3) — пришли на смену эмодзи,
-// которые выбивались из эпохи и по-разному рисовались на разных ОС.
+// Гравюрные символы объектов (SVG-пути в координатах ~±3) вместо эмодзи: сабли — армия,
+// якорь — флот, штандарт — ставка, ромб — делегация. Эмодзи выбивались из стиля карты
+// и по-разному выглядели на разных ОС.
 const MAP_SYMBOLS = {
-  army:     'M-2.6,-2.6 L2.6,2.6 M2.6,-2.6 L-2.6,2.6',            // скрещённые сабли
-  naval:    'M0,-3 L0,2.4 M-2,0.4 A2,2 0 0 0 2,0.4 M-1.5,-2.2 L1.5,-2.2', // якорь
-  hq:       'M-2.4,-2.4 h4.8 v4.8 h-4.8 Z',                       // ставка (флаг/квадрат)
-  diplomat: 'M0,-3 L2.6,0 L0,3 L-2.6,0 Z',                        // делегация (ромб)
-  other:    'M0,-1.6 A1.6,1.6 0 1 1 -0.01,-1.6 Z'                 // прочее (точка)
+  army:     'M-2.6,-2.6 L2.6,2.6 M2.6,-2.6 L-2.6,2.6',
+  naval:    'M0,-3 L0,2.4 M-2,0.4 A2,2 0 0 0 2,0.4 M-1.5,-2.2 L1.5,-2.2',
+  hq:       'M-2.4,-2.4 h4.8 v4.8 h-4.8 Z',
+  diplomat: 'M0,-3 L2.6,0 L0,3 L-2.6,0 Z',
+  other:    'M0,-1.6 A1.6,1.6 0 1 1 -0.01,-1.6 Z'
 };
 
 function ownerColor(owner) {
@@ -605,26 +600,26 @@ function renderMapObjects() {
     const loc = resolveLocationLonLat(d.location);
     if (!loc) return;
     const xy = proj(loc);
-    const k = objectScale / zoom; // единицы маркера → экранные
+    const k = objectScale / zoom; // единицы символа → экранные
     const g = d3.select(this);
     g.select('.mo-dot')
       .attr('cx', xy[0]).attr('cy', xy[1])
       .attr('r', 4 * k)
       .attr('fill', ownerColor(d.owner))
-      .attr('stroke', '#2c2114').attr('stroke-width', 0.8 * k);
+      .attr('stroke', 'rgba(10,14,22,0.85)').attr('stroke-width', 0.8 * k);
     g.select('.mo-sym')
       .attr('transform', `translate(${xy[0]},${xy[1]}) scale(${k})`)
       .attr('d', MAP_SYMBOLS[d.type] || MAP_SYMBOLS.other)
-      .attr('fill', d.type === 'hq' ? '#2c2114' : 'none')
-      .attr('stroke', '#241a0e').attr('stroke-width', 0.9)
+      .attr('fill', d.type === 'hq' ? '#f5f2e8' : 'none')
+      .attr('stroke', '#f5f2e8').attr('stroke-width', 0.9)
       .attr('stroke-linejoin', 'round').attr('stroke-linecap', 'round');
     g.select('.mo-label')
       .attr('x', xy[0]).attr('y', xy[1] + (9 * objectScale) / zoom)
       .attr('font-size', 5.5 * objectScale / zoom)
-      .attr('fill', '#2c2114')
+      .attr('fill', '#f5f2e8')
       .attr('font-family', 'Georgia,serif')
       .attr('paint-order', 'stroke')
-      .attr('stroke', '#efe7d1').attr('stroke-width', 1.4 / zoom)
+      .attr('stroke', 'rgba(12,16,26,0.85)').attr('stroke-width', 1.4 / zoom)
       .text(d.label + (d.troops ? ' «' + d.troops.toLocaleString('ru') + '»' : ''));
     g.style('cursor', 'default')
       .on('mouseover', () => {

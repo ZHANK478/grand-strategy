@@ -421,17 +421,146 @@ function onToggleAutoPortraits(checked) {
 function renderParliamentPanel() {
   const box = document.getElementById('parliament-box');
   if (!box || typeof countries === 'undefined' || !countries[playerCountry]) return;
-  const parl = countries[playerCountry].parliament;
+  const c = countries[playerCountry];
+  const parl = c.parliament;
   if (!parl || !parl.factions || !parl.factions.length) {
-    box.innerHTML = '<div class="chg-empty" style="padding:4px 0">Представительный орган в стране отсутствует</div>';
+    box.innerHTML = `<div class="chg-empty" style="padding:4px 0">${c.parliamentSuspended ? 'Парламент РАСПУЩЕН указом правителя' : 'Представительный орган в стране отсутствует'}</div>
+      <div style="font-size:10px;color:#999;line-height:1.5">Его можно созвать решением правителя (действие «созвать парламент»).</div>`;
     return;
   }
   const supColor = parl.support >= 60 ? '#1a7a1a' : parl.support >= 40 ? '#8a7a20' : '#b02020';
+  const powColor = (parl.power ?? 50) >= 60 ? '#1a4a8a' : '#666';
   box.innerHTML =
     `<div class="irow"><span class="k">Орган</span><span>${parl.name || 'Парламент'}</span></div>
      <div class="irow"><span class="k">Поддержка правительства</span><span style="color:${supColor};font-weight:bold">${parl.support}%</span></div>` +
     parl.factions.map(f => `<div class="irow"><span class="k">${f.name}</span><span>${f.pct}%</span></div>`).join('') +
-    `<div style="font-size:10px;color:#999;margin-top:6px;line-height:1.5">Поддержка ниже 35% подтачивает стабильность каждый ход. Законы, победы и скандалы двигают её через события.</div>`;
+    ((parl.banned || []).length ? `<div class="irow"><span class="k">🚫 Запрещены</span><span>${parl.banned.join(', ')}</span></div>` : '') +
+    `<div class="irow"><span class="k">🗳 Следующие выборы</span><span>${parl.nextElection || '—'} г. (раз в ${parl.termYears || '?'} л.)</span></div>
+     <div class="irow"><span class="k">Власть парламента</span><span style="color:${powColor};font-weight:bold">${parl.power ?? 50}%</span></div>
+     <div style="font-size:10px;color:#999;margin-top:6px;line-height:1.5">Власть ≥50% и поддержка <40% — парламент может наложить ВЕТО на ваши законы. Поддержка <35% ест стабильность. Роспуск, перенос выборов и запрет партий — через действия правителя.</div>`;
+}
+
+// ============================================================
+// ЦЕРКОВЬ — институт: влияние, статус; может быть упразднена правителем
+// ============================================================
+function renderChurchPanel() {
+  const box = document.getElementById('church-box');
+  if (!box || typeof countries === 'undefined' || !countries[playerCountry]) return;
+  const ch = countries[playerCountry].church;
+  if (!ch || !ch.exists) {
+    box.innerHTML = `<div class="chg-empty" style="padding:4px 0">Церковь лишена государственной власти</div>
+      <div style="font-size:10px;color:#999;line-height:1.5">Секуляризация: духовенство не влияет на政ику. Восстановить можно действием правителя (это вернёт лояльность верующих).</div>`.replace('政ику','политику');
+    return;
+  }
+  const infColor = ch.influence >= 65 ? '#7a4a1a' : '#666';
+  box.innerHTML =
+    `<div class="irow"><span class="k">Институт</span><span>${ch.name}</span></div>
+     <div class="irow"><span class="k">Влияние на государство</span><span style="color:${infColor};font-weight:bold">${ch.influence}%</span></div>
+     <div style="font-size:10px;color:#999;margin-top:6px;line-height:1.5">Влиятельная церковь (>50%) стоит казне 2% дохода, но поддерживает народ. Правитель может лишить её власти (секуляризация/атеизм) — ценой стабильности и гнева верующих.</div>`;
+}
+
+// ============================================================
+// ВКЛАДКА «ЭКОНОМИКА» — постатейный бюджет, сословия, долг + чат с ИИ-экономистом.
+// Открывается кликом по казне/доходу в верхней панели.
+// ============================================================
+function openEconomyPanel() {
+  if (typeof stopAutoPlay === 'function') stopAutoPlay(true);
+  document.getElementById('economy-panel').style.display = 'block';
+  renderEconomyPanel();
+}
+function closeEconomyPanel() {
+  document.getElementById('economy-panel').style.display = 'none';
+}
+
+function renderEconomyPanel() {
+  const box = document.getElementById('economy-body');
+  if (!box || typeof countries === 'undefined') return;
+  const c = countries[playerCountry];
+  if (!c) return;
+  if (!c.lastBudget || !c.lastBudget.lines) {
+    box.innerHTML = '<div class="chg-empty">Сделайте первый ход — бюджет появится после первого месяца.</div>';
+    return;
+  }
+  const b = c.lastBudget;
+  const fmt = v => v.toLocaleString('ru');
+  const row = (name, val, sign) => `<div class="irow"><span class="k">${name}</span><span style="color:${sign > 0 ? '#1a7a1a' : sign < 0 ? '#b02020' : '#333'};font-weight:bold">${sign > 0 ? '+' : sign < 0 ? '−' : ''}${fmt(Math.abs(val))} фр.</span></div>`;
+  const classes = c.economy ? Object.entries(c.economy.classes).map(([key, k]) => {
+    const loyColor = k.loyalty >= 55 ? '#1a7a1a' : k.loyalty >= 35 ? '#8a7a20' : '#b02020';
+    return `<div style="border:1px solid #eee;border-radius:4px;padding:6px 8px;margin-bottom:6px">
+      <div style="font-size:12px;font-weight:bold;color:#222">${k.label} <span style="color:#999;font-weight:normal">(${k.share}% населения)</span></div>
+      <div class="irow"><span class="k">Богатство</span><span>${fmt(k.wealth)}</span></div>
+      <div class="irow"><span class="k">Налог</span><span>${k.tax}% → +${fmt(Math.round(k.wealth * k.tax / 100))} фр./мес</span></div>
+      <div class="irow"><span class="k">Лояльность</span><span style="color:${loyColor};font-weight:bold">${k.loyalty}</span></div>
+    </div>`;
+  }).join('') : '';
+  box.innerHTML =
+    `<div class="phdr">Доходы (${fmt(b.gross)} фр./мес)</div>` +
+    b.lines.income.map(l => row(l.name, l.value, 1)).join('') +
+    `<div class="phdr" style="margin-top:10px">Расходы</div>` +
+    b.lines.expense.map(l => row(l.name, l.value, -1)).join('') +
+    `<div style="margin-top:8px;border-top:2px solid #333;padding-top:6px">` + row('ИТОГ МЕСЯЦА', b.net, b.net >= 0 ? 1 : -1) + `</div>` +
+    (b.borrowed ? `<div style="font-size:11px;color:#b02020;margin-top:4px">🏦 Дефицит покрыт займом ${fmt(b.borrowed)} фр. — ${b.borrowedFrom}</div>` : '') +
+    `<div class="phdr" style="margin-top:12px">Государственный долг</div>
+     <div class="irow"><span class="k">Внутренний (буржуазия)</span><span>${fmt(c.debtDomestic || 0)} фр.</span></div>
+     <div class="irow"><span class="k">Внешний (иностранные банки)</span><span>${fmt(c.debtForeign || 0)} фр.</span></div>
+     <div class="irow"><span class="k">Проценты</span><span>0.5% в месяц</span></div>
+     <div class="irow"><span class="k">Инфляция</span><span>${c.inflation}%</span></div>
+     <div class="phdr" style="margin-top:12px">Сословия</div>` + classes +
+    `<div style="font-size:10px;color:#999;line-height:1.5;margin-top:4px">Налоги меняются действиями («поднять налог на народ до 25%») или советом экономиста. Ставка >25% душит богатство и лояльность; буржуазия при низких налогах богатеет и тянет доход вверх.</div>`;
+}
+
+async function sendEconomistMessage() {
+  const input = document.getElementById('econ-input');
+  const msg = input.value.trim();
+  if (!msg) return;
+  input.value = '';
+  appendEconMsg('player', msg);
+  appendEconMsg('economist', '⏳ Экономист считает...');
+  const response = await askEconomist(msg);
+  const msgs = document.querySelectorAll('#econ-messages .adv-msg');
+  msgs[msgs.length - 1].remove();
+  appendEconMsg('economist', response);
+}
+function appendEconMsg(role, text) {
+  const box = document.getElementById('econ-messages');
+  const div = document.createElement('div');
+  div.className = 'adv-msg ' + (role === 'player' ? 'player' : 'advisor');
+  div.textContent = (role === 'player' ? '👤 ' : '💼 ') + text;
+  box.appendChild(div);
+  box.scrollTop = box.scrollHeight;
+}
+function economistKeydown(e) {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendEconomistMessage(); }
+}
+
+// ============================================================
+// ЛЕТОПИСЬ МИРА — главы истории, которые ИИ пишет каждые 10 ходов (и по кнопке)
+// ============================================================
+function openHistoryPanel() {
+  if (typeof stopAutoPlay === 'function') stopAutoPlay(true);
+  document.getElementById('history-panel').style.display = 'block';
+  renderHistoryPanel();
+}
+function closeHistoryPanel() {
+  document.getElementById('history-panel').style.display = 'none';
+}
+function renderHistoryPanel() {
+  const box = document.getElementById('history-body');
+  if (!box) return;
+  const chapters = (typeof worldState !== 'undefined' && worldState.historySummary) || [];
+  box.innerHTML = chapters.length
+    ? chapters.map((ch, i) => `<div style="margin-bottom:12px">
+        <div style="font-size:13px;font-weight:bold;color:#222">Глава ${i + 1}. ${ch.title} <span style="color:#999;font-weight:normal;font-size:10px">(${ch.year} г.)</span></div>
+        <div style="font-size:12px;color:#444;line-height:1.7;margin-top:3px">${ch.text}</div>
+      </div>`).join('')
+    : '<div class="chg-empty">Летопись пока пуста — главы пишутся автоматически каждые 10 ходов, либо нажмите «Дописать главу».</div>';
+}
+async function writeHistoryChapterNow() {
+  const btn = document.getElementById('history-write-btn');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Летописец пишет...'; }
+  await summarizeWorldHistory(true);
+  if (btn) { btn.disabled = false; btn.textContent = '✍ Дописать главу сейчас'; }
+  renderHistoryPanel();
 }
 
 // ============================================================

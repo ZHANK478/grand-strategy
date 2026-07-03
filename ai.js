@@ -34,6 +34,7 @@ let worldState = {
   atWarWith: [],
   alliedWith: [],
   pastEvents: [],       // хроника — до 120 событий
+  historySummary: [],   // летопись мира: главы-резюме, чтобы ИИ не забывал давние события
   diploLog: [],
   mapObjects: []
 };
@@ -73,10 +74,11 @@ function describeCountries() {
   return ALL_COUNTRIES.filter(c => countries[c] && !countries[c].annexed).map(c => {
     const d = countries[c];
     const age = typeof d.rulerAge === 'number' ? `, ${d.rulerAge} лет` : '';
-    const parl = d.parliament ? ` Парламент (${d.parliament.name}): поддержка правительства ${d.parliament.support}%, фракции: ${(d.parliament.factions||[]).map(f=>`${f.name} ${f.pct}%`).join(', ')}.` : '';
+    const parl = d.parliament ? ` Парламент (${d.parliament.name}): власть ${d.parliament.power ?? 50}%, поддержка правительства ${d.parliament.support}%, следующие выборы ${d.parliament.nextElection || '—'} г., фракции: ${(d.parliament.factions||[]).map(f=>`${f.name} ${f.pct}%`).join(', ')}.${(d.parliament.banned||[]).length ? ' Запрещены: ' + d.parliament.banned.join(', ') + '.' : ''}` : ' Парламента нет (упразднён или отсутствует).';
+    const church = d.church ? (d.church.exists ? ` Церковь (${d.church.name}): влияние ${d.church.influence}%.` : ' Церковь лишена государственной власти (секуляризация).') : '';
     const rel = d.religion && d.religion.main ? ` Религия: ${Object.entries(d.religion.dist || {}).map(([k,v])=>`${k} ${v}%`).join(', ')} (главная ${d.religion.main}); вера правителя: ${d.rulerReligion || d.religion.main}.` : '';
     const agenda = d.agenda ? ` ИНТЕРЕСЫ: ${d.agenda}` : '';
-    return `${d.displayName}: казна ${d.treasury.toLocaleString('ru')} фр., доход ${d.income >= 0 ? '+' : ''}${d.income.toLocaleString('ru')} фр./мес, долг ${d.debt.toLocaleString('ru')} фр., инфляция ${d.inflation}%, армия ${d.army.toLocaleString('ru')}, стабильность ${d.stability}, правитель ${d.ruler} (${d.rulerTitle}${age}), правление: ${d.government}.${rel}${parl}${agenda}`;
+    return `${d.displayName}: казна ${d.treasury.toLocaleString('ru')} фр., доход ${d.income >= 0 ? '+' : ''}${d.income.toLocaleString('ru')} фр./мес, долг ${d.debt.toLocaleString('ru')} фр., инфляция ${d.inflation}%, армия ${d.army.toLocaleString('ru')}, стабильность ${d.stability}, правитель ${d.ruler} (${d.rulerTitle}${age}), правление: ${d.government}.${rel}${church}${parl}${agenda}`;
   }).join('\n');
 }
 
@@ -87,6 +89,24 @@ function describePlayerBudget() {
   const b = c.lastBudget;
   if (!b) return '';
   return `БЮДЖЕТ ${c.displayName} за прошлый месяц (реальные числа движка — НЕ противоречь им): доход ${b.gross.toLocaleString('ru')} фр., содержание армии −${b.upkeep.toLocaleString('ru')} фр., проценты по долгу −${b.interest.toLocaleString('ru')} фр., итог ${b.net >= 0 ? 'ПРОФИЦИТ +' : 'ДЕФИЦИТ '}${b.net.toLocaleString('ru')} фр.${b.borrowed ? ` Взято новых займов: ${b.borrowed.toLocaleString('ru')} фр.` : ''} Общий долг ${c.debt.toLocaleString('ru')} фр., инфляция ${c.inflation}%. Если бюджет в профиците и долг мал — НЕ пиши о долгах/инфляции как о проблеме.`;
+}
+
+// Полная постатейная экономика страны игрока (для ИИ-экономиста и нарратора):
+// строки бюджета, классы с налогами/лояльностью, структура долга.
+function describePlayerEconomy() {
+  const c = countries[playerCountry];
+  if (!c || !c.lastBudget || !c.lastBudget.lines) return describePlayerBudget();
+  const b = c.lastBudget;
+  const inc = b.lines.income.map(l => `${l.name}: +${l.value.toLocaleString('ru')}`).join('; ');
+  const exp = b.lines.expense.map(l => `${l.name}: −${l.value.toLocaleString('ru')}`).join('; ');
+  const classes = c.economy ? Object.values(c.economy.classes).map(k =>
+    `${k.label} (${k.share}% населения): богатство ${k.wealth.toLocaleString('ru')}, налог ${k.tax}%, лояльность ${k.loyalty}`).join('; ') : '';
+  return `ЭКОНОМИКА ${c.displayName} (точные числа движка — НЕ противоречь им, не выдумывай долги при профиците):
+ДОХОДЫ (${b.gross.toLocaleString('ru')} фр./мес): ${inc}.
+РАСХОДЫ: ${exp}.
+ИТОГ МЕСЯЦА: ${b.net >= 0 ? 'ПРОФИЦИТ +' : 'ДЕФИЦИТ '}${b.net.toLocaleString('ru')} фр.${b.borrowed ? ` Взят заём ${b.borrowed.toLocaleString('ru')} фр. (${b.borrowedFrom}).` : ''}
+ДОЛГ: всего ${c.debt.toLocaleString('ru')} фр. (внутренний ${(c.debtDomestic||0).toLocaleString('ru')} у буржуазии, внешний ${(c.debtForeign||0).toLocaleString('ru')} у иностранных банков). Инфляция ${c.inflation}%.
+СОСЛОВИЯ: ${classes}.`;
 }
 
 // Скрытые отношения ИИ-стран между собой (игрок их не видит — только ИИ)
@@ -111,10 +131,14 @@ function describeWorldState() {
   const allyText = worldState.alliedWith.length > 0
     ? `Союзники: ${worldState.alliedWith.join(', ')}.`
     : '';
-  const newsText = worldState.pastEvents.length > 0
+  const chronicle = (worldState.historySummary || []).length
+    ? 'ЛЕТОПИСЬ МИРА (краткая история прошлых лет — ПОМНИ её, это твоя долгая память):\n' +
+      worldState.historySummary.slice(-6).map(ch => `【${ch.title}】 ${ch.text}`).join('\n') + '\n\n'
+    : '';
+  const newsText = chronicle + (worldState.pastEvents.length > 0
     ? 'ХРОНИКА ПОСЛЕДНИХ СОБЫТИЙ (от новых к старым):\n' +
       worldState.pastEvents.slice(-40).reverse().map((e, i) => `${i + 1}. ${e}`).join('\n')
-    : 'Игра только началась, прошлых событий нет.';
+    : 'Игра только началась, прошлых событий нет.');
 
   const pc = (typeof playerCountryDisplayName !== 'undefined') ? playerCountryDisplayName : playerCountry;
   const hidden = describeHiddenDiplomacy();
@@ -280,7 +304,7 @@ async function generateCountryProfiles(names, full) {
   const prompt = `Ты — историк-справочник стратегической игры. Год: ${year}. Страны: ${names.join(', ')}.
 ${knownLine}
 Ответь ТОЛЬКО валидным JSON-массивом без пояснений, по объекту на страну:
-[{"country":"название как в списке","ruler":"имя реального/правдоподобного правителя на ${year} год","ruler_age":число (реальный возраст, обычно 30-75),"ruler_title":"титул","government":"форма правления","pm":"глава правительства","pm_title":"его должность","treasury":число (казна во франках, масштаб: великая держава 3000-5000, средняя 1500-2500, малая 400-1200),"income":число (доход/мес: великая 400-700, средняя 200-350, малая 60-180),"army":число солдат,"stability":число 0-100,"capital":"столица","pop":"население текстом","gdp":"ВВП текстом","blurb":"2 предложения о положении страны в ${year} году","agenda":"1-2 предложения: национальные интересы, чего страна боится, чего добивается, с кем соперничает","religion":{"main":"главная религия","dist":{"Религия1":число%,"Религия2":число%}} (реальное распределение верующих, сумма ~100),"ruler_religion":"вера правителя","parliament":null или {"name":"название органа","support":число 0-100,"factions":[{"name":"фракция","pct":число}]}}]
+[{"country":"название как в списке","ruler":"имя реального/правдоподобного правителя на ${year} год","ruler_age":число (реальный возраст, обычно 30-75),"ruler_title":"титул","government":"форма правления","pm":"глава правительства","pm_title":"его должность","treasury":число (казна во франках, масштаб: великая держава 3000-5000, средняя 1500-2500, малая 400-1200),"income":число (доход/мес: великая 400-700, средняя 200-350, малая 60-180),"army":число солдат,"stability":число 0-100,"capital":"столица","pop":"население текстом","gdp":"ВВП текстом","blurb":"2 предложения о положении страны в ${year} году","agenda":"1-2 предложения: национальные интересы, чего страна боится, чего добивается, с кем соперничает","religion":{"main":"главная религия","dist":{"Религия1":число%,"Религия2":число%}} (реальное распределение верующих, сумма ~100),"ruler_religion":"вера правителя","church":{"name":"название церкви/конфессии","influence":число 0-100},"parliament":null или {"name":"название органа","support":число 0-100,"power":число 0-100 (реальная власть органа),"term_years":число (срок между выборами),"factions":[{"name":"фракция","pct":число}]}}]
 ${full ? '' : 'Для этого списка заполни ТОЛЬКО поля country, agenda, religion, ruler_religion, parliament — остальные ставь null.'}`;
   const raw = await askGemini(prompt, Math.min(6000, 220 * names.length + 500));
   try {
@@ -312,7 +336,14 @@ ${full ? '' : 'Для этого списка заполни ТОЛЬКО пол
       if (p.agenda) c.agenda = p.agenda;
       if (p.religion && p.religion.dist) c.religion = p.religion;
       if (p.ruler_religion) c.rulerReligion = p.ruler_religion;
-      if (p.parliament && p.parliament.factions) c.parliament = p.parliament;
+      if (p.church && typeof p.church.influence === 'number') c.church = { exists: true, name: p.church.name || 'Церковь', influence: p.church.influence };
+      if (p.parliament && p.parliament.factions) {
+        c.parliament = p.parliament;
+        if (c.parliament.power === undefined) c.parliament.power = 50;
+        c.parliament.termYears = p.parliament.term_years || 5;
+        c.parliament.nextElection = year + Math.max(1, Math.round((c.parliament.termYears) / 2));
+        c.parliament.banned = [];
+      }
     });
     if (full) {
       // Доходы новых профилей — перераспределяем по провинциям заново
@@ -540,17 +571,81 @@ function parseAndApplyEffects(text, baseChanges) {
       });
     }
 
-    // Парламент страны игрока
-    if (effects.parliament && countries[playerCountry].parliament) {
-      const parl = countries[playerCountry].parliament;
-      if (typeof effects.parliament.support_delta === 'number' && effects.parliament.support_delta !== 0) {
-        parl.support = Math.max(0, Math.min(100, parl.support + effects.parliament.support_delta));
-        turnChanges.push({ label: '🏛 Поддержка парламента', value: (effects.parliament.support_delta > 0 ? '+' : '') + effects.parliament.support_delta + '%', sign: effects.parliament.support_delta });
+    // Парламент страны игрока: поддержка/власть/состав/вето/роспуск/созыв/выборы/запреты
+    if (effects.parliament) {
+      const ep = effects.parliament;
+      if (ep.dissolve === true && typeof dissolveParliament === 'function' && dissolveParliament(playerCountry)) {
+        showNotif('🏛 Парламент распущен!');
+        turnChanges.push({ label: '🏛 Парламент', value: 'РАСПУЩЕН', sign: -1 });
       }
-      if (Array.isArray(effects.parliament.factions) && effects.parliament.factions.length) {
-        parl.factions = effects.parliament.factions.filter(f => f && f.name && typeof f.pct === 'number');
+      if (ep.restore === true && typeof restoreParliament === 'function' && restoreParliament(playerCountry, null)) {
+        showNotif('🏛 Парламент созван');
+        turnChanges.push({ label: '🏛 Парламент', value: 'созван', sign: 1 });
+      }
+      const parl = countries[playerCountry].parliament;
+      if (parl) {
+        if (typeof ep.support_delta === 'number' && ep.support_delta !== 0) {
+          parl.support = Math.max(0, Math.min(100, parl.support + ep.support_delta));
+          turnChanges.push({ label: '🏛 Поддержка парламента', value: (ep.support_delta > 0 ? '+' : '') + ep.support_delta + '%', sign: ep.support_delta });
+        }
+        if (typeof ep.power_delta === 'number' && ep.power_delta !== 0) {
+          parl.power = Math.max(0, Math.min(100, (parl.power ?? 50) + ep.power_delta));
+          turnChanges.push({ label: '🏛 Власть парламента', value: (ep.power_delta > 0 ? '+' : '') + ep.power_delta + '%', sign: 0 });
+        }
+        if (Array.isArray(ep.factions) && ep.factions.length) {
+          const bannedSet = new Set((parl.banned || []).map(x => x.toLowerCase()));
+          parl.factions = ep.factions.filter(f => f && f.name && typeof f.pct === 'number' && !bannedSet.has(f.name.toLowerCase()));
+          turnChanges.push({ label: '🗳 Выборы', value: 'новый состав парламента', sign: 0 });
+        }
+        if (typeof ep.next_election_year === 'number' && ep.next_election_year > year) {
+          parl.nextElection = ep.next_election_year;
+          turnChanges.push({ label: '🗳 Дата выборов', value: String(ep.next_election_year), sign: 0 });
+        }
+        if (typeof ep.term_years === 'number' && ep.term_years >= 1 && ep.term_years <= 15) parl.termYears = ep.term_years;
+        if (ep.ban_party && typeof banParty === 'function' && banParty(playerCountry, ep.ban_party)) {
+          showNotif(`🚫 Партия запрещена: ${ep.ban_party}`);
+          turnChanges.push({ label: '🚫 Запрет партии', value: ep.ban_party, sign: -1 });
+        }
+        if (ep.veto && typeof ep.veto === 'string') {
+          showNotif('🏛 ВЕТО парламента!');
+          worldState.pastEvents.push(`🏛 Парламент ${playerCountryDisplayName} наложил ВЕТО: ${ep.veto}`);
+          turnChanges.push({ label: '🏛 ВЕТО парламента', value: ep.veto.slice(0, 60), sign: -1 });
+        }
       }
       if (typeof renderParliamentPanel === 'function') renderParliamentPanel();
+    }
+
+    // Налоговые ставки сословий (страна игрока)
+    if (effects.economy && typeof setClassTax === 'function') {
+      const map = { tax_noble: 'noble', tax_burgher: 'burgher', tax_commons: 'commons' };
+      Object.entries(map).forEach(([key, cls]) => {
+        if (typeof effects.economy[key] === 'number') {
+          const before = countries[playerCountry].economy ? countries[playerCountry].economy.classes[cls].tax : null;
+          setClassTax(playerCountry, cls, effects.economy[key]);
+          if (before !== null && before !== countries[playerCountry].economy.classes[cls].tax) {
+            turnChanges.push({ label: '💸 Налог: ' + countries[playerCountry].economy.classes[cls].label, value: before + '% → ' + countries[playerCountry].economy.classes[cls].tax + '%', sign: 0 });
+          }
+        }
+      });
+    }
+
+    // Институты: церковь
+    if (effects.institutions) {
+      const ins = effects.institutions;
+      if (ins.church === 'abolish' && typeof abolishChurch === 'function' && abolishChurch(playerCountry)) {
+        showNotif('⛪ Церковь лишена государственной власти');
+        turnChanges.push({ label: '⛪ Церковь', value: 'лишена власти', sign: -1 });
+      }
+      if (ins.church === 'restore' && typeof restoreChurch === 'function' && restoreChurch(playerCountry)) {
+        showNotif('⛪ Церковь восстановлена');
+        turnChanges.push({ label: '⛪ Церковь', value: 'восстановлена', sign: 1 });
+      }
+      const ch = countries[playerCountry].church;
+      if (ch && ch.exists && typeof ins.church_influence_delta === 'number' && ins.church_influence_delta !== 0) {
+        ch.influence = Math.max(0, Math.min(100, ch.influence + ins.church_influence_delta));
+        turnChanges.push({ label: '⛪ Влияние церкви', value: (ins.church_influence_delta > 0 ? '+' : '') + ins.church_influence_delta + '%', sign: 0 });
+      }
+      if (typeof renderChurchPanel === 'function') renderChurchPanel();
     }
 
     if (effects.map_objects && Array.isArray(effects.map_objects) && typeof applyMapObjects === 'function') {
@@ -747,7 +842,7 @@ async function generateEvents(deaths, opts) {
 Страна игрока: ${state.country}. Правитель: ${state.ruler}${state.rulerAge ? ` (${state.rulerAge} лет)` : ''} (${state.rulerTitle}). Форма правления: ${state.government}. Глава правительства: ${state.pm} (${state.pmTitle}).
 Казна: ${state.treasury}. Доход: ${state.income}. Армия: ${state.army}. Стабильность: ${state.stability}. Долг: ${state.debt}. Инфляция: ${state.inflation}.
 
-${describePlayerBudget()}
+${describePlayerEconomy()}
 
 ПОКАЗАТЕЛИ ВСЕХ СТРАН СЦЕНАРИЯ (скрыты от игрока — используй их для реализма, но НЕ называй игроку точные числа чужих казн/армий в новостях, только качественные оценки: "истощена войной", "собирает огромную армию"):
 ${describeCountries()}
@@ -775,7 +870,7 @@ BREAKING:{"title":"КОРОТКИЙ ЗАГОЛОВОК","text":"1-2 предло
 Если нет — строку BREAKING не пиши вовсе.
 
 В конце напиши ровно одну строку:
-EFFECTS:{"treasury_delta":0,"income_delta":0,"debt_delta":0,"army_delta":0,"stability_delta":0,"relations":{${otherNames.map(c => `"${c}":0`).join(',')}},"relations_between":[],"wars_between":[],"battles":[],"new_countries":[],"treaties":[],"religion":null,"other_countries":{},"parliament":{"support_delta":0,"factions":null},"war_declared":[],"peace_made":[],"country_name":null,"country_color":null,"ruler_name":null,"ruler_age":null,"ruler_title":null,"government":null,"pm_name":null,"pm_title":null,"map_objects":[],"territory_transfer":[],"province_transfer":[],"foreign_leader_change":[]}
+EFFECTS:{"treasury_delta":0,"income_delta":0,"debt_delta":0,"army_delta":0,"stability_delta":0,"relations":{${otherNames.map(c => `"${c}":0`).join(',')}},"relations_between":[],"wars_between":[],"battles":[],"new_countries":[],"treaties":[],"religion":null,"other_countries":{},"parliament":{"support_delta":0,"power_delta":0,"factions":null,"veto":null,"dissolve":false,"restore":false,"next_election_year":null,"term_years":null,"ban_party":null},"economy":{"tax_noble":null,"tax_burgher":null,"tax_commons":null},"institutions":{"church":null,"church_influence_delta":0},"war_declared":[],"peace_made":[],"country_name":null,"country_color":null,"ruler_name":null,"ruler_age":null,"ruler_title":null,"government":null,"pm_name":null,"pm_title":null,"map_objects":[],"territory_transfer":[],"province_transfer":[],"foreign_leader_change":[]}
 
 КРИТИЧЕСКИ ВАЖНО — заполняй числа исходя из событий, не ставь нули без причины:
 - Казнил/убил солдат → army_delta отрицательный, stability_delta −3..−8
@@ -795,6 +890,9 @@ EFFECTS:{"treasury_delta":0,"income_delta":0,"debt_delta":0,"army_delta":0,"stab
   Провинции бери ТОЧНО из списка провинций. ИИ-страны тоже могут создавать марионетки и переживать восстания — используй это как живой инструмент мира, но РЕДКО и обоснованно.
 - religion: {"shift":{"Религия":дельта_процентов,...},"ruler_religion":"новая вера правителя или null"} — сдвиг религиозного состава страны игрока (обращения, миграции, реформы; дельты малые, 1-3% за ход) и/или смена веры правителя (крупное событие!). Если ничего — null.
 - treaties: [{"action":"sign"|"break","type":"alliance"|"nonaggression","a":"Страна1","b":"Страна2"}] — заключение/разрыв ОФИЦИАЛЬНЫХ договоров. sign: только при хороших отношениях сторон (>+40 для пакта, >+60 для союза) и по логике их интересов; учитывай репутацию — с вероломными не подписывают. break: a — КТО разрывает (он платит цену: −60 с преданным, −10 со всеми, −20 репутации, −5 стабильности) — используй только при серьёзном расхождении интересов или подготовке удара в спину. Союз означает: нападение на одного втягивает другого — отражай это в войнах.
+- parliament (страна игрока): support_delta — сдвиг поддержки; power_delta — сдвиг ВЛАСТИ парламента (реформы усиливают, узурпация ослабляет); factions — новый состав ТОЛЬКО на выборах/при роспуске (директива ВЫБОРЫ) — тогда придумывай партии по контексту эпохи и событий игры; veto — если ВЛАСТЬ парламента ≥50 и поддержка <40, парламент МОЖЕТ заблокировать законодательное действие игрока: опиши блокировку вновостях и укажи в veto короткий текст ЧТО заблокировано (тогда НЕ применяй эффекты этого действия); dissolve:true — если правитель РАСПУСКАЕТ парламент (движок сам спишет цену); restore:true — созыв парламента там, где его нет; next_election_year/term_years — перенос даты выборов/изменение срока; ban_party — запрет партии по названию.
+- economy: {"tax_noble":ставка|null,"tax_burgher":...,"tax_commons":...} — НОВЫЕ налоговые ставки сословий (0-45%), только если игрок реально менял налоги или события этого требуют. Помни: высокие налоги (>25%) душат богатство и лояльность класса.
+- institutions: {"church":"abolish"|"restore"|null,"church_influence_delta":число} — лишение церкви власти (атеизм/секуляризация — движок спишет цену) или её восстановление; сдвиг влияния церкви от событий.
 - parliament: support_delta — сдвиг поддержки правительства в парламенте игрока от событий/действий (законы, скандалы, победы); factions — новый состав фракций ТОЛЬКО при выборах/роспуске, иначе null.
 - ruler_name/ruler_age/ruler_title/government/pm_name/pm_title — только при реальном перевороте/провозглашении/смерти/отставке в стране игрока. При смене правителя ВСЕГДА указывай ruler_age (возраст нового).
 - foreign_leader_change: [{"country":"...","ruler_name":"...","ruler_age":число,"ruler_title":"...","government":"...","pm_name":null,"pm_title":null}] — смена власти в чужой стране: только по её собственной логике или из реальных действий игрока (см. правило 5). ВСЕГДА с ruler_age.
@@ -835,6 +933,72 @@ ${worldState.mapObjects && worldState.mapObjects.length > 0
   if (worldState.pastEvents.length > 120) worldState.pastEvents = worldState.pastEvents.slice(-120);
 
   return { events, domestic, breaking, raw: result };
+}
+
+// ============================================================
+// ЛЕТОПИСЬ МИРА — долгая память ИИ. Хроника событий в промпте ограничена последними 40
+// записями (~4-6 полных ходов); всё, что старше, ИИ забывал. Теперь каждые 10 ходов
+// (и по кнопке) ИИ сжимает старые события в ГЛАВУ летописи; главы всегда в промпте —
+// мир помнит свою историю: старые войны, предательства, реформы.
+// ============================================================
+let historySummarizing = false;
+
+async function summarizeWorldHistory(manual) {
+  if (historySummarizing || worldState.pastEvents.length < 15) return null;
+  historySummarizing = true;
+  try {
+    const prevChapters = (worldState.historySummary || []).slice(-4)
+      .map(ch => `【${ch.title}】 ${ch.text}`).join('\n');
+    const prompt = `Ты — летописец мира стратегической игры. Сейчас ${months[month]} ${year} г.
+${prevChapters ? 'ПРЕДЫДУЩИЕ ГЛАВЫ ЛЕТОПИСИ:\n' + prevChapters + '\n' : ''}
+СОБЫТИЯ, КОТОРЫЕ НУЖНО СЖАТЬ В НОВУЮ ГЛАВУ (от старых к новым):
+${worldState.pastEvents.slice(0, -15).map((e, i) => `${i + 1}. ${e}`).join('\n')}
+
+Напиши ОДНУ новую главу летописи: самое важное из этих событий (войны и их итоги, смены власти, договоры и предательства, территориальные изменения, великие потрясения) — 100-160 слов, связным текстом, без нумерации. Не повторяй то, что уже есть в предыдущих главах.
+Первой строкой дай короткое название главы (3-6 слов), со второй строки — текст.`;
+    const raw = await askGemini(prompt, 500);
+    const lines = raw.trim().split('\n').filter(l => l.trim());
+    if (!lines.length) return null;
+    const title = lines[0].replace(/^[#*\d.\s«»"]+|[«»"]+$/g, '').slice(0, 60) || ('Глава ' + ((worldState.historySummary || []).length + 1));
+    const text = lines.slice(1).join(' ').trim();
+    if (!text) return null;
+    const chapter = { title, text, upToTurn: turn, year };
+    if (!worldState.historySummary) worldState.historySummary = [];
+    worldState.historySummary.push(chapter);
+    if (worldState.historySummary.length > 12) worldState.historySummary = worldState.historySummary.slice(-12);
+    // Сжатое — убираем из сырой хроники (остаются последние 15 свежих событий)
+    worldState.pastEvents = worldState.pastEvents.slice(-15);
+    if (typeof renderHistoryPanel === 'function') renderHistoryPanel();
+    if (manual) showNotif('📜 Летопись пополнена: «' + title + '»');
+    saveGame();
+    return chapter;
+  } finally {
+    historySummarizing = false;
+  }
+}
+
+// ============================================================
+// ИИ-ЭКОНОМИСТ — чат во вкладке «Экономика»: объясняет игроку простым языком, откуда
+// берутся доходы, куда уходят деньги, что с долгом и что сделать с налогами.
+// ============================================================
+let economistHistory = [];
+
+async function askEconomist(userMessage) {
+  const state = getGameState();
+  const systemContext = `Ты — придворный экономист страны ${state.country} в ${state.date}. Твоя задача — ПРОСТЫМ ЯЗЫКОМ объяснять правителю устройство экономики его страны и советовать.
+${describePlayerEconomy()}
+
+МЕХАНИКА ЭКОНОМИКИ (объясняй по ней): доход = провинции (земля/производство, растут при стабильности >70) + налоги с трёх сословий (ставка × богатство; ставка >25% душит богатство и лояльность, <12% радует) + торговля. Расходы: армия (0.045% численности в мес), администрация (8% дохода), двор, церковь (если влиятельна), проценты по долгу (0.5%/мес). Дефицит покрывается займами: сперва у своей буржуазии (злит её), потом у иностранных банков. Долг >1.5 годового дохода и дефицит разгоняют инфляцию; инфляция >10% злит все сословия и жжёт стабильность. Средняя лояльность сословий <45 — минус стабильность каждый месяц.
+
+Отвечай кратко (до 130 слов), по делу, с конкретными числами из сводки выше. Если правитель спрашивает "что делать" — дай 1-2 конкретных совета (ставки налогов, армия, долг).`;
+
+  economistHistory.push({ role: 'user', text: userMessage });
+  const historyText = economistHistory.slice(-8).map(m =>
+    `${m.role === 'user' ? 'Правитель' : 'Экономист'}: ${m.text}`).join('\n');
+  const prompt = `${systemContext}\n\nРазговор:\n${historyText}\n\nОтвет экономиста:`;
+  const response = await askGemini(prompt, 350);
+  economistHistory.push({ role: 'economist', text: response });
+  return response;
 }
 
 // ============================================================
@@ -1013,4 +1177,7 @@ async function onTurnEnd(econChanges, deaths, opts) {
   worldState.diploLog = [];
   renderActionsList();
   document.getElementById('actions-panel').style.display = 'none';
+
+  // Каждые 10 ходов ИИ сжимает старую хронику в главу летописи (фоново, ход не ждёт)
+  if (turn % 10 === 0) summarizeWorldHistory(false);
 }

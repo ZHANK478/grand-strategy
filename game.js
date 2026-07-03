@@ -77,22 +77,26 @@ function setCountryColor(country, hexColor) {
 const COUNTRY_DEFAULTS = {
   'Франция':         { ruler:'Луи-Наполеон Бонапарт', rulerAge:44, rulerTitle:'Президент Французской республики', government:'Президентская республика', pm:'Эжен Руэр', pmTitle:'Министр-президент', treasury:4200, income:580, army:400000, stability:81,
     religion:{"main":"Католицизм","dist":{"Католицизм":97,"Протестантизм":2,"Иудаизм":1}}, rulerReligion:"Католицизм", pop:'35.8 млн', area:'551 000 км²', capital:'Париж', gdp:'~14 млрд фр.', blurb:'Франция в 1852 году переживает переходный период. Луи-Наполеон готовится провозгласить Вторую империю. Экономика растёт, но политическое напряжение высоко.',
-    parliament:{ name:'Законодательный корпус', support:67, factions:[{name:'Бонапартисты',pct:67},{name:'Республиканцы',pct:18},{name:'Монархисты',pct:15}] } },
+    parliament:{ name:'Законодательный корпус', support:67, power:35, termYears:6, nextElection:1857, banned:[], factions:[{name:'Бонапартисты',pct:67},{name:'Республиканцы',pct:18},{name:'Монархисты',pct:15}] },
+    church:{ exists:true, name:'Католическая церковь', influence:65 } },
   'Великобритания':  { ruler:'Королева Виктория', rulerAge:33, rulerTitle:'Королева Соединённого Королевства', government:'Конституционная монархия', pm:'Лорд Абердин', pmTitle:'Премьер-министр', treasury:5000, income:650, army:250000, stability:78,
     religion:{"main":"Англиканство","dist":{"Англиканство":68,"Пресвитерианство":16,"Католицизм":12,"Иудаизм":1,"Прочие":3}}, rulerReligion:"Англиканство", pop:'27.5 млн', area:'315 000 км²', capital:'Лондон', gdp:'~20 млрд фр.', blurb:'Великобритания в 1852 году — ведущая промышленная держава мира с крупнейшим флотом и обширными колониями.',
-    parliament:{ name:'Парламент', support:54, factions:[{name:'Виги/Пилиты',pct:52},{name:'Тори',pct:42},{name:'Радикалы',pct:6}] } },
+    parliament:{ name:'Парламент', support:54, power:85, termYears:7, nextElection:1857, banned:[], factions:[{name:'Виги/Пилиты',pct:52},{name:'Тори',pct:42},{name:'Радикалы',pct:6}] },
+    church:{ exists:true, name:'Англиканская церковь', influence:70 } },
   'Россия':          { ruler:'Николай I', rulerAge:56, rulerTitle:'Император Всероссийский', government:'Абсолютная монархия', pm:'Карл Нессельроде', pmTitle:'Государственный канцлер', treasury:3800, income:500, army:900000, stability:70,
     religion:{"main":"Православие","dist":{"Православие":72,"Ислам":9,"Католицизм":8,"Иудаизм":4,"Протестантизм":3,"Прочие":4}}, rulerReligion:"Православие", pop:'68 млн', area:'~18 млн км²', capital:'Санкт-Петербург', gdp:'~11 млрд фр.', blurb:'Российская империя в 1852 году — крупнейшая по территории и армии держава Европы. Крепостное право сдерживает экономику.',
-    parliament:null },
+    parliament:null, church:{ exists:true, name:'Православная церковь', influence:80 } },
   'Австрия':         { ruler:'Франц Иосиф I', rulerAge:22, rulerTitle:'Император Австрийский', government:'Абсолютная монархия', pm:'Феликс Шварценберг', pmTitle:'Министр-президент', treasury:2900, income:420, army:400000, stability:65,
     religion:{"main":"Католицизм","dist":{"Католицизм":78,"Православие":10,"Протестантизм":7,"Иудаизм":3,"Прочие":2}}, rulerReligion:"Католицизм", pop:'36 млн', area:'~700 000 км²', capital:'Вена', gdp:'~8 млрд фр.', blurb:'Австрийская империя в 1852 году — многонациональная держава, ещё не оправившаяся от революций 1848 года.',
-    parliament:null },
+    parliament:null, church:{ exists:true, name:'Католическая церковь', influence:75 } },
   'Пруссия':         { ruler:'Фридрих Вильгельм IV', rulerAge:57, rulerTitle:'Король Пруссии', government:'Конституционная монархия', pm:'Отто фон Мантойфель', pmTitle:'Министр-президент', treasury:3200, income:460, army:300000, stability:74,
     religion:{"main":"Протестантизм","dist":{"Протестантизм":62,"Католицизм":34,"Иудаизм":1,"Прочие":3}}, rulerReligion:"Протестантизм", pop:'17 млн', area:'~280 000 км²', capital:'Берлин', gdp:'~7 млрд фр.', blurb:'Пруссия в 1852 году усиливает влияние среди немецких государств через Таможенный союз.',
-    parliament:{ name:'Ландтаг', support:60, factions:[{name:'Консерваторы',pct:55},{name:'Либералы',pct:30},{name:'Католики',pct:15}] } },
+    parliament:{ name:'Ландтаг', support:60, power:45, termYears:3, nextElection:1855, banned:[], factions:[{name:'Консерваторы',pct:55},{name:'Либералы',pct:30},{name:'Католики',pct:15}] },
+    church:{ exists:true, name:'Евангелическая церковь', influence:50 } },
   'Испания':         { ruler:'Изабелла II', rulerAge:22, rulerTitle:'Королева Испании', government:'Конституционная монархия', pm:'Хуан Браво Мурильо', pmTitle:'Председатель совета министров', treasury:1800, income:280, army:150000, stability:60,
     religion:{"main":"Католицизм","dist":{"Католицизм":99,"Прочие":1}}, rulerReligion:"Католицизм", pop:'15.5 млн', area:'~500 000 км²', capital:'Мадрид', gdp:'~4 млрд фр.', blurb:'Испания в 1852 году переживает политическую нестабильность после десятилетий гражданских войн.',
-    parliament:{ name:'Кортесы', support:48, factions:[{name:'Модерадос',pct:58},{name:'Прогрессисты',pct:32},{name:'Карлисты',pct:10}] } }
+    parliament:{ name:'Кортесы', support:48, power:55, termYears:5, nextElection:1853, banned:[], factions:[{name:'Модерадос',pct:58},{name:'Прогрессисты',pct:32},{name:'Карлисты',pct:10}] },
+    church:{ exists:true, name:'Католическая церковь', influence:90 } }
 };
 
 // Обновить левую панель (население/площадь/столица/ВВП/описание) под текущую страну игрока —
@@ -152,6 +156,15 @@ function normalizeCountry(c) {
   if (c.rulerReligion === undefined) c.rulerReligion = null;
   if (c.pendingSuccession === undefined) c.pendingSuccession = false;
   if (c.reputation === undefined) c.reputation = 70;
+  if (c.church === undefined) c.church = { exists: true, name: 'Церковь', influence: 60 };
+  if (c.parliament && c.parliament.power === undefined) {
+    c.parliament.power = 50; c.parliament.termYears = 5;
+    c.parliament.nextElection = (typeof year !== 'undefined' ? year : 1852) + 3;
+    c.parliament.banned = [];
+  }
+  if (c.parliamentSuspended === undefined) c.parliamentSuspended = null;
+  if (c.debtDomestic === undefined) { c.debtDomestic = c.debt || 0; c.debtForeign = 0; }
+  if (!c.economy) c.economy = null; // построится в initClassEconomy
   return c;
 }
 
@@ -219,43 +232,240 @@ function recomputeIncomes() {
     const cc = countries[c];
     if (!cc || cc.annexed) return;
     if (cc.incomeModifier === null || cc.incomeModifier === undefined) cc.incomeModifier = Math.round(cc.income * 0.35);
-    cc.income = cc.incomeModifier + (sums[c] || 0);
+    if (!cc.economy) initClassEconomy(cc); // классовая экономика строится от текущего дохода
+    cc.income = cc.incomeModifier + (sums[c] || 0) + classTaxIncome(cc);
   });
 }
 
 // ============================================================
-// БЮДЖЕТ / ДОЛГ / ИНФЛЯЦИЯ — детерминированная симуляция каждый ход для ВСЕХ стран.
-// Содержание армии и проценты по долгу — реальные строки расходов; дефицит автоматически
-// покрывается займами, долг раскручивает инфляцию, инфляция и долг бьют по стабильности.
-// Благодаря этому ИИ-нарратор получает НАСТОЯЩИЕ числа и не выдумывает "долги и инфляцию"
-// при профицитном бюджете.
+// КЛАССОВАЯ ЭКОНОМИКА. Общество страны — три класса (аристократия, буржуазия, народ):
+// у каждого доля населения, богатство, лояльность и НАЛОГОВАЯ СТАВКА. Налоги — живая
+// часть дохода: подними ставку — казна вырастет сейчас, но богатство и лояльность класса
+// начнут таять; буржуазия при низких налогах и стабильности богатеет и тянет доход вверх.
+// Долг делится на ВНУТРЕННИЙ (займы у буржуазии — злит её) и ВНЕШНИЙ. Всё считается
+// кодом; ИИ видит эти числа, объясняет их игроку (экономист) и двигает через эффекты.
+// ============================================================
+function initClassEconomy(c) {
+  // Калибровка от текущего дохода: провинции ~65% базы, торговля ~10%, налоги ~25%
+  const base = Math.max(50, c.income);
+  const taxTotal = Math.round(base * 0.25);
+  const mk = (label, share, taxPart, rate, loyalty) => ({
+    label, share, tax: rate, loyalty,
+    wealth: Math.round((taxTotal * taxPart) / (rate / 100)) // wealth*rate/100 = взнос класса
+  });
+  c.economy = {
+    classes: {
+      noble:   mk('Аристократия', 2, 0.15, 5, 72),
+      burgher: mk('Буржуазия', 12, 0.40, 12, 62),
+      commons: mk('Народ', 86, 0.45, 18, 58)
+    }
+  };
+  c.incomeModifier = Math.round(base * 0.10); // торговля/пошлины
+}
+
+function classTaxIncome(c) {
+  if (!c.economy) return 0;
+  return Object.values(c.economy.classes).reduce((s, k) => s + Math.round(k.wealth * k.tax / 100), 0);
+}
+
+// Ежемесячная динамика классов
+function tickClasses(c, isPlayer) {
+  if (!c.economy) return;
+  Object.entries(c.economy.classes).forEach(([key, k]) => {
+    let growth = 0;
+    if (c.stability > 60 && k.tax <= 15) growth = key === 'burgher' ? 0.005 : 0.002;
+    else if (c.stability > 45 && k.tax <= 25) growth = 0.001;
+    if (k.tax > 25) growth -= 0.004;
+    if (c.stability < 30) growth -= 0.003;
+    k.wealth = Math.max(50, Math.round(k.wealth * (1 + growth)));
+    if (k.tax > 30) k.loyalty -= 1.2;
+    else if (k.tax > 22) k.loyalty -= 0.5;
+    else if (k.tax < 12) k.loyalty += 0.4;
+    if (c.inflation > 10) k.loyalty -= 0.4;
+    k.loyalty = Math.max(0, Math.min(100, Math.round(k.loyalty * 10) / 10));
+  });
+  const avg = Object.values(c.economy.classes).reduce((s, k) => s + k.loyalty, 0) / 3;
+  if (avg < 45) c.stability = Math.max(0, c.stability - 1);
+  if (isPlayer) {
+    Object.values(c.economy.classes).forEach(k => {
+      if (k.loyalty < 30 && Math.random() < 0.35) {
+        pendingDirectives.push(`В стране игрока класс «${k.label}» на грани бунта (лояльность ${k.loyalty}, налог ${k.tax}%) — опиши волнения этого класса во внутренних новостях.`);
+      }
+    });
+  }
+}
+
+function setClassTax(country, classKey, rate) {
+  const c = countries[country];
+  if (!c || !c.economy || !c.economy.classes[classKey]) return;
+  c.economy.classes[classKey].tax = Math.max(0, Math.min(45, Math.round(rate)));
+  if (country === playerCountry) { recomputeIncomes(); renderPlayerStats(); if (typeof renderEconomyPanel === 'function') renderEconomyPanel(); }
+}
+
+// ============================================================
+// ИНСТИТУТЫ: церковь и парламент можно УБРАТЬ и ВЕРНУТЬ решением правителя (или событиями).
+// Отмена не бесплатна: удар по стабильности и лояльности связанных классов.
+// ============================================================
+function abolishChurch(country) {
+  const c = countries[country];
+  if (!c || !c.church || !c.church.exists) return false;
+  c.church.exists = false;
+  const oldInf = c.church.influence;
+  c.church.influence = 0;
+  c.stability = Math.max(0, c.stability - Math.round(6 + oldInf / 10));
+  if (c.economy) c.economy.classes.commons.loyalty = Math.max(0, c.economy.classes.commons.loyalty - 8);
+  worldState.pastEvents.push(`⛪ ${country}: церковь лишена государственной власти (секуляризация). Верующие возмущены.`);
+  if (country === playerCountry) { renderPlayerStats(); if (typeof renderChurchPanel === 'function') renderChurchPanel(); }
+  return true;
+}
+
+function restoreChurch(country, name) {
+  const c = countries[country];
+  if (!c) return false;
+  if (!c.church) c.church = { exists: false, name: name || 'Церковь', influence: 0 };
+  if (c.church.exists) return false;
+  c.church.exists = true;
+  if (name) c.church.name = name;
+  c.church.influence = Math.max(30, c.church.influence || 0);
+  c.stability = Math.min(100, c.stability + 3);
+  if (c.economy) c.economy.classes.commons.loyalty = Math.min(100, c.economy.classes.commons.loyalty + 5);
+  worldState.pastEvents.push(`⛪ ${country}: церковь восстановлена в правах государственного института.`);
+  if (country === playerCountry) { renderPlayerStats(); if (typeof renderChurchPanel === 'function') renderChurchPanel(); }
+  return true;
+}
+
+function dissolveParliament(country) {
+  const c = countries[country];
+  if (!c || !c.parliament) return false;
+  c.parliamentSuspended = c.parliament; // храним состав — вдруг вернут
+  c.parliament = null;
+  c.stability = Math.max(0, c.stability - 8);
+  if (c.economy) c.economy.classes.burgher.loyalty = Math.max(0, c.economy.classes.burgher.loyalty - 10);
+  worldState.pastEvents.push(`🏛 ${country}: парламент РАСПУЩЕН указом правителя. Буржуазия и либералы в ярости.`);
+  if (country === playerCountry) { renderPlayerStats(); if (typeof renderParliamentPanel === 'function') renderParliamentPanel(); }
+  return true;
+}
+
+function restoreParliament(country, parl) {
+  const c = countries[country];
+  if (!c || c.parliament) return false;
+  c.parliament = parl || c.parliamentSuspended || {
+    name: 'Парламент', support: 50, power: 40, termYears: 5, nextElection: year + 1, banned: [],
+    factions: [{ name: 'Консерваторы', pct: 50 }, { name: 'Либералы', pct: 50 }]
+  };
+  if (c.parliament.nextElection <= year) c.parliament.nextElection = year + (c.parliament.termYears || 5);
+  c.parliamentSuspended = null;
+  c.stability = Math.min(100, c.stability + 4);
+  if (c.economy) c.economy.classes.burgher.loyalty = Math.min(100, c.economy.classes.burgher.loyalty + 8);
+  worldState.pastEvents.push(`🏛 ${country}: парламент созван${parl ? ' в новом составе' : ' вновь'}.`);
+  if (country === playerCountry && typeof renderParliamentPanel === 'function') renderParliamentPanel();
+  return true;
+}
+
+function banParty(country, partyName) {
+  const c = countries[country];
+  if (!c || !c.parliament || !partyName) return false;
+  const idx = c.parliament.factions.findIndex(f => f.name.toLowerCase() === String(partyName).toLowerCase());
+  if (idx === -1) return false;
+  const banned = c.parliament.factions.splice(idx, 1)[0];
+  c.parliament.banned = c.parliament.banned || [];
+  c.parliament.banned.push(banned.name);
+  const total = c.parliament.factions.reduce((s, f) => s + f.pct, 0) || 1;
+  c.parliament.factions.forEach(f => { f.pct = Math.round(f.pct + banned.pct * f.pct / total); });
+  c.stability = Math.max(0, c.stability - 4);
+  worldState.pastEvents.push(`🏛 ${country}: партия «${banned.name}» ЗАПРЕЩЕНА (${banned.pct}% мест распределены между остальными).`);
+  if (country === playerCountry && typeof renderParliamentPanel === 'function') renderParliamentPanel();
+  return true;
+}
+
+// Выборы: наступил год nextElection (январь) → директива ИИ сформировать новый состав
+function checkElections() {
+  if (month !== 0) return;
+  ALL_COUNTRIES.forEach(country => {
+    const c = countries[country];
+    if (!c || c.annexed || !c.parliament) return;
+    if (year >= (c.parliament.nextElection || 0)) {
+      c.parliament.nextElection = year + (c.parliament.termYears || 5);
+      const bannedNote = (c.parliament.banned || []).length ? ` Запрещённые партии (НЕ могут участвовать): ${c.parliament.banned.join(', ')}.` : '';
+      pendingDirectives.push(`ВЫБОРЫ в парламенте (${c.parliament.name}) страны ${country}: сформируй НОВЫЙ состав фракций по итогам событий последних лет${country === playerCountry ? ' — верни его в parliament.factions (можно вводить НОВЫЕ партии, рождённые событиями игры: движения, расколы, радикалов)' : ' — опиши итоги в новостях'}.${bannedNote}`);
+      worldState.pastEvents.push(`🗳 ${country}: год выборов в ${c.parliament.name}.`);
+    }
+  });
+}
+
+// ============================================================
+// БЮДЖЕТ / ДОЛГ / ИНФЛЯЦИЯ — детерминированная постатейная симуляция для ВСЕХ стран.
+// lastBudget.lines — готовые строки для вкладки «Экономика» и для ИИ-экономиста.
 // ============================================================
 const ARMY_UPKEEP_RATE = 0.00045;  // фр./солдат в месяц
 const DEBT_INTEREST_RATE = 0.005;  // 0.5% в месяц (~6% годовых)
 
 function simulateCountryEconomy(c) {
+  if (!c.economy) initClassEconomy(c);
+  const provinceIncome = c.income - (c.incomeModifier || 0) - classTaxIncome(c) > 0
+    ? c.income - (c.incomeModifier || 0) - classTaxIncome(c)
+    : Math.max(0, c.income - (c.incomeModifier || 0) - classTaxIncome(c));
+  const trade = c.incomeModifier || 0;
+  const taxes = classTaxIncome(c);
+  const gross = c.income;
+
   const upkeep = Math.round(c.army * ARMY_UPKEEP_RATE);
   const interest = Math.round(c.debt * DEBT_INTEREST_RATE);
-  const gross = c.income;
-  const net = gross - upkeep - interest;
+  const admin = Math.round(gross * 0.08);
+  const isMonarchy = /монарх|импер|королев|царств/i.test(c.government || '');
+  const court = Math.round(gross * (isMonarchy ? 0.04 : 0.02));
+  const churchCost = (c.church && c.church.exists && c.church.influence > 50) ? Math.round(gross * 0.02) : 0;
+
+  const net = gross - upkeep - interest - admin - court - churchCost;
   c.treasury += net;
-  let borrowed = 0;
-  if (c.treasury < 0) { borrowed = -c.treasury; c.debt += borrowed; c.treasury = 0; }
-  // Профицит понемногу гасит долг сам (обслуживание), если казна крепкая
+  let borrowed = 0, borrowedFrom = null;
+  if (c.treasury < 0) {
+    borrowed = -c.treasury; c.treasury = 0;
+    // Займы: сперва у своей буржуазии (если богата), иначе за рубежом
+    const burgher = c.economy && c.economy.classes.burgher;
+    if (burgher && burgher.wealth > borrowed * 2) {
+      c.debtDomestic = (c.debtDomestic || 0) + borrowed;
+      burgher.loyalty = Math.max(0, burgher.loyalty - 0.5);
+      borrowedFrom = 'внутренний (буржуазия)';
+    } else {
+      c.debtForeign = (c.debtForeign || 0) + borrowed;
+      borrowedFrom = 'внешний (иностранные банки)';
+    }
+    c.debt = (c.debtDomestic || 0) + (c.debtForeign || 0);
+  }
   if (c.debt > 0 && c.treasury > gross * 3) {
     const repay = Math.min(c.debt, Math.round(gross * 0.1));
-    c.debt -= repay; c.treasury -= repay;
+    const fromDom = Math.min(c.debtDomestic || 0, repay);
+    c.debtDomestic = (c.debtDomestic || 0) - fromDom;
+    c.debtForeign = Math.max(0, (c.debtForeign || 0) - (repay - fromDom));
+    c.debt = c.debtDomestic + c.debtForeign;
+    c.treasury -= repay;
   }
-  const debtRatio = c.debt / Math.max(1, gross * 12); // долг в годовых доходах
+  const debtRatio = c.debt / Math.max(1, gross * 12);
   const pressure = debtRatio * 6 + (net < 0 ? 1.5 : 0);
   c.inflation = Math.max(0, Math.min(60, Math.round((c.inflation + (pressure - c.inflation) * 0.15) * 10) / 10));
   if (c.inflation > 12) c.stability = Math.max(0, c.stability - 1);
   if (debtRatio > 1.5) c.stability = Math.max(0, c.stability - 1);
-  // Парламент: правительство без поддержки постепенно теряет стабильность
   if (c.parliament && typeof c.parliament.support === 'number' && c.parliament.support < 35) {
     c.stability = Math.max(0, c.stability - 1);
   }
-  c.lastBudget = { gross, upkeep, interest, net, borrowed };
+  c.lastBudget = {
+    gross, upkeep, interest, net, borrowed, borrowedFrom,
+    lines: {
+      income: [
+        { name: 'Провинции (земля и производство)', value: provinceIncome },
+        { name: 'Налоги с сословий', value: taxes },
+        { name: 'Торговля и пошлины', value: trade }
+      ],
+      expense: [
+        { name: 'Содержание армии', value: upkeep },
+        { name: 'Администрация и чиновники', value: admin },
+        { name: isMonarchy ? 'Двор и церемонии' : 'Государственный аппарат', value: court },
+        ...(churchCost ? [{ name: 'Содержание церкви', value: churchCost }] : []),
+        { name: 'Проценты по долгу', value: interest }
+      ]
+    }
+  };
   return c.lastBudget;
 }
 
@@ -784,6 +994,7 @@ function renderPlayerPowerPanel() {
   if (typeof renderRulerPortrait === 'function') renderRulerPortrait();
   if (typeof renderParliamentPanel === 'function') renderParliamentPanel();
   if (typeof renderReligionPanel === 'function') renderReligionPanel();
+  if (typeof renderChurchPanel === 'function') renderChurchPanel();
 }
 
 // ============================================================
@@ -805,6 +1016,8 @@ function stepOneMonth() {
   month++;
   if (month >= 12) { month = 0; year++; }
   const econ = simulateWorldEconomy();
+  ALL_COUNTRIES.forEach(c => { if (countries[c] && !countries[c].annexed) tickClasses(countries[c], c === playerCountry); });
+  checkElections();
   const deaths = checkRulerDeaths();
   runDiplomacyEngine();
   return { econ, deaths };
@@ -1054,7 +1267,9 @@ async function loadGameSlot(id) {
     if (!worldState.aiWars) worldState.aiWars = [];
     if (!worldState.treaties) worldState.treaties = [];
     if (!worldState.warGoals) worldState.warGoals = {};
+    if (!worldState.historySummary) worldState.historySummary = [];
     pendingDirectives = [];
+    if (typeof economistHistory !== 'undefined') economistHistory = [];
     playerActions = d.playerActions || [];
     if (typeof advisorHistory !== 'undefined') advisorHistory = d.advisorHistory || [];
     if (typeof diplomacyHistories !== 'undefined') {
@@ -1121,6 +1336,7 @@ function resetGame(country) {
     aiWars: [],
     treaties: [],
     warGoals: {},
+    historySummary: [],
     atWarWith: [], alliedWith: [], pastEvents: [], diploLog: [], mapObjects: []
   };
   pendingDirectives = [];

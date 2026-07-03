@@ -49,7 +49,7 @@ body{background:#f0ede8;color:#111;font-family:Georgia,serif;overflow:hidden;hei
 .irow{display:flex;justify-content:space-between;font-size:12px;padding:4px 0;border-bottom:1px solid #f0f0f0;color:#333;}
 .irow .k{color:#888;}
 .state-text{font-size:11px;color:#555;line-height:1.75;margin-top:4px;}
-#map-wrap{position:absolute;top:80px;left:290px;right:0;bottom:0;cursor:grab;overflow:hidden;background:#4a7aaa;}
+#map-wrap{position:absolute;top:80px;left:290px;right:0;bottom:0;cursor:grab;overflow:hidden;background:#9aaca8;}
 #map-wrap:active{cursor:grabbing;}
 #map-svg{width:100%;height:100%;}
 #tooltip{position:absolute;background:rgba(255,255,255,.97);border:1px solid #bbb;border-radius:4px;padding:7px 11px;font-size:12px;color:#222;pointer-events:none;z-index:200;display:none;max-width:190px;box-shadow:0 2px 8px rgba(0,0,0,0.15);}
@@ -208,7 +208,7 @@ body.menu-mode .game-ui{display:none !important;}
 .eprov-actions{display:flex;gap:4px;}
 .eprov-actions button{border:none;border-radius:3px;padding:3px 6px;cursor:pointer;font-size:11px;background:#eee;}
 .eprov-actions button:hover{background:#ddd;}
-#editor-canvas-wrap{flex:1;position:relative;background:#4a7aaa;overflow:hidden;}
+#editor-canvas-wrap{flex:1;position:relative;background:#9aaca8;overflow:hidden;}
 #editor-svg{width:100%;height:100%;cursor:crosshair;}
 
 /* Список карт */
@@ -427,7 +427,7 @@ body.menu-mode .game-ui{display:none !important;}
   </div>
   <div id="editor-canvas-wrap">
     <svg id="editor-svg" viewBox="0 0 960 560" xmlns="http://www.w3.org/2000/svg">
-      <rect width="960" height="560" fill="#4a7aaa"/>
+      <rect width="960" height="560" fill="#9aaca8"/>
       <g id="editor-bg-g"></g>
       <g id="editor-draw-g"></g>
     </svg>
@@ -497,6 +497,16 @@ body.menu-mode .game-ui{display:none !important;}
       <label>Размер отображения сущностей<span class="setting-val" id="setting-obj-scale-val">1.8×</span></label>
       <div style="font-size:10px;color:#999;margin-top:2px">Армии, делегации, штабы и другие объекты на карте</div>
       <input type="range" id="setting-obj-scale" min="0.5" max="3" step="0.1" value="1.8" oninput="onChangeObjectScale(this.value)">
+    </div>
+    <div class="setting-row">
+      <label>Толщина границ провинций<span class="setting-val" id="setting-inner-border-val">0.3</span></label>
+      <div style="font-size:10px;color:#999;margin-top:2px">Тонкие линии между областями внутри одной страны</div>
+      <input type="range" id="setting-inner-border" min="0" max="1.5" step="0.1" value="0.3" oninput="onChangeInnerBorder(this.value)">
+    </div>
+    <div class="setting-row">
+      <label>Толщина контура державы<span class="setting-val" id="setting-outer-border-val">1.4</span></label>
+      <div style="font-size:10px;color:#999;margin-top:2px">Жирная граница вокруг всей страны и по побережьям</div>
+      <input type="range" id="setting-outer-border" min="0" max="4" step="0.2" value="1.4" oninput="onChangeOuterBorder(this.value)">
     </div>
     <div class="setting-row">
       <label>
@@ -588,7 +598,7 @@ body.menu-mode .game-ui{display:none !important;}
     <button id="map-mode-alliance" class="map-mode-btn" onclick="setMapMode('alliance')">🤝 Карта альянсов</button>
   </div>
   <svg id="map-svg" viewBox="0 0 960 560" xmlns="http://www.w3.org/2000/svg">
-    <rect width="960" height="560" fill="#4a7aaa"/>
+    <rect width="960" height="560" fill="#9aaca8"/>
     <g id="world-g"></g>
     <g id="spain-g"></g>
     <g id="france-g"></g>

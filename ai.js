@@ -17,7 +17,16 @@ if (!GEMINI_API_KEY) {
   }
 }
 const GEMINI_URL = 'https://openrouter.ai/api/v1/chat/completions';
-const MODEL = 'google/gemini-3.1-flash-lite';
+// Текстовая модель ИИ — выбирается в главном меню («🧠 Модель ИИ»), хранится в браузере.
+// Все текстовые вызовы (события, дипломатия, советники, профили, летопись) идут через неё.
+let MODEL = localStorage.getItem('gs1852_text_model') || 'google/gemini-3.1-flash-lite';
+function setTextModel(m) {
+  m = (m || '').trim();
+  if (!m) return;
+  MODEL = m;
+  localStorage.setItem('gs1852_text_model', m);
+  showNotif('🧠 Текстовая модель: ' + m);
+}
 // Модель генерации изображений (портреты правителей/премьеров). Работает через тот же
 // OpenRouter ключ. gemini-3.1-flash-image — актуальная модель генерации картинок.
 const IMAGE_MODEL = 'google/gemini-3.1-flash-image';
@@ -629,6 +638,44 @@ function parseAndApplyEffects(text, baseChanges) {
       });
     }
 
+    // Социум: расходы и права (страна игрока)
+    if (effects.society && countries[playerCountry].society) {
+      const so = effects.society;
+      if (typeof so.education_spending === 'number' && typeof setSocialSpending === 'function') {
+        setSocialSpending(playerCountry, 'education', so.education_spending);
+        turnChanges.push({ label: '🎓 Расходы на образование', value: so.education_spending + ' фр./мес', sign: 0 });
+      }
+      if (typeof so.welfare_spending === 'number' && typeof setSocialSpending === 'function') {
+        setSocialSpending(playerCountry, 'welfare', so.welfare_spending);
+        turnChanges.push({ label: '🍞 Призрение бедных', value: so.welfare_spending + ' фр./мес', sign: 0 });
+      }
+      const soc = countries[playerCountry].society;
+      if (typeof so.womens_rights_delta === 'number' && so.womens_rights_delta !== 0) {
+        soc.womensRights = Math.max(0, Math.min(100, soc.womensRights + so.womens_rights_delta));
+        turnChanges.push({ label: '👩 Права женщин', value: (so.womens_rights_delta > 0 ? '+' : '') + so.womens_rights_delta, sign: so.womens_rights_delta });
+      }
+      if (typeof so.religious_freedom_delta === 'number' && so.religious_freedom_delta !== 0) {
+        soc.religiousFreedom = Math.max(0, Math.min(100, soc.religiousFreedom + so.religious_freedom_delta));
+        turnChanges.push({ label: '🕊 Свобода вероисповедания', value: (so.religious_freedom_delta > 0 ? '+' : '') + so.religious_freedom_delta, sign: so.religious_freedom_delta });
+      }
+      if (typeof renderSocietyScreen === 'function') renderSocietyScreen();
+    }
+
+    // Законы: принятие и отмена
+    if (effects.laws && Array.isArray(effects.laws) && typeof enactLaw === 'function') {
+      effects.laws.forEach(l => {
+        if (!l || !l.action || !l.name) return;
+        if (l.action === 'enact' && enactLaw(playerCountry, l.name, l.description)) {
+          showNotif(`📖 Принят закон: «${l.name}»`);
+          turnChanges.push({ label: '📖 Новый закон', value: l.name, sign: 1 });
+        }
+        if (l.action === 'repeal' && repealLaw(playerCountry, l.name)) {
+          showNotif(`📖 Закон отменён: «${l.name}»`);
+          turnChanges.push({ label: '📖 Отмена закона', value: l.name, sign: 0 });
+        }
+      });
+    }
+
     // Институты: церковь
     if (effects.institutions) {
       const ins = effects.institutions;
@@ -844,6 +891,8 @@ async function generateEvents(deaths, opts) {
 
 ${describePlayerEconomy()}
 
+${describePlayerSociety()}
+
 ПОКАЗАТЕЛИ ВСЕХ СТРАН СЦЕНАРИЯ (скрыты от игрока — используй их для реализма, но НЕ называй игроку точные числа чужих казн/армий в новостях, только качественные оценки: "истощена войной", "собирает огромную армию"):
 ${describeCountries()}
 
@@ -870,7 +919,7 @@ BREAKING:{"title":"КОРОТКИЙ ЗАГОЛОВОК","text":"1-2 предло
 Если нет — строку BREAKING не пиши вовсе.
 
 В конце напиши ровно одну строку:
-EFFECTS:{"treasury_delta":0,"income_delta":0,"debt_delta":0,"army_delta":0,"stability_delta":0,"relations":{${otherNames.map(c => `"${c}":0`).join(',')}},"relations_between":[],"wars_between":[],"battles":[],"new_countries":[],"treaties":[],"religion":null,"other_countries":{},"parliament":{"support_delta":0,"power_delta":0,"factions":null,"veto":null,"dissolve":false,"restore":false,"next_election_year":null,"term_years":null,"ban_party":null},"economy":{"tax_noble":null,"tax_burgher":null,"tax_commons":null},"institutions":{"church":null,"church_influence_delta":0},"war_declared":[],"peace_made":[],"country_name":null,"country_color":null,"ruler_name":null,"ruler_age":null,"ruler_title":null,"government":null,"pm_name":null,"pm_title":null,"map_objects":[],"territory_transfer":[],"province_transfer":[],"foreign_leader_change":[]}
+EFFECTS:{"treasury_delta":0,"income_delta":0,"debt_delta":0,"army_delta":0,"stability_delta":0,"relations":{${otherNames.map(c => `"${c}":0`).join(',')}},"relations_between":[],"wars_between":[],"battles":[],"new_countries":[],"treaties":[],"religion":null,"other_countries":{},"parliament":{"support_delta":0,"power_delta":0,"factions":null,"veto":null,"dissolve":false,"restore":false,"next_election_year":null,"term_years":null,"ban_party":null},"economy":{"tax_noble":null,"tax_burgher":null,"tax_commons":null},"society":{"education_spending":null,"welfare_spending":null,"womens_rights_delta":0,"religious_freedom_delta":0},"laws":[],"institutions":{"church":null,"church_influence_delta":0},"war_declared":[],"peace_made":[],"country_name":null,"country_color":null,"ruler_name":null,"ruler_age":null,"ruler_title":null,"government":null,"pm_name":null,"pm_title":null,"map_objects":[],"territory_transfer":[],"province_transfer":[],"foreign_leader_change":[]}
 
 КРИТИЧЕСКИ ВАЖНО — заполняй числа исходя из событий, не ставь нули без причины:
 - Казнил/убил солдат → army_delta отрицательный, stability_delta −3..−8
@@ -893,6 +942,9 @@ EFFECTS:{"treasury_delta":0,"income_delta":0,"debt_delta":0,"army_delta":0,"stab
 - parliament (страна игрока): support_delta — сдвиг поддержки; power_delta — сдвиг ВЛАСТИ парламента (реформы усиливают, узурпация ослабляет); factions — новый состав ТОЛЬКО на выборах/при роспуске (директива ВЫБОРЫ) — тогда придумывай партии по контексту эпохи и событий игры; veto — если ВЛАСТЬ парламента ≥50 и поддержка <40, парламент МОЖЕТ заблокировать законодательное действие игрока: опиши блокировку вновостях и укажи в veto короткий текст ЧТО заблокировано (тогда НЕ применяй эффекты этого действия); dissolve:true — если правитель РАСПУСКАЕТ парламент (движок сам спишет цену); restore:true — созыв парламента там, где его нет; next_election_year/term_years — перенос даты выборов/изменение срока; ban_party — запрет партии по названию.
 - economy: {"tax_noble":ставка|null,"tax_burgher":...,"tax_commons":...} — НОВЫЕ налоговые ставки сословий (0-45%), только если игрок реально менял налоги или события этого требуют. Помни: высокие налоги (>25%) душат богатство и лояльность класса.
 - institutions: {"church":"abolish"|"restore"|null,"church_influence_delta":число} — лишение церкви власти (атеизм/секуляризация — движок спишет цену) или её восстановление; сдвиг влияния церкви от событий.
+- society (страна игрока): education_spending/welfare_spending — НОВЫЕ суммы расходов в фр./мес (только если игрок их менял или закон этого требует); womens_rights_delta/religious_freedom_delta — сдвиги прав (−15..+15) ТОЛЬКО при реальных законах/реформах/реакции.
+- laws: [{"action":"enact"|"repeal","name":"Название закона","description":"1 предложение сути"}] — когда игрок ПРИНИМАЕТ или ОТМЕНЯЕТ закон (реформа, кодекс, указ). Закон — это документ: сопровождай его эффектами (society/economy/stability/parliament) по смыслу. Не выдумывай законы без действий игрока или крупных событий.
+- ЧИСТОТА КАРТЫ: когда война/миссия завершается — ОБЯЗАТЕЛЬНО убирай её объекты с карты (map_objects remove/update: армии по домам, делегации отозваны). Не оставляй армии стоять после мира.
 - parliament: support_delta — сдвиг поддержки правительства в парламенте игрока от событий/действий (законы, скандалы, победы); factions — новый состав фракций ТОЛЬКО при выборах/роспуске, иначе null.
 - ruler_name/ruler_age/ruler_title/government/pm_name/pm_title — только при реальном перевороте/провозглашении/смерти/отставке в стране игрока. При смене правителя ВСЕГДА указывай ruler_age (возраст нового).
 - foreign_leader_change: [{"country":"...","ruler_name":"...","ruler_age":число,"ruler_title":"...","government":"...","pm_name":null,"pm_title":null}] — смена власти в чужой стране: только по её собственной логике или из реальных действий игрока (см. правило 5). ВСЕГДА с ruler_age.
@@ -975,6 +1027,33 @@ ${worldState.pastEvents.slice(0, -15).map((e, i) => `${i + 1}. ${e}`).join('\n')
   } finally {
     historySummarizing = false;
   }
+}
+
+// Социум и законы страны игрока — для промптов и общественного советника
+function describePlayerSociety() {
+  const c = countries[playerCountry];
+  if (!c || !c.society) return '';
+  const so = c.society;
+  const laws = (c.laws || []).filter(l => !l.repealed);
+  return `СОЦИУМ ${c.displayName} (реальные числа движка): грамотность ${so.literacy}%, бедность ${so.poverty}%, права женщин ${so.womensRights}/100, свобода вероисповедания ${so.religiousFreedom}/100, урбанизация ${so.urbanization}%. Расходы: образование ${so.spending.education} фр./мес, призрение бедных ${so.spending.welfare} фр./мес.
+ДЕЙСТВУЮЩИЕ ЗАКОНЫ: ${laws.length ? laws.map(l => `«${l.name}» (${l.year})`).join('; ') : 'особых законов не принято'}.`;
+}
+
+let societyHistory = [];
+async function askSocietyAdvisor(userMessage) {
+  const state = getGameState();
+  const systemContext = `Ты — министр внутренних дел страны ${state.country} в ${state.date}. Объясняешь правителю ПРОСТЫМ языком состояние общества и законов, советуешь.
+${describePlayerSociety()}
+${describePlayerEconomy()}
+
+МЕХАНИКА (объясняй по ней): расходы на образование >5% дохода поднимают грамотность ~2.4%/год; призрение >5% снижает бедность так же; инфляция >10% и стабильность <35 плодят бедность; бедность >70% злит народ (лояльность падает); грамотность >60% ускоряет обогащение буржуазии. Права женщин и свобода вероисповедания меняются ЗАКОНАМИ (через действия правителя) — либеральные законы радуют народ и буржуазию, но злят церковь и аристократию (и наоборот).
+
+Отвечай кратко (до 130 слов), с конкретными числами. На вопрос «что делать» — 1-2 конкретных совета (расходы, законы).`;
+  societyHistory.push({ role: 'user', text: userMessage });
+  const historyText = societyHistory.slice(-8).map(m => `${m.role === 'user' ? 'Правитель' : 'Министр'}: ${m.text}`).join('\n');
+  const response = await askGemini(`${systemContext}\n\nРазговор:\n${historyText}\n\nОтвет министра:`, 350);
+  societyHistory.push({ role: 'minister', text: response });
+  return response;
 }
 
 // ============================================================

@@ -164,7 +164,14 @@ function updateParis() {
 // ============================================================
 const SCENARIOS_INDEX_KEY = 'gs1852_scenarios_index';
 const ACTIVE_SCENARIO_KEY = 'gs1852_active_scenario';
-let activeScenarioRef = localStorage.getItem(ACTIVE_SCENARIO_KEY) || 'builtin';
+let activeScenarioRef = localStorage.getItem(ACTIVE_SCENARIO_KEY) || 'builtin-world';
+// Одноразовая миграция: старый дефолт 'builtin' → новый основной 'builtin-world'
+// (сохранения не трогаем — каждый сейв помнит и грузит СВОЙ сценарий).
+if (activeScenarioRef === 'builtin' && !localStorage.getItem('gs1852_default_migrated')) {
+  activeScenarioRef = 'builtin-world';
+  localStorage.setItem('gs1852_default_migrated', '1');
+  localStorage.setItem(ACTIVE_SCENARIO_KEY, 'builtin-world');
+}
 let activeScenario = null; // {ref, name, year, countryColors, provinces}
 
 function getScenariosIndex() {
@@ -173,10 +180,18 @@ function getScenariosIndex() {
 }
 function scenarioDataKey(id) { return 'gs1852_scenario_' + id; }
 
+// Встроенные сценарии, зашитые файлами в репозиторий. 'builtin-world' — основной
+// (Мир 1852, ~48 стран); 'builtin' — старый компактный (Европа 1852, 6 стран).
+const BUILTIN_SCENARIOS = {
+  'builtin-world': { file: 'scenario_mr4rhxpc.json', name: 'Мир 1852', year: 1852 },
+  'builtin':       { file: 'scenario_1852.json', name: 'Европа 1852 (компактный)', year: 1852 }
+};
+
 function loadScenarioData(ref) {
-  if (ref === 'builtin') {
-    return d3.json('scenario_1852.json').then(d => ({
-      ref: 'builtin', name: 'Европа 1852', year: 1852,
+  if (BUILTIN_SCENARIOS[ref]) {
+    const b = BUILTIN_SCENARIOS[ref];
+    return d3.json(b.file).then(d => ({
+      ref, name: d.name || b.name, year: d.year || b.year,
       countryColors: d.countryColors || {}, provinces: d.provinces || []
     }));
   }
@@ -371,6 +386,11 @@ function renderScenarioProvinces() {
         if (typeof selectPlayableCountry === 'function') selectPlayableCountry(owner);
         return;
       }
+      // Клик по СВОЕЙ стране — не переговоры с самим собой, а вкладка Экономика
+      if (typeof playerCountry !== 'undefined' && owner === playerCountry) {
+        if (typeof openEconomyPanel === 'function') openEconomyPanel();
+        return;
+      }
       if (typeof openCountryRelations === 'function') openCountryRelations(owner);
     });
 }
@@ -444,7 +464,8 @@ function applyMapObjects(list) {
         id: item.id || ('obj_' + Date.now() + Math.random().toString(36).slice(2,6)),
         type, owner, label: item.label || 'Объект',
         troops: type === 'army' ? troops : 0,
-        location: item.location
+        location: item.location,
+        createdTurn: (typeof turn !== 'undefined') ? turn : 0
       };
       worldState.mapObjects.push(obj);
       changeLog.push(`${TYPE_ICONS[type] || '📍'} Создано: ${obj.label}${obj.troops ? ' (' + obj.troops.toLocaleString('ru') + ')' : ''}`);

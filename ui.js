@@ -534,6 +534,126 @@ function economistKeydown(e) {
 }
 
 // ============================================================
+// ЭКРАН «ОБЩЕСТВО» — большой отдельный экран с двумя вкладками: Социум (демография,
+// расходы) и Законы (принятые/отменённые), плюс чат с министром внутренних дел.
+// ============================================================
+let societyTab = 'social';
+
+function openSocietyScreen() {
+  if (typeof stopAutoPlay === 'function') stopAutoPlay(true);
+  document.getElementById('society-screen').style.display = 'flex';
+  const nameEl = document.getElementById('society-country-name');
+  if (nameEl && typeof playerCountryDisplayName !== 'undefined') nameEl.textContent = playerCountryDisplayName;
+  renderSocietyScreen();
+}
+function closeSocietyScreen() {
+  document.getElementById('society-screen').style.display = 'none';
+}
+function setSocietyTab(tab) {
+  societyTab = tab;
+  ['social', 'laws'].forEach(t => {
+    const b = document.getElementById('society-tab-' + t);
+    if (b) b.classList.toggle('active', t === tab);
+  });
+  renderSocietyScreen();
+}
+
+function renderSocietyScreen() {
+  const box = document.getElementById('society-body');
+  if (!box || typeof countries === 'undefined' || !countries[playerCountry]) return;
+  const c = countries[playerCountry];
+  const fmt = v => v.toLocaleString('ru');
+
+  if (societyTab === 'laws') {
+    const laws = (c.laws || []);
+    const active = laws.filter(l => !l.repealed);
+    const repealed = laws.filter(l => l.repealed);
+    box.innerHTML =
+      `<div class="phdr">Действующие законы (${active.length})</div>` +
+      (active.length ? active.map(l => `<div style="border:1px solid #e5e0d5;border-radius:4px;padding:8px 10px;margin-bottom:7px;background:#faf8f2">
+          <div style="font-size:13px;font-weight:bold;color:#222">📖 ${l.name} <span style="color:#999;font-weight:normal;font-size:10px">(${l.year} г.)</span></div>
+          ${l.description ? `<div style="font-size:11px;color:#555;margin-top:3px;line-height:1.5">${l.description}</div>` : ''}
+        </div>`).join('') : '<div class="chg-empty">Особых законов пока не принято. Принимайте законы через действия: «принять закон о всеобщем образовании».</div>') +
+      (repealed.length ? `<div class="phdr" style="margin-top:12px">Отменённые</div>` +
+        repealed.map(l => `<div style="font-size:11px;color:#999;padding:3px 0;text-decoration:line-through">📖 ${l.name} (${l.year}—${l.repealedYear})</div>`).join('') : '');
+    return;
+  }
+
+  const so = c.society;
+  if (!so) { box.innerHTML = '<div class="chg-empty">Сделайте первый ход — данные о社ме появятся.</div>'.replace('社ме','обществе'); return; }
+  const bar = (val, color) => `<div style="background:#eee;border-radius:3px;height:8px;overflow:hidden;margin-top:3px"><div style="width:${val}%;height:100%;background:${color}"></div></div>`;
+  const metric = (icon, name, val, suffix, color, hint) => `<div style="border:1px solid #e5e0d5;border-radius:4px;padding:8px 10px;background:#faf8f2">
+    <div style="display:flex;justify-content:space-between;font-size:12px"><span>${icon} ${name}</span><b>${val}${suffix}</b></div>
+    ${bar(val, color)}
+    <div style="font-size:9px;color:#999;margin-top:3px">${hint}</div>
+  </div>`;
+  const wealthPerCapita = c.economy ? Math.round(Object.values(c.economy.classes).reduce((s, k) => s + k.wealth, 0) / 10) : 0;
+  box.innerHTML =
+    `<div class="phdr">Демография и общество</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">` +
+    metric('🎓', 'Грамотность', so.literacy, '%', '#2a5aa8', 'Растёт от расходов на образование; >60% ускоряет буржуазию') +
+    metric('🥀', 'Бедность', so.poverty, '%', '#b02020', 'Снижается призрением; >70% злит народ') +
+    metric('👩', 'Права женщин', so.womensRights, '/100', '#7a4a8a', 'Меняются законами') +
+    metric('🕊', 'Свобода веры', so.religiousFreedom, '/100', '#3a7a3a', 'Меняются законами; злит/радует церковь') +
+    metric('🏙', 'Урбанизация', so.urbanization, '%', '#7a6a20', 'Растёт при стабильности и низких налогах на буржуазию') +
+    metric('💰', 'Достаток на душу', Math.min(100, wealthPerCapita), ' у.е.', '#1a7a5a', 'Суммарное богатство сословий') +
+    `</div>
+    <div class="phdr" style="margin-top:12px">Социальные расходы (строки бюджета)</div>
+    <div class="irow"><span class="k">🎓 Образование</span><span>${fmt(so.spending.education)} фр./мес</span></div>
+    <div class="irow"><span class="k">🍞 Призрение бедных</span><span>${fmt(so.spending.welfare)} фр./мес</span></div>
+    <div style="font-size:10px;color:#999;line-height:1.5;margin-top:6px">Меняются действиями: «удвоить расходы на образование», «выделить 40 франков в месяц на призрение». Расходы >5% дохода дают заметный эффект (~2.4% в год).</div>`;
+}
+
+async function sendSocietyMessage() {
+  const input = document.getElementById('society-input');
+  const msg = input.value.trim();
+  if (!msg) return;
+  input.value = '';
+  appendSocietyMsg('player', msg);
+  appendSocietyMsg('minister', '⏳ Министр сверяется с отчётами...');
+  const response = await askSocietyAdvisor(msg);
+  const msgs = document.querySelectorAll('#society-messages .adv-msg');
+  msgs[msgs.length - 1].remove();
+  appendSocietyMsg('minister', response);
+}
+function appendSocietyMsg(role, text) {
+  const box = document.getElementById('society-messages');
+  const div = document.createElement('div');
+  div.className = 'adv-msg ' + (role === 'player' ? 'player' : 'advisor');
+  div.textContent = (role === 'player' ? '👤 ' : '🏛 ') + text;
+  box.appendChild(div);
+  box.scrollTop = box.scrollHeight;
+}
+function societyKeydown(e) {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendSocietyMessage(); }
+}
+
+// ============================================================
+// ВЫБОР ТЕКСТОВОЙ МОДЕЛИ ИИ (главное меню) — список OpenRouter + свой слаг
+// ============================================================
+function openModelMenu() {
+  const sel = document.getElementById('model-select');
+  const current = localStorage.getItem('gs1852_text_model') || 'google/gemini-3.1-flash-lite';
+  if (sel) {
+    const known = [...sel.options].some(o => o.value === current);
+    if (known) { sel.value = current; document.getElementById('model-custom').value = ''; }
+    else { sel.value = '__custom__'; document.getElementById('model-custom').value = current; }
+  }
+  document.getElementById('model-menu').style.display = 'flex';
+}
+function closeModelMenu() {
+  document.getElementById('model-menu').style.display = 'none';
+}
+function applyModelChoice() {
+  const sel = document.getElementById('model-select');
+  const custom = document.getElementById('model-custom').value.trim();
+  const chosen = sel.value === '__custom__' ? custom : sel.value;
+  if (!chosen) { showNotif('⚠️ Укажите модель'); return; }
+  if (typeof setTextModel === 'function') setTextModel(chosen);
+  closeModelMenu();
+}
+
+// ============================================================
 // ЛЕТОПИСЬ МИРА — главы истории, которые ИИ пишет каждые 10 ходов (и по кнопке)
 // ============================================================
 function openHistoryPanel() {
@@ -692,8 +812,10 @@ function closeBreakingNews() {
 function openScenarioMenu() {
   const list = document.getElementById('scenario-menu-list');
   const saved = (typeof getScenariosIndex === 'function') ? getScenariosIndex() : [];
-  const items = [{ ref: 'builtin', name: 'Европа 1852 (встроенный)', year: 1852, countries: 6 }]
-    .concat(saved.map(s => ({ ref: s.id, name: s.name, year: s.year, countries: s.countryCount })));
+  const items = [
+    { ref: 'builtin-world', name: 'Мир 1852 (основной, ~48 стран)', year: 1852, countries: 48 },
+    { ref: 'builtin', name: 'Европа 1852 (компактный)', year: 1852, countries: 6 }
+  ].concat(saved.map(s => ({ ref: s.id, name: s.name, year: s.year, countries: s.countryCount })));
   list.innerHTML = items.map(s => {
     const active = (typeof activeScenarioRef !== 'undefined' && activeScenarioRef === s.ref) ? ' ✅' : '';
     return `<div class="save-item" style="cursor:pointer" onclick="chooseScenario('${s.ref}')">

@@ -33,6 +33,7 @@ let playerCountryDisplayName = 'Франция'; // отображаемое н�
 // ============================================================
 function applyScenarioToGame(data) {
   ALL_COUNTRIES = [...new Set((data.provinces || []).map(p => p.owner).filter(Boolean))];
+  if (typeof countryCentroids !== 'undefined') countryCentroids = null; // пересчитать географию
   const hint = document.getElementById('menu-hint');
   if (hint && !gameStarted) {
     hint.textContent = `Сценарий: «${data.name || 'Европа 1852'}», ${data.year || 1852} г. — нажмите на страну на карте, чтобы начать за неё игру`;
@@ -165,6 +166,8 @@ function normalizeCountry(c) {
   if (c.parliamentSuspended === undefined) c.parliamentSuspended = null;
   if (c.debtDomestic === undefined) { c.debtDomestic = c.debt || 0; c.debtForeign = 0; }
   if (!c.economy) c.economy = null; // построится в initClassEconomy
+  if (!c.society) c.society = null; // построится в initSociety
+  if (!c.laws) c.laws = [];
   return c;
 }
 
@@ -261,6 +264,92 @@ function initClassEconomy(c) {
     }
   };
   c.incomeModifier = Math.round(base * 0.10); // торговля/пошлины
+}
+
+// ============================================================
+// СОЦИУМ — демография и общественные показатели страны. Считается калькулятором:
+// расходы на образование/призрение — реальные строки бюджета; образование медленно
+// поднимает грамотность, призрение снижает бедность; бедность и бесправие бьют по
+// лояльности народа и стабильности. Права меняются ЗАКОНАМИ (раздел «Законы»).
+// ============================================================
+function initSociety(c) {
+  const r = hashRand((c.displayName || '') + 'soc');
+  c.society = {
+    literacy: 20 + Math.round(r * 40),        // % грамотных
+    poverty: 45 + Math.round(r * 30),         // % бедных
+    womensRights: 5 + Math.round(r * 15),     // 0-100
+    religiousFreedom: 20 + Math.round(r * 30),// 0-100
+    urbanization: 10 + Math.round(r * 20),    // % городского населения
+    spending: {
+      education: Math.max(5, Math.round(c.income * 0.03)),
+      welfare: Math.max(5, Math.round(c.income * 0.03))
+    }
+  };
+}
+
+// Исторические сиды социума для известных стран 1852 года
+const SOCIETY_SEEDS = {
+  'Франция':        { literacy: 60, poverty: 55, womensRights: 15, religiousFreedom: 45, urbanization: 25 },
+  'Великобритания': { literacy: 65, poverty: 60, womensRights: 20, religiousFreedom: 55, urbanization: 45 },
+  'Россия':         { literacy: 15, poverty: 78, womensRights: 5,  religiousFreedom: 20, urbanization: 8 },
+  'Австрия':        { literacy: 40, poverty: 65, womensRights: 10, religiousFreedom: 30, urbanization: 18 },
+  'Пруссия':        { literacy: 80, poverty: 50, womensRights: 12, religiousFreedom: 45, urbanization: 28 },
+  'Испания':        { literacy: 25, poverty: 70, womensRights: 8,  religiousFreedom: 15, urbanization: 18 }
+};
+
+function societySpendingTotal(c) {
+  return c.society ? (c.society.spending.education + c.society.spending.welfare) : 0;
+}
+
+function tickSociety(c) {
+  if (!c.society) return;
+  const s = c.society;
+  const eduShare = s.spending.education / Math.max(1, c.income);
+  const welShare = s.spending.welfare / Math.max(1, c.income);
+  // Образование поднимает грамотность (медленно), призрение снижает бедность
+  if (eduShare > 0.05) s.literacy += 0.2; else if (eduShare > 0.02) s.literacy += 0.08;
+  if (welShare > 0.05) s.poverty -= 0.2; else if (welShare > 0.02) s.poverty -= 0.08;
+  // Инфляция и нестабильность плодят бедность; рост буржуазии урбанизирует
+  if (c.inflation > 10) s.poverty += 0.15;
+  if (c.stability < 35) s.poverty += 0.1;
+  if (c.stability > 65 && c.economy && c.economy.classes.burgher.tax <= 15) s.urbanization += 0.05;
+  // Грамотная страна богатеет: небольшой бонус к богатству буржуазии
+  if (s.literacy > 60 && c.economy) c.economy.classes.burgher.wealth = Math.round(c.economy.classes.burgher.wealth * 1.001);
+  // Бедность >70% давит на народ
+  if (s.poverty > 70 && c.economy) c.economy.classes.commons.loyalty = Math.max(0, c.economy.classes.commons.loyalty - 0.3);
+  ['literacy', 'poverty', 'womensRights', 'religiousFreedom', 'urbanization'].forEach(k => {
+    s[k] = Math.max(0, Math.min(100, Math.round(s[k] * 10) / 10));
+  });
+}
+
+function setSocialSpending(country, kind, value) {
+  const c = countries[country];
+  if (!c || !c.society || !(kind in c.society.spending)) return;
+  c.society.spending[kind] = Math.max(0, Math.min(Math.round(c.income * 0.25), Math.round(value)));
+  if (country === playerCountry && typeof renderSocietyScreen === 'function') renderSocietyScreen();
+}
+
+function enactLaw(country, name, description) {
+  const c = countries[country];
+  if (!c || !name) return false;
+  if (!c.laws) c.laws = [];
+  if (c.laws.some(l => l.name.toLowerCase() === name.toLowerCase() && !l.repealed)) return false;
+  c.laws.push({ name, description: description || '', year, repealed: false });
+  worldState.pastEvents.push(`📖 ${country}: принят закон «${name}».`);
+  if (country === playerCountry && typeof renderSocietyScreen === 'function') renderSocietyScreen();
+  return true;
+}
+
+function repealLaw(country, name) {
+  const c = countries[country];
+  if (!c || !c.laws) return false;
+  const law = c.laws.find(l => l.name.toLowerCase() === String(name).toLowerCase() && !l.repealed);
+  if (!law) return false;
+  law.repealed = true;
+  law.repealedYear = year;
+  worldState.pastEvents.push(`📖 ${country}: закон «${law.name}» ОТМЕНЁН.`);
+  if (country === playerCountry && typeof renderSocietyScreen === 'function') renderSocietyScreen();
+  return true;
 }
 
 function classTaxIncome(c) {
@@ -402,6 +491,11 @@ const DEBT_INTEREST_RATE = 0.005;  // 0.5% в месяц (~6% годовых)
 
 function simulateCountryEconomy(c) {
   if (!c.economy) initClassEconomy(c);
+  if (!c.society) {
+    initSociety(c);
+    const seed = SOCIETY_SEEDS[c.displayName];
+    if (seed) Object.assign(c.society, seed);
+  }
   const provinceIncome = c.income - (c.incomeModifier || 0) - classTaxIncome(c) > 0
     ? c.income - (c.incomeModifier || 0) - classTaxIncome(c)
     : Math.max(0, c.income - (c.incomeModifier || 0) - classTaxIncome(c));
@@ -415,8 +509,9 @@ function simulateCountryEconomy(c) {
   const isMonarchy = /монарх|импер|королев|царств/i.test(c.government || '');
   const court = Math.round(gross * (isMonarchy ? 0.04 : 0.02));
   const churchCost = (c.church && c.church.exists && c.church.influence > 50) ? Math.round(gross * 0.02) : 0;
+  const social = societySpendingTotal(c);
 
-  const net = gross - upkeep - interest - admin - court - churchCost;
+  const net = gross - upkeep - interest - admin - court - churchCost - social;
   c.treasury += net;
   let borrowed = 0, borrowedFrom = null;
   if (c.treasury < 0) {
@@ -462,6 +557,10 @@ function simulateCountryEconomy(c) {
         { name: 'Администрация и чиновники', value: admin },
         { name: isMonarchy ? 'Двор и церемонии' : 'Государственный аппарат', value: court },
         ...(churchCost ? [{ name: 'Содержание церкви', value: churchCost }] : []),
+        ...(c.society ? [
+          { name: 'Образование', value: c.society.spending.education },
+          { name: 'Призрение бедных', value: c.society.spending.welfare }
+        ] : []),
         { name: 'Проценты по долгу', value: interest }
       ]
     }
@@ -670,6 +769,54 @@ function blocLeader(bloc) {
 // подавляющем превосходстве). Цель хранится и передаётся ИИ, чтобы война шла к развязке.
 // Движок также давит на мир: разбитая сторона получает директиву заключать мир по цели.
 // ============================================================
+// ГЕОГРАФИЯ КОНФЛИКТОВ. У движка нет карты соседств, но есть геометрия провинций —
+// считаем центр каждой страны и считаем пару «релевантной» (способной враждовать),
+// только если страны недалеко друг от друга ИЛИ агрессор — великая держава с дальним
+// охватом (огромная армия = флот и экспедиции). Иначе Саксония объявляла войну Тунису.
+let countryCentroids = null;
+
+function ensureCountryCentroids() {
+  if (countryCentroids || typeof scenarioProvinces === 'undefined') return;
+  countryCentroids = {};
+  const acc = {};
+  scenarioProvinces.forEach(p => {
+    if (!p.owner || !p.geometry) return;
+    try {
+      const c = d3.geoCentroid({ type: 'Feature', geometry: p.geometry });
+      if (!c || isNaN(c[0])) return;
+      (acc[p.owner] = acc[p.owner] || []).push(c);
+    } catch (e) { /* битая геометрия */ }
+  });
+  Object.entries(acc).forEach(([owner, pts]) => {
+    countryCentroids[owner] = [
+      pts.reduce((s, c) => s + c[0], 0) / pts.length,
+      pts.reduce((s, c) => s + c[1], 0) / pts.length
+    ];
+  });
+}
+
+function countryDistance(a, b) {
+  ensureCountryCentroids();
+  const ca = countryCentroids && countryCentroids[a], cb = countryCentroids && countryCentroids[b];
+  if (!ca || !cb) return 999;
+  return Math.hypot(ca[0] - cb[0], ca[1] - cb[1]); // в градусах — грубо, но достаточно
+}
+
+// Пара может враждовать: соседи (<28°) либо у сильнейшей стороны армия >350 тыс. (дальний охват)
+function isRelevantPair(a, b) {
+  if (countryDistance(a, b) < 18) return true;
+  const strong = Math.max(countries[a] ? countries[a].army : 0, countries[b] ? countries[b].army : 0);
+  return strong > 350000;
+}
+
+// Сколько войн уже ведёт страна (агрессор с 2+ войнами новых не начинает)
+function warsCount(c) {
+  let n = (worldState.aiWars || []).filter(w => w.includes(c)).length;
+  if (c === playerCountry) n += worldState.atWarWith.length;
+  else if (worldState.atWarWith.includes(c)) n += 1;
+  return n;
+}
+
 function rawPower(c) {
   const cc = countries[c];
   return cc ? cc.army * (0.5 + cc.stability / 200) : 0;
@@ -702,7 +849,7 @@ function makeWarGoal(attacker, defender) {
     type = r < 0.55 ? 'provinces' : r < 0.78 ? 'tribute' : 'puppet';
   }
   const wanted = type === 'provinces' ? defProvinces.slice(0, Math.min(3, Math.max(1, Math.round(defProvinces.length * 0.25)))).map(p => p.name) : [];
-  return { attacker, defender, type, provinces: wanted, startYear: year, defStartArmy: countries[defender].army };
+  return { attacker, defender, type, provinces: wanted, startYear: year, startTurn: turn, defStartArmy: countries[defender].army };
 }
 
 function warGoalLabel(g) {
@@ -738,6 +885,73 @@ function declareEngineWar(attacker, defender) {
 // Директивы движка на этот ход — передаются ИИ-нарратору как ОБЯЗАТЕЛЬНЫЕ факты
 let pendingDirectives = [];
 
+// ============================================================
+// ДВИЖОК ВНУТРЕННЕЙ ПОЛИТИКИ — перевороты, бунты и сецессии теперь РЕАЛЬНО происходят.
+// Каждый месяц движок проверяет стабильность и лояльность сословий каждой страны
+// (включая игрока) и с растущей вероятностью приказывает ИИ устроить:
+//   стабильность <25 → волнения/бунт (мятежные армии на карте);
+//   стабильность <15 → переворот (смена власти) ИЛИ сецессия (new_countries rebel);
+//   класс с лояльностью <20 → восстание этого класса.
+// Плюс уборка карты: устаревшие объекты закончившихся войн ИИ обязан убирать.
+// ============================================================
+function runInternalPoliticsEngine() {
+  ALL_COUNTRIES.forEach(country => {
+    const c = countries[country];
+    if (!c || c.annexed) return;
+    const st = c.stability;
+
+    if (st < 15 && Math.random() < 0.30) {
+      const secession = Math.random() < 0.5;
+      if (secession) {
+        pendingDirectives.push(`КАТАСТРОФА в ${country} (стабильность ${st}): происходит СЕЦЕССИЯ — часть провинций провозглашает независимость. ОБЯЗАТЕЛЬНО создай мятежное государство через new_countries (type "rebel", from "${country}", 1-3 её провинции по названию из списка) и опиши гражданскую войну.`);
+      } else {
+        pendingDirectives.push(`КАТАСТРОФА в ${country} (стабильность ${st}): происходит ГОСУДАРСТВЕННЫЙ ПЕРЕВОРОТ. ОБЯЗАТЕЛЬНО смени власть (${country === playerCountry ? 'ruler_name/ruler_age/government' : 'foreign_leader_change с ruler_age'}) — заговорщики, военные или радикалы приходят к власти. Опиши это как большое событие.`);
+      }
+    } else if (st < 25 && Math.random() < 0.15) {
+      pendingDirectives.push(`В ${country} (стабильность ${st}) вспыхивает БУНТ: создай на карте армию мятежников (map_objects, owner "Бунтовщики", 5000-30000 солдат в одной из провинций ${country}) и опиши беспорядки. Если бунт не подавить — в следующие ходы он может перерасти в переворот.`);
+    }
+
+    if (c.economy) {
+      Object.values(c.economy.classes).forEach(k => {
+        if (k.loyalty < 20 && Math.random() < 0.2) {
+          pendingDirectives.push(`В ${country} класс «${k.label}» (лояльность ${k.loyalty}) поднимает ВОССТАНИЕ — опиши его, создай отряды восставших (map_objects, owner "Бунтовщики") и накажи страну стабильностью через ${country === playerCountry ? 'stability_delta' : 'other_countries'}.`);
+        }
+      });
+    }
+  });
+
+  // Уборка карты: объекты аннексированных владельцев удаляем сами; устаревшие армии
+  // мирных стран — директива ИИ убрать/обновить (война кончилась, а армия «висит»)
+  if (worldState.mapObjects && worldState.mapObjects.length) {
+    worldState.mapObjects = worldState.mapObjects.filter(o => {
+      if (o.owner && countries[o.owner] && countries[o.owner].annexed) return false; // страны нет — объекта нет
+      return true;
+    });
+    const stale = worldState.mapObjects.filter(o => {
+      if (o.owner === 'Бунтовщики' || o.owner === 'Мятежники') return false;
+      if (!countries[o.owner]) return false;
+      const atPeace = o.owner === playerCountry
+        ? worldState.atWarWith.length === 0
+        : !(worldState.aiWars || []).some(w => w.includes(o.owner)) && !worldState.atWarWith.includes(o.owner);
+      const age = turn - (o.createdTurn || 0);
+      return o.type === 'army' && atPeace && age > 5;
+    });
+    if (stale.length && Math.random() < 0.5) {
+      pendingDirectives.push(`УБОРКА КАРТЫ: войны этих объектов закончились, они бессмысленно стоят на карте уже много ходов — верни солдат домой или переформируй: ${stale.slice(0, 6).map(o => `id:"${o.id}" (${o.label}, ${o.owner})`).join(', ')}. Используй map_objects remove (роспуск по домам) или update/move. Не оставляй мёртвые объекты.`);
+    }
+    // Совсем древние армии мирных стран (>18 ходов) движок убирает сам
+    const before = worldState.mapObjects.length;
+    worldState.mapObjects = worldState.mapObjects.filter(o => {
+      if (o.type !== 'army' || o.owner === 'Бунтовщики') return true;
+      const atPeace = o.owner === playerCountry
+        ? worldState.atWarWith.length === 0
+        : !(worldState.aiWars || []).some(w => w.includes(o.owner)) && !worldState.atWarWith.includes(o.owner);
+      return !(atPeace && turn - (o.createdTurn || 0) > 18);
+    });
+    if (before !== worldState.mapObjects.length && typeof renderMapObjects === 'function') renderMapObjects();
+  }
+}
+
 function runDiplomacyEngine() {
   const live = ALL_COUNTRIES.filter(c => countries[c] && !countries[c].annexed);
 
@@ -752,6 +966,26 @@ function runDiplomacyEngine() {
   hostilePairs.forEach(([a, b]) => {
     (allianceBlocOf(a) || []).forEach(ally => { if (ally !== a && ally !== b && getRelation(ally, b) > -80) addRelation(ally, b, -2); });
     (allianceBlocOf(b) || []).forEach(ally => { if (ally !== b && ally !== a && getRelation(ally, a) > -80) addRelation(ally, a, -2); });
+  });
+  // Случайное трение/сближение пар ИИ-стран — миру положено скрипеть: торговые споры,
+  // династические браки, пограничные инциденты двигают скрытые отношения сами по себе
+  for (let f = 0; f < Math.max(1, Math.round(live.length / 4)); f++) {
+    const a = live[Math.floor(Math.random() * live.length)];
+    const b = live[Math.floor(Math.random() * live.length)];
+    if (a !== b && a !== playerCountry && b !== playerCountry) {
+      addRelation(a, b, Math.round((Math.random() - 0.55) * 8)); // лёгкий перекос к трению
+    }
+  }
+  // ПОЛЯРИЗАЦИЯ: сложившаяся неприязнь (< -20) сама углубляется, а дружба (> +25) крепнет —
+  // обиды копятся, союзы вызревают. Без этого мир 48 стран вечно висел в вялом нейтралитете:
+  // ни войн, ни альянсов. Игрока дрейф не трогает — его отношения двигают только его дела.
+  Object.keys(worldState.relationsAmong || {}).forEach(k => {
+    const v = worldState.relationsAmong[k];
+    if (v <= -20 && v > -70 && Math.random() < 0.35) {
+      const [pa, pb] = k.split('␟');
+      if (isRelevantPair(pa, pb)) worldState.relationsAmong[k] = v - (Math.random() < 0.3 ? 2 : 1);
+    }
+    else if (v >= 25 && v < 55 && Math.random() < 0.3) worldState.relationsAmong[k] = v + 1; // дружба зреет медленнее вражды; до союза (+65) доводят только события
   });
 
   // 2) Лестница эскалации по каждой паре (ИИ-инициатива; игрок сам решает за себя)
@@ -779,28 +1013,30 @@ function runDiplomacyEngine() {
       }
 
       if (rel >= -35) continue;
+      if (!isRelevantPair(a, b)) continue; // далёкие малые страны друг другу не угроза
 
       // Кто потенциальный агрессор — тот, кто сильнее (с союзниками)
       const attacker = effectivePower(a) >= effectivePower(b) ? a : b;
       const defender = attacker === a ? b : a;
       if (attacker === playerCountry) continue; // за игрока движок войн не объявляет
+      if (warsCount(attacker) >= 1) continue;   // страна не открывает второй фронт сама
       const ratio = effectivePower(attacker) / effectivePower(defender);
       const hasNAP = !!findTreaty('nonaggression', attacker, defender);
 
       if (rel < -75 && ratio >= 0.75 && (!hasNAP || rel < -85)) {
         // ВОЙНА (сквозь пакт — только при лютой ненависти, с ценой вероломства)
-        if (Math.random() < 0.18) {
+        if (Math.random() < 0.08) {
           const goal = declareEngineWar(attacker, defender);
           pendingDirectives.push(`ДВИЖОК ОБЪЯВИЛ: ${attacker} начала войну против ${defender}. Цель: ${warGoalLabel(goal)}. ОБЯЗАТЕЛЬНО опиши вторжение в новостях, создай армии вторжения (map_objects, owner "${attacker}") и укажи первое сражение в battles.`);
         }
-      } else if (rel < -75 && ratio < 0.75 && Math.random() < 0.15) {
+      } else if (rel < -75 && ratio < 0.75 && Math.random() < 0.2) {
         // Слабый не нападает — ищет коалицию против сильного
         const candidates = live.filter(c => c !== defender && c !== attacker && getRelation(c, attacker) < -20);
         const partner = candidates[0];
         if (partner) pendingDirectives.push(`${defender} слишком слаба для войны с ${attacker} — она ищет союз с ${partner} против общей угрозы (продвинь их отношения через relations_between, опиши переговоры).`);
-      } else if (rel < -55 && Math.random() < 0.25) {
+      } else if (rel < -55 && Math.random() < 0.35) {
         pendingDirectives.push(`КРИЗИС между ${a} и ${b} (отношения ${rel}): ультиматумы, отзыв послов, мобилизация у границ (map_objects). Опиши обострение — оно должно быть видно на карте.`);
-      } else if (rel < -35 && Math.random() < 0.2) {
+      } else if (rel < -35 && Math.random() < 0.28) {
         pendingDirectives.push(`Напряжённость между ${a} и ${b}: ${a === playerCountry ? b : a} стягивает войска к границе, вводит пошлины или устраивает дипломатический укол. Одна новость об этом.`);
       }
     }
@@ -813,6 +1049,21 @@ function runDiplomacyEngine() {
     if (!d || !atk) return;
     const defBroken = d.stability < 25 || d.army < goal.defStartArmy * 0.3;
     const atkExhausted = atk.stability < 25;
+    // Затяжная война (>30 месяцев) заканчивается белым миром от истощения — движок сам
+    if (typeof goal.startTurn === 'number' && turn - goal.startTurn > 30) {
+      if (goal.attacker === playerCountry || goal.defender === playerCountry) {
+        const other = goal.attacker === playerCountry ? goal.defender : goal.attacker;
+        worldState.atWarWith = worldState.atWarWith.filter(x => x !== other);
+        changeRelations(other, 10);
+      } else {
+        worldState.aiWars = worldState.aiWars.filter(w => !(w.includes(goal.attacker) && w.includes(goal.defender)));
+        addRelation(goal.attacker, goal.defender, 10);
+      }
+      delete worldState.warGoals[key];
+      worldState.pastEvents.push(`🕊️ Война ${goal.attacker} против ${goal.defender} завершилась БЕЛЫМ МИРОМ — обе стороны истощены.`);
+      pendingDirectives.push(`Война ${goal.attacker} против ${goal.defender} закончилась истощением (белый мир) — опиши это и убери её армии с карты (map_objects remove).`);
+      return;
+    }
     if (defBroken) {
       pendingDirectives.push(`${goal.defender} разбита в войне с ${goal.attacker} — ЗАКЛЮЧИ МИР в этом ходу согласно цели войны (${warGoalLabel(goal)}): используй province_transfer/territory_transfer/new_countries/treasury по смыслу цели, затем peace_made/wars_between end.`);
     } else if (atkExhausted) {
@@ -1016,8 +1267,9 @@ function stepOneMonth() {
   month++;
   if (month >= 12) { month = 0; year++; }
   const econ = simulateWorldEconomy();
-  ALL_COUNTRIES.forEach(c => { if (countries[c] && !countries[c].annexed) tickClasses(countries[c], c === playerCountry); });
+  ALL_COUNTRIES.forEach(c => { if (countries[c] && !countries[c].annexed) { tickClasses(countries[c], c === playerCountry); tickSociety(countries[c]); } });
   checkElections();
+  runInternalPoliticsEngine();
   const deaths = checkRulerDeaths();
   runDiplomacyEngine();
   return { econ, deaths };
@@ -1323,11 +1575,13 @@ function resetGame(country) {
   // Отношения игрока со всеми, плюс СКРЫТЫЕ отношения ИИ-стран между собой
   const relations = {};
   ALL_COUNTRIES.filter(c => c !== playerCountry).forEach(c => { relations[c] = 0; });
+  // Отношения ИИ-стран между собой стартуют НЕ по нулям, а с историческим разбросом
+  // (-25..+25 из хэша пары) — иначе мир начинался стерильным и никто ни с кем не ссорился
   const relationsAmong = {};
   const others = ALL_COUNTRIES.filter(c => c !== playerCountry);
   for (let i = 0; i < others.length; i++) {
     for (let j = i + 1; j < others.length; j++) {
-      relationsAmong[others[i] + '␟' + others[j]] = 0;
+      relationsAmong[others[i] + '␟' + others[j]] = Math.round((hashRand(others[i] + '␟' + others[j]) - 0.5) * 70);
     }
   }
   worldState = {

@@ -116,12 +116,10 @@ function updateMapCountryLabel(canonicalName, displayName) {
 
 function updateCountryLabels() {
   const zoom = W / vb.w;
+  // Единый мелкий размер для ВСЕХ стран (ползунок «Размер названий» масштабирует их вместе).
   labelsG.selectAll('.country-label')
-    .attr('font-size', function() {
-      const m = parseFloat(d3.select(this).attr('data-szmul')) || 1;
-      return (9 * countryLabelScale * m) / zoom;
-    })
-    .attr('stroke-width', 2.2 / zoom);
+    .attr('font-size', (6.5 * countryLabelScale) / zoom)
+    .attr('stroke-width', 1.8 / zoom);
 }
 
 // Известные города — координаты [lon, lat] для размещения объектов на карте.
@@ -369,12 +367,10 @@ function addCountryLabelsFromProvinces() {
       if (Math.hypot(p.x - biggest.x, p.y - biggest.y) <= R) { sw += p.area; sx += p.x * p.area; sy += p.y * p.area; }
     });
     const xy = sw > 0 ? [sx / sw, sy / sw] : [biggest.x, biggest.y];
-    // Размер — 4 ровные ступени (империя/держава/страна/княжество) вместо произвольных
-    // множителей: подписи выглядят набором одной карты, а не случайным разнобоем.
-    const raw = Math.sqrt(total) * 9;
-    const szMul = raw >= 1.8 ? 2.0 : raw >= 1.15 ? 1.45 : raw >= 0.8 ? 1.0 : 0.7;
+    // Все подписи ОДНОГО мелкого размера — так карта читается ровно, а имена империй не
+    // раздуваются и не налезают друг на друга.
     const display = (typeof countries !== 'undefined' && countries[c] && countries[c].displayName) || c;
-    addCountryLabel(c, xy, 'xy', szMul);
+    addCountryLabel(c, xy, 'xy', 1);
     if (display !== c) updateMapCountryLabel(c, display);
   });
   updateCountryLabels();

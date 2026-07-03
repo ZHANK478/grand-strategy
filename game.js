@@ -1479,11 +1479,22 @@ async function loadGameSlot(id) {
   try {
     const d = JSON.parse(raw);
 
-    // Сначала подгружаем сценарий этой партии (карта, список стран), потом состояние
-    const ref = d.scenarioRef || 'builtin';
-    if (typeof switchActiveScenario === 'function' && (typeof activeScenarioRef === 'undefined' || activeScenarioRef !== ref)) {
+    // Сначала подгружаем сценарий ЭТОЙ партии (карта, список стран), потом состояние.
+    // РАНЬШЕ фолбэк был 'builtin' (старый компактный сценарий на 6 стран) — из-за чего сейвы
+    // без записанного scenarioRef и сейвы основного мира грузились на ЧУЖОЙ карте. Теперь
+    // фолбэк — основной 'builtin-world'. И переключаем карту ВСЕГДА, когда нужный сценарий
+    // ещё не готов (не тот ref, карта не построена или список провинций пуст), а не только
+    // при отличии ссылки — иначе сохранялась карта прошлой партии.
+    const ref = d.scenarioRef || 'builtin-world';
+    const scenarioReady = (typeof activeScenario !== 'undefined' && activeScenario)
+      && (typeof activeScenarioRef !== 'undefined' && activeScenarioRef === ref)
+      && (typeof scenarioProvinces !== 'undefined' && scenarioProvinces.length > 0);
+    if (typeof switchActiveScenario === 'function' && !scenarioReady) {
       try { await switchActiveScenario(ref); }
-      catch (e) { console.log('Сценарий сейва недоступен, остаёмся на текущем:', e.message); }
+      catch (e) {
+        console.log('Сценарий сейва недоступен:', e.message);
+        if (typeof showNotif === 'function') showNotif('⚠️ Карта сценария этой партии не найдена — возможно, свой сценарий был удалён из браузера');
+      }
     }
 
     currentSlotId = id;

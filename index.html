@@ -308,7 +308,15 @@ input[type=checkbox]{accent-color:var(--gold);}
         <div class="editor-hint">«Карты» — рисуете/импортируете контуры провинций (без стран). «Создать сценарий» — берёте готовую карту и назначаете провинциям владельцев (страны).</div>
         <button class="editor-btn" onclick="backToMapsList()" style="margin-bottom:10px">🗺️ Карты</button>
         <button class="editor-btn" onclick="openScenarioPicker()" style="margin-bottom:10px">🏳️ Создать сценарий</button>
+        <button class="editor-btn" onclick="openScenarioEditPicker()" style="margin-bottom:10px">✏️ Редактировать готовый сценарий</button>
         <button class="editor-btn ghost" onclick="closeScenarioEditor()">🚪 Выйти в меню</button>
+      </div>
+
+      <!-- Редактирование готового сценария: выбор -->
+      <div id="editor-view-scenario-edit-pick" style="display:none">
+        <div class="editor-hint">Выберите готовый сценарий, чтобы продолжить его правку (владельцы и цвета сохранятся). После правок — «Сохранить сценарий в игру» создаст обновлённую версию.</div>
+        <div id="editor-scenario-edit-list"></div>
+        <button class="editor-btn ghost" onclick="openScenarioHub()" style="margin-top:14px">◀ Назад</button>
       </div>
 
       <!-- Вкладка: список карт -->
@@ -379,13 +387,15 @@ input[type=checkbox]{accent-color:var(--gold);}
           <button class="editor-btn ghost" id="admin1-toggle-btn" onclick="toggleWorldAdmin1()" style="margin-top:8px;font-size:11px">🌍 Показать области/штаты мира (Admin-1)</button>
           <div style="font-size:10px;color:#7e89a3;margin-top:4px;line-height:1.4">Отдельный слой: области и штаты всего мира (США, Россия и др.). Большой файл — грузится с паузой. Нажмите ещё раз, чтобы выключить.</div>
         </div>
+        <button class="editor-btn ghost" id="editor-relief-btn" onclick="toggleEditorRelief()" style="margin-bottom:10px;font-size:11px">🗺 Показать рельеф-подложку</button>
         <button class="editor-btn ghost" id="undo-btn" onclick="undoLastChange()" style="margin-bottom:10px" disabled>↩ Отменить последнее</button>
         <div class="setting-row" style="margin-bottom:6px">
           <label style="display:flex;align-items:center;gap:6px">
             <input type="checkbox" id="selection-mode-check" onchange="toggleSelectionMode(this.checked)">
-            Выделять клики по карте
+            Режим выделения (клик + рамка)
           </label>
         </div>
+        <div style="font-size:10px;color:#7e89a3;margin:0 0 8px;line-height:1.4">В режиме выделения: клик по области — выбрать одну; протянуть мышью — выбрать рамкой все области под ней. Затем «Объединить» или «Закрепить за страной».</div>
         <button class="editor-btn ghost" id="clear-sel-btn" onclick="clearSelection()" style="display:none;margin-bottom:10px">✖ Снять выделение (<span id="sel-count">0</span>)</button>
         <button class="editor-btn danger" id="delete-sel-btn" onclick="deleteSelectedProvinces()" style="display:none;margin-bottom:10px">🗑 Удалить выбранные (<span id="del-count">0</span>)</button>
         <button class="editor-btn ghost" id="merge-selected-btn" onclick="mergeSelectedProvinces()" style="display:none;margin-bottom:10px">🔗 Объединить выбранные (<span id="merge-selected-count">0</span>)</button>
@@ -422,8 +432,10 @@ input[type=checkbox]{accent-color:var(--gold);}
   <div id="editor-canvas-wrap">
     <svg id="editor-svg" viewBox="0 0 960 560" xmlns="http://www.w3.org/2000/svg">
       <rect width="960" height="560" fill="#050f2a"/>
+      <image id="editor-relief" href="map_relief.jpg" x="0" y="0" width="960" height="560" preserveAspectRatio="none" pointer-events="none" style="display:none"/>
       <g id="editor-bg-g"></g>
       <g id="editor-draw-g"></g>
+      <rect id="editor-selbox" fill="rgba(200,160,60,0.18)" stroke="#c9a24e" stroke-width="0.6" pointer-events="none" style="display:none"/>
     </svg>
   </div>
 </div>

@@ -82,7 +82,7 @@ function onChangeEditorStroke(val) {
   renderMapProvinces();
 }
 
-let showProvinceLabels = localStorage.getItem('gs1852_editor_show_labels') !== '0';
+let showProvinceLabels = localStorage.getItem('gs1852_editor_show_labels') === '1';
 let provinceLabelScale = parseFloat(localStorage.getItem('gs1852_editor_label_scale')) || 1;
 function onToggleProvinceLabels(checked) {
   showProvinceLabels = checked;
@@ -183,8 +183,8 @@ function openScenarioEditor() {
 function openScenarioHub() {
   cancelDrawingProvince();
   scenarioBuildActive = false;
-  ['editor-view-maps', 'editor-view-draw', 'editor-view-scenario-pick', 'editor-view-scenario-build']
-    .forEach(id => document.getElementById(id).style.display = 'none');
+  ['editor-view-maps', 'editor-view-draw', 'editor-view-scenario-pick', 'editor-view-scenario-build', 'editor-view-scenario-edit-pick']
+    .forEach(id => { const el = document.getElementById(id); if (el) el.style.display = 'none'; });
   document.getElementById('editor-view-hub').style.display = 'block';
 }
 
@@ -966,14 +966,28 @@ editorSvgEl.addEventListener('dblclick', function(e) {
   finishDrawingProvince();
 });
 
-// Панорамирование холста (перетаскивание) — только когда НЕ идёт рисование
+// Панорамирование холста ИЛИ рамочное выделение (в режиме выделения — тянем рамку)
+let edBoxSelecting = false, edBoxStart = null, edSuppressClick = false;
 editorSvgEl.addEventListener('mousedown', function(e) {
-  if (editorDrawing) return; // во время рисования перетаскивание отключено, чтобы не мешать карандашу/точкам
+  if (editorDrawing) return; // во время рисования перетаскивание отключено
+  if (selectionMode) {       // режим выделения: тянем рамку, а не панораму
+    edBoxSelecting = true;
+    edBoxStart = editorMouseCoords(e);
+    return;
+  }
   edPanning = true;
   edDidPan = false;
   edPanStart = { x: e.clientX, y: e.clientY };
 });
 window.addEventListener('mousemove', function(e) {
+  if (edBoxSelecting && edBoxStart) {
+    const [x, y] = editorMouseCoords(e);
+    const bx = Math.min(edBoxStart[0], x), by = Math.min(edBoxStart[1], y);
+    const bw = Math.abs(x - edBoxStart[0]), bh = Math.abs(y - edBoxStart[1]);
+    const box = document.getElementById('editor-selbox');
+    if (box) { box.setAttribute('x', bx); box.setAttribute('y', by); box.setAttribute('width', bw); box.setAttribute('height', bh); box.style.display = 'block'; }
+    return;
+  }
   if (!edPanning) return;
   if (Math.hypot(e.clientX - edPanStart.x, e.clientY - edPanStart.y) > 3) edDidPan = true;
   const rect = editorSvgEl.getBoundingClientRect();
@@ -983,9 +997,45 @@ window.addEventListener('mousemove', function(e) {
   edPanStart = { x: e.clientX, y: e.clientY };
   applyEditorViewBox();
 });
-window.addEventListener('mouseup', function() {
+window.addEventListener('mouseup', function(e) {
+  if (edBoxSelecting) {
+    edBoxSelecting = false;
+    const box = document.getElementById('editor-selbox');
+    if (box) box.style.display = 'none';
+    if (!edBoxStart) return;
+    const [x, y] = editorMouseCoords(e);
+    const x0 = Math.min(edBoxStart[0], x), x1 = Math.max(edBoxStart[0], x);
+    const y0 = Math.min(edBoxStart[1], y), y1 = Math.max(edBoxStart[1], y);
+    edBoxStart = null;
+    // слишком маленькая рамка — это обычный клик, отдаём его обработчику клика по области
+    if ((x1 - x0) < 1.2 && (y1 - y0) < 1.2) return;
+    // выбрать все области, чей центр попал в рамку
+    editorDrawG.selectAll('path.map-prov').each(function() {
+      let bb; try { bb = this.getBBox(); } catch (err) { return; }
+      const cx = bb.x + bb.width / 2, cy = bb.y + bb.height / 2;
+      if (cx >= x0 && cx <= x1 && cy >= y0 && cy <= y1) {
+        const id = this.getAttribute('data-prov-id');
+        if (id) selectedProvinceIds.add(id);
+      }
+    });
+    edSuppressClick = true; setTimeout(() => { edSuppressClick = false; }, 60);
+    if (typeof updateMergeButtonState === 'function') updateMergeButtonState();
+    renderMapProvinces();
+    if (typeof renderEditorProvinceList === 'function') renderEditorProvinceList();
+    return;
+  }
   edPanning = false;
 });
+
+// Рельеф-подложка в редакторе (та же проекция, что в игре — ложится точно)
+function toggleEditorRelief() {
+  const img = document.getElementById('editor-relief');
+  const btn = document.getElementById('editor-relief-btn');
+  if (!img) return;
+  const show = img.style.display === 'none';
+  img.style.display = show ? 'block' : 'none';
+  if (btn) { btn.textContent = show ? '🗺 Скрыть рельеф-подложку' : '🗺 Показать рельеф-подложку'; btn.classList.toggle('active', show); }
+}
 
 // ============================================================
 // ИМПОРТ ГОТОВЫХ ГРАНИЦ КАК РЕАЛЬНЫХ ПРОВИНЦИЙ
@@ -1230,6 +1280,7 @@ function renderMapProvinces() {
       .style('cursor', selectionMode ? 'pointer' : 'default')
       .on('click', function(e) {
         if (!selectionMode) return;
+        if (edSuppressClick) return; // после рамочного выделения клик не переключаем
         e.stopPropagation();
         toggleProvinceSelection(p.id, !selectedProvinceIds.has(p.id));
         renderMapProvinces();
@@ -1242,7 +1293,7 @@ function renderMapProvinces() {
       .attr('class', 'map-prov')
       .attr('x', cx).attr('y', cy)
       .attr('text-anchor', 'middle')
-      .attr('font-size', 8 * provinceLabelScale).attr('fill', '#222')
+      .attr('font-size', (8 * provinceLabelScale) * (edVb.w / 960)).attr('fill', '#222')
       .attr('font-family', 'Georgia,serif')
       .attr('pointer-events', 'none')
       .text(p.name);
@@ -1304,6 +1355,49 @@ function openScenarioPicker() {
       </div>
     `).join('');
   }
+}
+
+// ---- РЕДАКТИРОВАНИЕ ГОТОВОГО СЦЕНАРИЯ (владельцы и цвета сохраняются) ----
+function openScenarioEditPicker() {
+  document.getElementById('editor-view-hub').style.display = 'none';
+  document.getElementById('editor-view-scenario-edit-pick').style.display = 'block';
+  const list = document.getElementById('editor-scenario-edit-list');
+  const items = [];
+  if (typeof BUILTIN_SCENARIOS !== 'undefined') {
+    Object.keys(BUILTIN_SCENARIOS).forEach(ref => items.push({ ref, name: BUILTIN_SCENARIOS[ref].name + ' (встроенный)' }));
+  }
+  if (typeof getScenariosIndex === 'function') {
+    getScenariosIndex().forEach(s => items.push({ ref: s.id, name: s.name + ` · ${s.countryCount || '?'} стран` }));
+  }
+  list.innerHTML = items.length
+    ? items.map(s => `<div class="map-saved-item" onclick="editExistingScenario('${s.ref}')">
+        <div><div class="map-item-name">🎲 ${s.name}</div></div></div>`).join('')
+    : '<div class="chg-empty">Сохранённых сценариев нет</div>';
+}
+
+function editExistingScenario(ref) {
+  if (typeof loadScenarioData !== 'function') { showNotif('⚠️ Загрузчик сценариев недоступен'); return; }
+  showNotif('⏳ Загрузка сценария...');
+  loadScenarioData(ref).then(data => {
+    // ВАЖНО: владельцев НЕ обнуляем (в отличие от создания с нуля) — продолжаем правку.
+    mapProvinces = (data.provinces || []).filter(p => p.geometry).map(p => ({ id: p.id, name: p.name, owner: p.owner || null, geometry: p.geometry }));
+    scenarioCountryColors = Object.assign({}, data.countryColors || {});
+    selectedProvinceIds.clear();
+    selectionMode = true;
+    scenarioBuildActive = true;
+    currentMapTemplate = 'blank';
+    edVb = { x: 0, y: 0, w: 960, h: 560 };
+    applyEditorViewBox();
+    document.getElementById('editor-view-scenario-edit-pick').style.display = 'none';
+    document.getElementById('editor-view-scenario-build').style.display = 'block';
+    document.getElementById('scenario-color-input').value = '#2a5aa8';
+    document.getElementById('scenario-country-input').value = '';
+    updateScenarioCountryDatalist();
+    editorBgG.selectAll('*').remove();
+    renderMapProvinces();
+    updateScenarioSummary();
+    showNotif('✏️ Сценарий загружен для правки: ' + (data.name || ref));
+  }).catch(err => showNotif('⚠️ Не удалось загрузить: ' + (err && err.message || err)));
 }
 
 function startScenarioForMap(id) {

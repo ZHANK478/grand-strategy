@@ -288,6 +288,22 @@ function newMapFromTemplate(template) {
   renderBackground(template);
 }
 
+// Встроенная карта «Мир — 2228 провинций» (голая геометрия admin1, без владельцев) —
+// как готовая карта-основа для создания версий под разные даты.
+function loadBuiltinWorldMap() {
+  showNotif('⏳ Загрузка встроенной карты мира...');
+  d3.json('map_world_admin1.json').then(d => {
+    currentMapId = null;
+    currentMapTemplate = 'blank';
+    mapProvinces = (d.provinces || []).map(p => ({ id: p.id, name: p.name, geometry: p.geometry }));
+    enterDrawView();
+    renderBackground('blank');
+    renderMapProvinces();
+    renderEditorProvinceList();
+    showNotif('🗺️ Карта мира загружена: ' + mapProvinces.length + ' провинций');
+  }).catch(err => showNotif('⚠️ Не удалось загрузить карту: ' + (err && err.message || err)));
+}
+
 function openSavedMap(id) {
   const raw = localStorage.getItem(mapDataKey(id));
   if (!raw) return;

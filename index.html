@@ -322,6 +322,9 @@ input[type=checkbox]{accent-color:var(--gold);}
       <!-- Вкладка: список карт -->
       <div id="editor-view-maps" style="display:none">
         <div class="editor-hint">Карты — отдельная песочница. Здесь нет стран и игровой механики, только контуры для рисования провинций.</div>
+        <div class="map-tpl-item" onclick="loadBuiltinWorldMap()">
+          <div><div class="map-item-name">🗺️ Мир — 2228 провинций (admin1)</div><div class="map-item-sub">Готовая однородная база провинций всего мира. Отталкивайтесь от неё для версий под разные даты: выделяйте рамкой, объединяйте, назначайте владельцев.</div></div>
+        </div>
         <div class="map-tpl-item" onclick="newMapFromTemplate('nuts-europe')">
           <div><div class="map-item-name">🌐 Мир по уровням</div><div class="map-item-sub">Крупно — страны мира · Средне/Мелко — субрегионы Европы (NUTS) · плюс отдельный слой областей/штатов мира</div></div>
         </div>

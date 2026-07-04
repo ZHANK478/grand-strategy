@@ -84,6 +84,24 @@ function setObjectScale(v) {
   renderMapObjects();
 }
 
+// Толщина границ: внутренние (между провинциями одной страны) и внешний контур державы.
+// Внутренние по умолчанию очень тонкие; внешний контур рисуется отдельным слоем через topojson.
+let innerBorderWidth = parseFloat(localStorage.getItem('gs1852_inner_border'));
+if (isNaN(innerBorderWidth)) innerBorderWidth = 0.12;
+let outerBorderWidth = parseFloat(localStorage.getItem('gs1852_outer_border'));
+if (isNaN(outerBorderWidth)) outerBorderWidth = 1.2;
+
+function setInnerBorderWidth(v) {
+  innerBorderWidth = parseFloat(v); if (isNaN(innerBorderWidth)) innerBorderWidth = 0.12;
+  localStorage.setItem('gs1852_inner_border', innerBorderWidth);
+  provincesG.selectAll('path.scenario-province').attr('stroke-width', innerBorderWidth);
+}
+function setOuterBorderWidth(v) {
+  outerBorderWidth = parseFloat(v); if (isNaN(outerBorderWidth)) outerBorderWidth = 1.2;
+  localStorage.setItem('gs1852_outer_border', outerBorderWidth);
+  renderNationalBorders();
+}
+
 // Подпись страны — размер не зависит от зума карты, но масштабируется величиной страны
 // (szMul из addCountryLabelsFromProvinces: империя — крупно, княжество — мелко).
 // mode: true — feature (центроид посчитаем), 'xy' — готовые экранные координаты, иначе lon/lat.
@@ -402,8 +420,8 @@ function buildProvincePaths() {
     .attr('class', 'scenario-province')
     .attr('data-province-id', d => d.id)
     .attr('d', d => pathGen({ type: 'Feature', geometry: d.geometry }))
-    .attr('stroke', 'rgba(15,20,30,0.55)')
-    .attr('stroke-width', '0.3')
+    .attr('stroke', 'rgba(28,20,10,0.55)')
+    .attr('stroke-width', innerBorderWidth)
     .on('mouseover', function(e, d) {
       d3.select(this).attr('fill-opacity', 0.78);
       tooltip.style.display = 'block';
@@ -462,6 +480,52 @@ function recolorProvinces() {
 function renderScenarioProvinces() {
   if (_provincesBuiltFor !== scenarioProvinces) buildProvincePaths();
   recolorProvinces();
+  scheduleNationalBorders();
+}
+
+// ---- ВНЕШНИЙ КОНТУР ДЕРЖАВ ----
+// Границы между разными владельцами и побережья, отдельным жирным слоем поверх заливки.
+// Топология строится ОДИН раз на сценарий (кэш) и ОТЛОЖЕННО (setTimeout), чтобы тяжёлый
+// расчёт не блокировал первую отрисовку карты; на смене владений пересчитывается только
+// дешёвый меш. Если topojson недоступен или контур выключен (0) — слоя просто нет.
+let _topoCache = null, _topoRef = null, _nbTimer = null;
+function ensureTopo() {
+  if (_topoCache && _topoRef === scenarioProvinces) return _topoCache;
+  if (typeof topojson === 'undefined' || !scenarioProvinces.length) return null;
+  try {
+    const fc = { type: 'FeatureCollection', features: scenarioProvinces.map(p => ({
+      type: 'Feature', properties: { id: p.id }, geometry: p.geometry
+    })) };
+    _topoCache = topojson.topology({ prov: fc }, 1e4);
+    _topoRef = scenarioProvinces;
+  } catch (e) { _topoCache = null; _topoRef = null; }
+  return _topoCache;
+}
+function renderNationalBorders() {
+  provincesG.select('path.national-border').remove();
+  if (outerBorderWidth <= 0) return;
+  const topo = ensureTopo();
+  if (!topo) return;
+  const ownerById = {};
+  scenarioProvinces.forEach(p => { ownerById[p.id] = provinceOwnerOf(p.id, p.owner); });
+  let mesh;
+  try {
+    mesh = topojson.mesh(topo, topo.objects.prov, (a, b) =>
+      a === b || ownerById[a.properties.id] !== ownerById[b.properties.id]);
+  } catch (e) { return; }
+  provincesG.append('path')
+    .attr('class', 'national-border')
+    .attr('d', pathGen(mesh))
+    .attr('fill', 'none')
+    .attr('stroke', '#241a0d')
+    .attr('stroke-width', outerBorderWidth)
+    .attr('stroke-linejoin', 'round')
+    .attr('stroke-linecap', 'round')
+    .attr('pointer-events', 'none');
+}
+function scheduleNationalBorders() {
+  if (_nbTimer) clearTimeout(_nbTimer);
+  _nbTimer = setTimeout(renderNationalBorders, 60);
 }
 
 switchActiveScenario(activeScenarioRef);

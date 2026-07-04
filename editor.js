@@ -1493,15 +1493,15 @@ function saveScenarioToGame() {
   const provinces = scenarioProvincesPayload();
   const countryCount = new Set(provinces.map(p => p.owner).filter(Boolean)).size;
   const payload = { type: 'scenario', id, name, year, countryColors: scenarioCountryColors, provinces, createdAt: Date.now() };
-  try {
-    localStorage.setItem('gs1852_scenario_' + id, JSON.stringify(payload));
+  // Данные — в IndexedDB (сотни МБ, большие карты влезают); индекс — в localStorage (маленький).
+  idbPutScenario('gs1852_scenario_' + id, payload).then(() => {
     const idx = getScenariosIndex();
     idx.push({ id, name, year, countryCount, provinceCount: provinces.length });
     localStorage.setItem(SCENARIOS_INDEX_KEY, JSON.stringify(idx));
     showNotif(`💾 Сценарий «${name}» сохранён в игру: ${countryCount} стран, ${assigned} провинций с владельцем`);
-  } catch (e) {
-    showNotif('⚠️ Не хватило места в браузере для сценария — скачайте его файлом');
-  }
+  }).catch(e => {
+    showNotif('⚠️ Не удалось сохранить сценарий: ' + (e && e.message || e) + '. Скачайте его файлом.');
+  });
 }
 
 function exportScenarioToFile() {

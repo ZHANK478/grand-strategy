@@ -831,6 +831,7 @@ function openScenarioMenu() {
   const saved = (typeof getScenariosIndex === 'function') ? getScenariosIndex() : [];
   const items = [
     { ref: 'builtin-world', name: 'Мир 1852 (основной, ~48 стран)', year: 1852, countries: 48 },
+    { ref: 'builtin-2016', name: 'Наше время (2016)', year: 2016, countries: 37 },
     { ref: 'builtin', name: 'Европа 1852 (компактный)', year: 1852, countries: 6 }
   ].concat(saved.map(s => ({ ref: s.id, name: s.name, year: s.year, countries: s.countryCount })));
   list.innerHTML = items.map(s => {

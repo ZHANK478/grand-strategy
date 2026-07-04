@@ -213,8 +213,44 @@ function scenarioDataKey(id) { return 'gs1852_scenario_' + id; }
 // (Мир 1852, ~48 стран); 'builtin' — старый компактный (Европа 1852, 6 стран).
 const BUILTIN_SCENARIOS = {
   'builtin-world': { file: 'scenario_mr4rhxpc.json', name: 'Мир 1852', year: 1852 },
+  'builtin-2016':  { file: 'scenario_2016.json', name: 'Наше время (2016)', year: 2016 },
   'builtin':       { file: 'scenario_1852.json', name: 'Европа 1852 (компактный)', year: 1852 }
 };
+
+// ---- ХРАНИЛИЩЕ СЦЕНАРИЕВ: IndexedDB (сотни МБ) вместо localStorage (~5 МБ) ----
+// Раньше сценарии писались в localStorage и большие карты не влезали по квоте — кнопка
+// «Сохранить в игру» падала. Теперь ДАННЫЕ сценариев лежат в IndexedDB, а маленький
+// индекс (список названий) — в localStorage.
+const IDB_NAME = 'gs1852', IDB_STORE = 'scenarios';
+function idbOpen() {
+  return new Promise((res, rej) => {
+    const r = indexedDB.open(IDB_NAME, 1);
+    r.onupgradeneeded = () => { const db = r.result; if (!db.objectStoreNames.contains(IDB_STORE)) db.createObjectStore(IDB_STORE); };
+    r.onsuccess = () => res(r.result);
+    r.onerror = () => rej(r.error);
+  });
+}
+function idbPutScenario(key, val) {
+  return idbOpen().then(db => new Promise((res, rej) => {
+    const tx = db.transaction(IDB_STORE, 'readwrite');
+    tx.objectStore(IDB_STORE).put(val, key);
+    tx.oncomplete = () => res(); tx.onerror = () => rej(tx.error);
+  }));
+}
+function idbGetScenario(key) {
+  return idbOpen().then(db => new Promise((res, rej) => {
+    const tx = db.transaction(IDB_STORE, 'readonly');
+    const rq = tx.objectStore(IDB_STORE).get(key);
+    rq.onsuccess = () => res(rq.result); rq.onerror = () => rej(rq.error);
+  }));
+}
+function idbDeleteScenario(key) {
+  return idbOpen().then(db => new Promise((res, rej) => {
+    const tx = db.transaction(IDB_STORE, 'readwrite');
+    tx.objectStore(IDB_STORE).delete(key);
+    tx.oncomplete = () => res(); tx.onerror = () => rej(tx.error);
+  }));
+}
 
 function loadScenarioData(ref) {
   if (BUILTIN_SCENARIOS[ref]) {
@@ -224,15 +260,17 @@ function loadScenarioData(ref) {
       countryColors: d.countryColors || {}, provinces: d.provinces || []
     }));
   }
-  const raw = localStorage.getItem(scenarioDataKey(ref));
-  if (!raw) return Promise.reject(new Error('Сценарий не найден: ' + ref));
-  try {
-    const d = JSON.parse(raw);
-    return Promise.resolve({
-      ref, name: d.name || 'Свой сценарий', year: d.year || 1852,
-      countryColors: d.countryColors || {}, provinces: d.provinces || []
-    });
-  } catch (e) { return Promise.reject(e); }
+  // Свои сценарии: сначала IndexedDB (новое хранилище), потом localStorage (старые сейвы)
+  const norm = d => ({
+    ref, name: d.name || 'Свой сценарий', year: d.year || 1852,
+    countryColors: d.countryColors || {}, provinces: d.provinces || []
+  });
+  return idbGetScenario(scenarioDataKey(ref)).then(obj => {
+    if (obj) return norm(obj);
+    const raw = localStorage.getItem(scenarioDataKey(ref)); // старый формат
+    if (!raw) throw new Error('Сценарий не найден: ' + ref);
+    return norm(JSON.parse(raw));
+  });
 }
 
 function switchActiveScenario(ref) {

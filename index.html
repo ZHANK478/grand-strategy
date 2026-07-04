@@ -18,7 +18,7 @@
 :root{
   --paper:#e7dcc0; --panel:#f2ead6; --panel2:#ece0c4; --raise:#f6efdd;
   --edge:#c9b98f; --edge2:#d8cba6; --rule:#c3b389;
-  --ink:#2c2114; --ink2:#5b4d38; --dim:#897a5c; --faint:#a4977a;
+  --ink:#2c2114; --ink2:#4a3d29; --dim:#6e5f42; --faint:#877558;
   --gold:#9c7c22; --gold-dk:#7c6018; --wine:#7c2417; --wine-hi:#9a3122;
   --pos:#3f6a2a; --neg:#a23a26; --warn:#9a7a1a;
   --fd:'PlayfairD',Georgia,'Times New Roman',serif;
@@ -244,7 +244,7 @@ input[type=checkbox]{accent-color:var(--gold);}
   <button class="abtn" onclick="openSocietyScreen()">Общество</button>
   <button class="abtn" onclick="openHistoryPanel()">История</button>
   <span class="turn-lbl" id="turn-info">Ход 1</span>
-  <select id="skip-select" onchange="onSkipChange()" style="margin-left:auto;padding:5px 8px;font-family:Georgia,serif;font-size:12px;border:1px solid #aaa;border-radius:3px;background:#0f1930" title="Шаг времени за один ход">
+  <select id="skip-select" onchange="onSkipChange()" style="margin-left:auto;padding:6px 10px;font-family:'LoraG',Georgia,serif;font-size:12px;border:1px solid #c9b98f;border-radius:3px;background:#f6efdd;color:#2c2114" title="Шаг времени за один ход">
     <option value="week">Неделя</option>
     <option value="m1" selected>Месяц</option>
     <option value="m3">3 месяца</option>
@@ -493,14 +493,9 @@ input[type=checkbox]{accent-color:var(--gold);}
       <input type="range" id="setting-obj-scale" min="0.5" max="3" step="0.1" value="1.8" oninput="onChangeObjectScale(this.value)">
     </div>
     <div class="setting-row">
-      <label>Толщина внутренних границ<span class="setting-val" id="setting-inner-border-val">0.1</span></label>
-      <div style="font-size:10px;color:#999;margin-top:2px">Линии между областями внутри одной страны</div>
+      <label>Толщина границ провинций<span class="setting-val" id="setting-inner-border-val">0.1</span></label>
+      <div style="font-size:10px;color:#8a7a5e;margin-top:2px">Тонкие линии границ на карте (0 — скрыть)</div>
       <input type="range" id="setting-inner-border" min="0" max="1" step="0.05" value="0.12" oninput="onChangeInnerBorder(this.value)">
-    </div>
-    <div class="setting-row">
-      <label>Толщина контура державы<span class="setting-val" id="setting-outer-border-val">1.2</span></label>
-      <div style="font-size:10px;color:#999;margin-top:2px">Внешняя граница страны и линии между государствами (0 — выключить)</div>
-      <input type="range" id="setting-outer-border" min="0" max="3.5" step="0.1" value="1.2" oninput="onChangeOuterBorder(this.value)">
     </div>
     <div class="setting-row">
       <label>

@@ -397,10 +397,6 @@ function openSettings() {
     document.getElementById('setting-inner-border').value = innerBorderWidth;
     document.getElementById('setting-inner-border-val').textContent = innerBorderWidth.toFixed(2);
   }
-  if (typeof outerBorderWidth !== 'undefined') {
-    document.getElementById('setting-outer-border').value = outerBorderWidth;
-    document.getElementById('setting-outer-border-val').textContent = outerBorderWidth.toFixed(1);
-  }
   const ap = document.getElementById('setting-auto-portraits');
   if (ap && typeof autoPortraitsEnabled === 'function') ap.checked = autoPortraitsEnabled();
 }
@@ -429,12 +425,6 @@ function onChangeInnerBorder(val) {
   const v = parseFloat(val);
   document.getElementById('setting-inner-border-val').textContent = v.toFixed(2);
   if (typeof setInnerBorderWidth === 'function') setInnerBorderWidth(v);
-}
-
-function onChangeOuterBorder(val) {
-  const v = parseFloat(val);
-  document.getElementById('setting-outer-border-val').textContent = v.toFixed(1);
-  if (typeof setOuterBorderWidth === 'function') setOuterBorderWidth(v);
 }
 
 function onToggleAutoPortraits(checked) {

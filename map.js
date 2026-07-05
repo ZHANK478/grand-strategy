@@ -213,6 +213,7 @@ function scenarioDataKey(id) { return 'gs1852_scenario_' + id; }
 // (Мир 1852, ~48 стран); 'builtin' — старый компактный (Европа 1852, 6 стран).
 const BUILTIN_SCENARIOS = {
   'builtin-world': { file: 'scenario_mr4rhxpc.json', name: 'Мир 1852', year: 1852 },
+  'builtin-1914':  { file: 'scenario_1914.json', name: 'Мир 1914', year: 1914 },
   'builtin-2016':  { file: 'scenario_2016.json', name: 'Наше время (2016)', year: 2016 },
   'builtin':       { file: 'scenario_1852.json', name: 'Европа 1852 (компактный)', year: 1852 }
 };

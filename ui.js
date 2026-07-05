@@ -831,19 +831,43 @@ function openScenarioMenu() {
   const saved = (typeof getScenariosIndex === 'function') ? getScenariosIndex() : [];
   const items = [
     { ref: 'builtin-world', name: 'Мир 1852 (основной, ~48 стран)', year: 1852, countries: 48 },
-    { ref: 'builtin-2016', name: 'Наше время (2016)', year: 2016, countries: 37 },
+    { ref: 'builtin-2016', name: 'Наше время (2016)', year: 2016, countries: 173 },
     { ref: 'builtin', name: 'Европа 1852 (компактный)', year: 1852, countries: 6 }
   ].concat(saved.map(s => ({ ref: s.id, name: s.name, year: s.year, countries: s.countryCount })));
   list.innerHTML = items.map(s => {
     const active = (typeof activeScenarioRef !== 'undefined' && activeScenarioRef === s.ref) ? ' ✅' : '';
-    return `<div class="save-item" style="cursor:pointer" onclick="chooseScenario('${s.ref}')">
-      <div class="save-info">
+    const isBuiltin = String(s.ref).startsWith('builtin');
+    const del = isBuiltin ? '' :
+      `<button class="save-del-btn" title="Удалить сценарий" onclick="event.stopPropagation();deleteSavedScenario('${s.ref}','${(s.name||'').replace(/'/g,'')}')">🗑</button>`;
+    return `<div class="save-item">
+      <div class="save-info" style="cursor:pointer;flex:1" onclick="chooseScenario('${s.ref}')">
         <div class="save-title">🎲 ${s.name}${active}</div>
         <div class="save-sub">${s.year} г.${s.countries ? ' · стран: ' + s.countries : ''}</div>
       </div>
+      ${del}
     </div>`;
   }).join('');
   document.getElementById('scenario-menu').style.display = 'flex';
+}
+
+// Удаление своего сценария (встроенные не удаляются). Данные — из IndexedDB, запись из индекса.
+function deleteSavedScenario(id, name) {
+  if (!confirm(`Удалить сценарий «${name}»? Это действие необратимо.`)) return;
+  const finish = () => {
+    try {
+      const idx = (typeof getScenariosIndex === 'function' ? getScenariosIndex() : []).filter(s => s.id !== id);
+      localStorage.setItem(SCENARIOS_INDEX_KEY, JSON.stringify(idx));
+    } catch (e) {}
+    localStorage.removeItem(scenarioDataKey(id)); // на случай старого формата
+    // если удаляем активный — вернуться на основной мир
+    if (typeof activeScenarioRef !== 'undefined' && activeScenarioRef === id && typeof switchActiveScenario === 'function') {
+      switchActiveScenario('builtin-world').catch(() => {});
+    }
+    openScenarioMenu();
+    showNotif('🗑 Сценарий удалён: ' + name);
+  };
+  if (typeof idbDeleteScenario === 'function') idbDeleteScenario(scenarioDataKey(id)).then(finish).catch(finish);
+  else finish();
 }
 
 function closeScenarioMenu() {

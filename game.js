@@ -195,6 +195,8 @@ function buildCountriesFromScenario() {
 // ЭКОНОМИКА ПРОВИНЦИЙ: доход страны = incomeModifier + Σ доходов её провинций.
 // ============================================================
 function initProvinceEconomy() {
+  // v2: макроэкономическое ядро (econ.js) раздаёт по провинциям население и ВВП
+  if (typeof econInitProvinces === 'function') return econInitProvinces();
   provinceEcon = {};
   if (typeof scenarioProvinces === 'undefined') return;
   const byOwner = {};
@@ -223,6 +225,8 @@ function initProvinceEconomy() {
 
 // Пересчитать доход всех стран из провинций (после аннексий/передач/роста провинций)
 function recomputeIncomes() {
+  // v2: ВВП/население стран пересобираются из провинций макро-ядром
+  if (typeof econRecompute === 'function') return econRecompute();
   if (typeof scenarioProvinces === 'undefined') return;
   const sums = {};
   scenarioProvinces.forEach(p => {
@@ -282,7 +286,8 @@ function initSociety(c) {
     urbanization: 10 + Math.round(r * 20),    // % городского населения
     spending: {
       education: Math.max(5, Math.round(c.income * 0.03)),
-      welfare: Math.max(5, Math.round(c.income * 0.03))
+      welfare: Math.max(5, Math.round(c.income * 0.03)),
+      infrastructure: Math.max(5, Math.round(c.income * 0.04))
     }
   };
 }
@@ -298,7 +303,9 @@ const SOCIETY_SEEDS = {
 };
 
 function societySpendingTotal(c) {
-  return c.society ? (c.society.spending.education + c.society.spending.welfare) : 0;
+  if (!c.society) return 0;
+  // инфраструктуру макро-ядро (econ.js) учитывает отдельной строкой
+  return c.society.spending.education + c.society.spending.welfare;
 }
 
 function tickSociety(c) {
@@ -490,6 +497,8 @@ const ARMY_UPKEEP_RATE = 0.00045;  // фр./солдат в месяц
 const DEBT_INTEREST_RATE = 0.005;  // 0.5% в месяц (~6% годовых)
 
 function simulateCountryEconomy(c) {
+  // v2: детерминированное макро-ядро (ВВП, секторы, законы, печатный станок)
+  if (typeof econSimulateCountry === 'function') return econSimulateCountry(c);
   if (!c.economy) initClassEconomy(c);
   if (!c.society) {
     initSociety(c);
@@ -570,6 +579,8 @@ function simulateCountryEconomy(c) {
 
 // Медленный органический рост провинций стабильных стран (раз в ход, крохотный)
 function growProvinces() {
+  // v2: провинции растут вместе с ВВП страны
+  if (typeof econGrowProvinces === 'function') return econGrowProvinces();
   if (typeof scenarioProvinces === 'undefined') return;
   scenarioProvinces.forEach(p => {
     const owner = provinceOwners[p.id] || p.owner;

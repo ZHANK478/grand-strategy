@@ -510,7 +510,19 @@ function renderEconomyPanel() {
       <div class="irow"><span class="k">Лояльность</span><span style="color:${loyColor};font-weight:bold">${k.loyalty}</span></div>
     </div>`;
   }).join('') : '';
-  box.innerHTML =
+  // Макро-шапка (v2): население, ВВП, рост, секторы, инфраструктура
+  const s = c.sectors;
+  const macro = c.gdp ? `<div style="border:1px solid #c9a959;border-radius:4px;padding:8px 10px;margin-bottom:10px;background:rgba(201,169,89,.10);color:#e4decd">
+      <div class="irow"><span class="k">Население</span><span style="color:#e4decd"><b>${(c.population / 1000).toFixed(1)} млн</b></span></div>
+      <div class="irow"><span class="k">ВВП (в год)</span><span style="color:#e4decd"><b>${fmt(Math.round(c.gdp))}</b></span></div>
+      <div class="irow"><span class="k">Темп роста ВВП</span><span style="color:${c.gdpGrowth >= 0 ? '#7cc47f' : '#e08072'};font-weight:bold">${c.gdpGrowth >= 0 ? '+' : ''}${c.gdpGrowth}%/год</span></div>
+      <div class="irow"><span class="k">Инфраструктура</span><span style="color:#e4decd">${Math.round(c.infrastructure)}/100</span></div>
+      ${s ? `<div style="font-size:10px;margin-top:5px;opacity:.85">Структура: с/х ${s.agriculture}% · пром. ${s.industry}% · финансы ${s.finance}% · сырьё ${s.resources}% · услуги ${s.services}%</div>
+      <div style="display:flex;height:7px;border-radius:3px;overflow:hidden;margin-top:4px">
+        <div style="width:${s.agriculture}%;background:#8a9a5b"></div><div style="width:${s.industry}%;background:#7a6a5a"></div><div style="width:${s.finance}%;background:#c9a959"></div><div style="width:${s.resources}%;background:#5a6a7a"></div><div style="width:${s.services}%;background:#a08ab0"></div>
+      </div>` : ''}
+    </div>` : '';
+  box.innerHTML = macro +
     `<div class="phdr">Доходы (${fmt(b.gross)} фр./мес)</div>` +
     b.lines.income.map(l => row(l.name, l.value, 1)).join('') +
     `<div class="phdr" style="margin-top:10px">Расходы</div>` +
@@ -520,7 +532,8 @@ function renderEconomyPanel() {
     `<div class="phdr" style="margin-top:12px">Государственный долг</div>
      <div class="irow"><span class="k">Внутренний (буржуазия)</span><span>${fmt(c.debtDomestic || 0)} фр.</span></div>
      <div class="irow"><span class="k">Внешний (иностранные банки)</span><span>${fmt(c.debtForeign || 0)} фр.</span></div>
-     <div class="irow"><span class="k">Проценты</span><span>0.5% в месяц</span></div>
+     <div class="irow"><span class="k">Проценты</span><span>внутр. 0.4%/мес, внешн. от 0.6%/мес (риск ↑ при низкой репутации)</span></div>
+     ${b.printed ? `<div style="font-size:11px;color:#a04432;margin-top:4px">🖨 Займы исчерпаны — дефицит ${fmt(b.printed)} покрыт ЭМИССИЕЙ: инфляция разгоняется!</div>` : ''}
      <div class="irow"><span class="k">Инфляция</span><span>${c.inflation}%</span></div>
      <div class="phdr" style="margin-top:12px">Сословия</div>` + classes +
     `<div style="font-size:10px;color:#8b94aa;line-height:1.5;margin-top:4px">Налоги меняются действиями («поднять налог на народ до 25%») или советом экономиста. Ставка >25% душит богатство и лояльность; буржуазия при низких налогах богатеет и тянет доход вверх.</div>`;
@@ -585,7 +598,16 @@ function renderSocietyScreen() {
     const laws = (c.laws || []);
     const active = laws.filter(l => !l.repealed);
     const repealed = laws.filter(l => l.repealed);
-    box.innerHTML =
+    // Слоты законов (v2): фундаментальное устройство государства — движок помнит навсегда
+    const slots = (c.lawSlots && typeof LAW_SLOTS !== 'undefined')
+      ? `<div class="phdr">Устройство государства</div>` +
+        Object.entries(c.lawSlots).map(([slot, id]) => {
+          const o = (typeof lawOption === 'function') ? lawOption(slot, id) : null;
+          return `<div class="irow"><span class="k">⚖️ ${LAW_SLOTS[slot] ? LAW_SLOTS[slot].label : slot}</span><span><b>${o ? o.label : id}</b></span></div>`;
+        }).join('') +
+        `<div style="font-size:10px;opacity:.7;line-height:1.5;margin:4px 0 12px">Реформы проводятся действиями: «ввести всеобщее избирательное право», «отделить церковь от государства». Каждая реформа временно бьёт по стабильности.</div>`
+      : '';
+    box.innerHTML = slots +
       `<div class="phdr">Действующие законы (${active.length})</div>` +
       (active.length ? active.map(l => `<div style="border:1px solid #223050;border-radius:4px;padding:8px 10px;margin-bottom:7px;background:#121e38">
           <div style="font-size:13px;font-weight:bold;color:#e4decd">📖 ${l.name} <span style="color:#8b94aa;font-weight:normal;font-size:10px">(${l.year} г.)</span></div>

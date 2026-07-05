@@ -87,7 +87,8 @@ function describeCountries() {
     const church = d.church ? (d.church.exists ? ` Церковь (${d.church.name}): влияние ${d.church.influence}%.` : ' Церковь лишена государственной власти (секуляризация).') : '';
     const rel = d.religion && d.religion.main ? ` Религия: ${Object.entries(d.religion.dist || {}).map(([k,v])=>`${k} ${v}%`).join(', ')} (главная ${d.religion.main}); вера правителя: ${d.rulerReligion || d.religion.main}.` : '';
     const agenda = d.agenda ? ` ИНТЕРЕСЫ: ${d.agenda}` : '';
-    return `${d.displayName}: казна ${d.treasury.toLocaleString('ru')} фр., доход ${d.income >= 0 ? '+' : ''}${d.income.toLocaleString('ru')} фр./мес, долг ${d.debt.toLocaleString('ru')} фр., инфляция ${d.inflation}%, армия ${d.army.toLocaleString('ru')}, стабильность ${d.stability}, правитель ${d.ruler} (${d.rulerTitle}${age}), правление: ${d.government}.${rel}${church}${parl}${agenda}`;
+    const macro = d.gdp ? ` Население ${(d.population / 1000).toFixed(1)} млн, ВВП ${Math.round(d.gdp).toLocaleString('ru')}/год (рост ${d.gdpGrowth > 0 ? '+' : ''}${d.gdpGrowth}%).` : '';
+    return `${d.displayName}: казна ${d.treasury.toLocaleString('ru')} фр., доход ${d.income >= 0 ? '+' : ''}${d.income.toLocaleString('ru')} фр./мес, долг ${d.debt.toLocaleString('ru')} фр., инфляция ${d.inflation}%, армия ${d.army.toLocaleString('ru')}, стабильность ${d.stability}, правитель ${d.ruler} (${d.rulerTitle}${age}), правление: ${d.government}.${macro}${rel}${church}${parl}${agenda}`;
   }).join('\n');
 }
 
@@ -110,7 +111,9 @@ function describePlayerEconomy() {
   const exp = b.lines.expense.map(l => `${l.name}: −${l.value.toLocaleString('ru')}`).join('; ');
   const classes = c.economy ? Object.values(c.economy.classes).map(k =>
     `${k.label} (${k.share}% населения): богатство ${k.wealth.toLocaleString('ru')}, налог ${k.tax}%, лояльность ${k.loyalty}`).join('; ') : '';
-  return `ЭКОНОМИКА ${c.displayName} (точные числа движка — НЕ противоречь им, не выдумывай долги при профиците):
+  const macro = (typeof econDescribeMacro === 'function') ? econDescribeMacro(c) + '\n' : '';
+  const laws = (typeof econDescribeLaws === 'function') ? econDescribeLaws(c) + '\n' : '';
+  return `${macro}${laws}ЭКОНОМИКА ${c.displayName} (точные числа движка — НЕ противоречь им, не выдумывай долги при профиците):
 ДОХОДЫ (${b.gross.toLocaleString('ru')} фр./мес): ${inc}.
 РАСХОДЫ: ${exp}.
 ИТОГ МЕСЯЦА: ${b.net >= 0 ? 'ПРОФИЦИТ +' : 'ДЕФИЦИТ '}${b.net.toLocaleString('ru')} фр.${b.borrowed ? ` Взят заём ${b.borrowed.toLocaleString('ru')} фр. (${b.borrowedFrom}).` : ''}
@@ -649,6 +652,10 @@ function parseAndApplyEffects(text, baseChanges) {
         setSocialSpending(playerCountry, 'welfare', so.welfare_spending);
         turnChanges.push({ label: '🍞 Призрение бедных', value: so.welfare_spending + ' фр./мес', sign: 0 });
       }
+      if (typeof so.infrastructure_spending === 'number' && typeof setSocialSpending === 'function') {
+        setSocialSpending(playerCountry, 'infrastructure', so.infrastructure_spending);
+        turnChanges.push({ label: '🛤 Инфраструктура', value: so.infrastructure_spending + ' фр./мес', sign: 0 });
+      }
       const soc = countries[playerCountry].society;
       if (typeof so.womens_rights_delta === 'number' && so.womens_rights_delta !== 0) {
         soc.womensRights = Math.max(0, Math.min(100, soc.womensRights + so.womens_rights_delta));
@@ -659,6 +666,18 @@ function parseAndApplyEffects(text, baseChanges) {
         turnChanges.push({ label: '🕊 Свобода вероисповедания', value: (so.religious_freedom_delta > 0 ? '+' : '') + so.religious_freedom_delta, sign: so.religious_freedom_delta });
       }
       if (typeof renderSocietyScreen === 'function') renderSocietyScreen();
+    }
+
+    // ЗАКОНЫ-СЛОТЫ (v2): смена варианта в фиксированном слоте — движок помнит навсегда
+    if (effects.law_slots && typeof effects.law_slots === 'object' && typeof setLawSlot === 'function') {
+      Object.entries(effects.law_slots).forEach(([slot, optionId]) => {
+        if (!optionId) return;
+        if (setLawSlot(playerCountry, slot, optionId)) {
+          const o = (typeof lawOption === 'function') ? lawOption(slot, optionId) : null;
+          showNotif(`⚖️ Реформа: ${LAW_SLOTS[slot] ? LAW_SLOTS[slot].label : slot} — ${o ? o.label : optionId}`);
+          turnChanges.push({ label: '⚖️ ' + (LAW_SLOTS[slot] ? LAW_SLOTS[slot].label : slot), value: o ? o.label : optionId, sign: 0 });
+        }
+      });
     }
 
     // Законы: принятие и отмена
@@ -919,7 +938,7 @@ BREAKING:{"title":"КОРОТКИЙ ЗАГОЛОВОК","text":"1-2 предло
 Если нет — строку BREAKING не пиши вовсе.
 
 В конце напиши ровно одну строку:
-EFFECTS:{"treasury_delta":0,"income_delta":0,"debt_delta":0,"army_delta":0,"stability_delta":0,"relations":{${otherNames.map(c => `"${c}":0`).join(',')}},"relations_between":[],"wars_between":[],"battles":[],"new_countries":[],"treaties":[],"religion":null,"other_countries":{},"parliament":{"support_delta":0,"power_delta":0,"factions":null,"veto":null,"dissolve":false,"restore":false,"next_election_year":null,"term_years":null,"ban_party":null},"economy":{"tax_noble":null,"tax_burgher":null,"tax_commons":null},"society":{"education_spending":null,"welfare_spending":null,"womens_rights_delta":0,"religious_freedom_delta":0},"laws":[],"institutions":{"church":null,"church_influence_delta":0},"war_declared":[],"peace_made":[],"country_name":null,"country_color":null,"ruler_name":null,"ruler_age":null,"ruler_title":null,"government":null,"pm_name":null,"pm_title":null,"map_objects":[],"territory_transfer":[],"province_transfer":[],"foreign_leader_change":[]}
+EFFECTS:{"treasury_delta":0,"income_delta":0,"debt_delta":0,"army_delta":0,"stability_delta":0,"relations":{${otherNames.map(c => `"${c}":0`).join(',')}},"relations_between":[],"wars_between":[],"battles":[],"new_countries":[],"treaties":[],"religion":null,"other_countries":{},"parliament":{"support_delta":0,"power_delta":0,"factions":null,"veto":null,"dissolve":false,"restore":false,"next_election_year":null,"term_years":null,"ban_party":null},"economy":{"tax_noble":null,"tax_burgher":null,"tax_commons":null},"society":{"education_spending":null,"welfare_spending":null,"infrastructure_spending":null,"womens_rights_delta":0,"religious_freedom_delta":0},"laws":[],"law_slots":null,"institutions":{"church":null,"church_influence_delta":0},"war_declared":[],"peace_made":[],"country_name":null,"country_color":null,"ruler_name":null,"ruler_age":null,"ruler_title":null,"government":null,"pm_name":null,"pm_title":null,"map_objects":[],"territory_transfer":[],"province_transfer":[],"foreign_leader_change":[]}
 
 КРИТИЧЕСКИ ВАЖНО — заполняй числа исходя из событий, не ставь нули без причины:
 - Казнил/убил солдат → army_delta отрицательный, stability_delta −3..−8
@@ -942,8 +961,10 @@ EFFECTS:{"treasury_delta":0,"income_delta":0,"debt_delta":0,"army_delta":0,"stab
 - parliament (страна игрока): support_delta — сдвиг поддержки; power_delta — сдвиг ВЛАСТИ парламента (реформы усиливают, узурпация ослабляет); factions — новый состав ТОЛЬКО на выборах/при роспуске (директива ВЫБОРЫ) — тогда придумывай партии по контексту эпохи и событий игры; veto — если ВЛАСТЬ парламента ≥50 и поддержка <40, парламент МОЖЕТ заблокировать законодательное действие игрока: опиши блокировку вновостях и укажи в veto короткий текст ЧТО заблокировано (тогда НЕ применяй эффекты этого действия); dissolve:true — если правитель РАСПУСКАЕТ парламент (движок сам спишет цену); restore:true — созыв парламента там, где его нет; next_election_year/term_years — перенос даты выборов/изменение срока; ban_party — запрет партии по названию.
 - economy: {"tax_noble":ставка|null,"tax_burgher":...,"tax_commons":...} — НОВЫЕ налоговые ставки сословий (0-45%), только если игрок реально менял налоги или события этого требуют. Помни: высокие налоги (>25%) душат богатство и лояльность класса.
 - institutions: {"church":"abolish"|"restore"|null,"church_influence_delta":число} — лишение церкви власти (атеизм/секуляризация — движок спишет цену) или её восстановление; сдвиг влияния церкви от событий.
-- society (страна игрока): education_spending/welfare_spending — НОВЫЕ суммы расходов в фр./мес (только если игрок их менял или закон этого требует); womens_rights_delta/religious_freedom_delta — сдвиги прав (−15..+15) ТОЛЬКО при реальных законах/реформах/реакции.
+- society (страна игрока): education_spending/welfare_spending/infrastructure_spending — НОВЫЕ суммы расходов в фр./мес (только если игрок их менял или закон этого требует); инфраструктура ускоряет рост ВВП; womens_rights_delta/religious_freedom_delta — сдвиги прав (−15..+15) ТОЛЬКО при реальных законах/реформах/реакции.
 - laws: [{"action":"enact"|"repeal","name":"Название закона","description":"1 предложение сути"}] — когда игрок ПРИНИМАЕТ или ОТМЕНЯЕТ закон (реформа, кодекс, указ). Закон — это документ: сопровождай его эффектами (society/economy/stability/parliament) по смыслу. Не выдумывай законы без действий игрока или крупных событий.
+- law_slots: {"слот":"id_варианта"} — СИСТЕМНЫЕ РЕФОРМЫ страны игрока в фиксированных слотах движка (движок сам применит модификаторы и запомнит навсегда). Используй ТОЛЬКО когда игрок реально проводит такую реформу. Допустимые слоты и варианты:
+${typeof econLawSpecForPrompt === 'function' ? econLawSpecForPrompt() : ''}
 - ЧИСТОТА КАРТЫ: когда война/миссия завершается — ОБЯЗАТЕЛЬНО убирай её объекты с карты (map_objects remove/update: армии по домам, делегации отозваны). Не оставляй армии стоять после мира.
 - parliament: support_delta — сдвиг поддержки правительства в парламенте игрока от событий/действий (законы, скандалы, победы); factions — новый состав фракций ТОЛЬКО при выборах/роспуске, иначе null.
 - ruler_name/ruler_age/ruler_title/government/pm_name/pm_title — только при реальном перевороте/провозглашении/смерти/отставке в стране игрока. При смене правителя ВСЕГДА указывай ruler_age (возраст нового).

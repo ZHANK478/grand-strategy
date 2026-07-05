@@ -1614,11 +1614,15 @@ function resetGame(country) {
   const relations = {};
   ALL_COUNTRIES.filter(c => c !== playerCountry).forEach(c => { relations[c] = 0; });
   // Отношения ИИ-стран между собой стартуют НЕ по нулям, а с историческим разбросом
-  // (-25..+25 из хэша пары) — иначе мир начинался стерильным и никто ни с кем не ссорился
+  // (-35..+35 из хэша пары) — иначе мир начинался стерильным и никто ни с кем не ссорился.
+  // ВАЖНО: сеем ТОЛЬКО релевантные пары (соседи/сильные державы). Иначе на большой карте
+  // (138 стран → 9400 пар) состояние и — главное — промпт ИИ раздуваются в десятки раз.
   const relationsAmong = {};
   const others = ALL_COUNTRIES.filter(c => c !== playerCountry);
+  ensureCountryCentroids();
   for (let i = 0; i < others.length; i++) {
     for (let j = i + 1; j < others.length; j++) {
+      if (!isRelevantPair(others[i], others[j])) continue;
       relationsAmong[others[i] + '␟' + others[j]] = Math.round((hashRand(others[i] + '␟' + others[j]) - 0.5) * 70);
     }
   }

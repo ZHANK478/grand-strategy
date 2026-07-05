@@ -77,10 +77,44 @@ function getGameState() {
   };
 }
 
+// ============================================================
+// РЕЛЕВАНТНОСТЬ ДЛЯ ПРОМПТА. На большой карте (138 стран, 4123 провинции) нельзя
+// слать в ИИ все страны и все провинции — это десятки тысяч токенов и разорение.
+// Выбираем только то, что реально влияет на игрока: великие державы, соседи,
+// страны в состоянии войны и те, кто фигурировал в последних новостях.
+// ============================================================
+let _relevantCache = { turn: -1, list: null };
+function promptRelevantCountries(limit) {
+  limit = limit || 26;
+  const t = (typeof turn !== 'undefined') ? turn : 0;
+  if (_relevantCache.turn === t && _relevantCache.list) return _relevantCache.list;
+  const others = ALL_COUNTRIES.filter(c => countries[c] && !countries[c].annexed && c !== playerCountry);
+  const recent = (worldState.pastEvents || []).slice(-25).join(' ');
+  const scored = others.map(c => {
+    const d = countries[c];
+    let s = (d.army || 0) / 2000 + (d.gdp || 0) / 5000;               // мощь
+    if (typeof countryDistance === 'function' && countryDistance(playerCountry, c) < 20) s += 400; // сосед
+    if (worldState.atWarWith.includes(c)) s += 3000;                  // воюем
+    if ((worldState.alliedWith || []).includes(c)) s += 1500;        // союзник
+    if (recent.includes(d.displayName || c)) s += 700;               // в новостях
+    return { c, s };
+  }).sort((a, b) => b.s - a.s);
+  const list = scored.slice(0, limit).map(x => x.c);
+  _relevantCache = { turn: t, list };
+  return list;
+}
+
 // Сводка каждой НЕаннексированной страны сценария — только для промптов ИИ
 // (игрок этих чисел в интерфейсе НЕ видит, кроме своей страны).
+// На больших картах перечисляем только релевантные страны + счётчик остальных.
 function describeCountries() {
-  return ALL_COUNTRIES.filter(c => countries[c] && !countries[c].annexed).map(c => {
+  const all = ALL_COUNTRIES.filter(c => countries[c] && !countries[c].annexed);
+  const relevant = (all.length > 30) ? promptRelevantCountries() : all.filter(c => c !== playerCountry);
+  const extra = all.length - relevant.length - 1;
+  const tail = (all.length > 30 && extra > 0)
+    ? `\n(…и ещё ${extra} малых/удалённых стран — детали не важны, упоминай их только если игрок с ними взаимодействует.)`
+    : '';
+  return relevant.map(c => {
     const d = countries[c];
     const age = typeof d.rulerAge === 'number' ? `, ${d.rulerAge} лет` : '';
     const parl = d.parliament ? ` Парламент (${d.parliament.name}): власть ${d.parliament.power ?? 50}%, поддержка правительства ${d.parliament.support}%, следующие выборы ${d.parliament.nextElection || '—'} г., фракции: ${(d.parliament.factions||[]).map(f=>`${f.name} ${f.pct}%`).join(', ')}.${(d.parliament.banned||[]).length ? ' Запрещены: ' + d.parliament.banned.join(', ') + '.' : ''}` : ' Парламента нет (упразднён или отсутствует).';
@@ -89,7 +123,7 @@ function describeCountries() {
     const agenda = d.agenda ? ` ИНТЕРЕСЫ: ${d.agenda}` : '';
     const macro = d.gdp ? ` Население ${(d.population / 1000).toFixed(1)} млн, ВВП ${Math.round(d.gdp).toLocaleString('ru')}/год (рост ${d.gdpGrowth > 0 ? '+' : ''}${d.gdpGrowth}%).` : '';
     return `${d.displayName}: казна ${d.treasury.toLocaleString('ru')} фр., доход ${d.income >= 0 ? '+' : ''}${d.income.toLocaleString('ru')} фр./мес, долг ${d.debt.toLocaleString('ru')} фр., инфляция ${d.inflation}%, армия ${d.army.toLocaleString('ru')}, стабильность ${d.stability}, правитель ${d.ruler} (${d.rulerTitle}${age}), правление: ${d.government}.${macro}${rel}${church}${parl}${agenda}`;
-  }).join('\n');
+  }).join('\n') + tail;
 }
 
 // Точная бюджетная сводка страны игрока за последний ход — чтобы ИИ писал про долги и
@@ -124,12 +158,20 @@ function describePlayerEconomy() {
 // Скрытые отношения ИИ-стран между собой (игрок их не видит — только ИИ)
 function describeHiddenDiplomacy() {
   const ra = worldState.relationsAmong || {};
+  // На большой карте пар тысячи — шлём только ЯРКИЕ (|v|>=25) и только среди релевантных
+  // стран, максимум 30 строк, отсортированных по силе отношения. Иначе десятки тысяч токенов.
+  const rel = new Set(promptRelevantCountries(30));
+  const threshold = (Object.keys(ra).length > 200) ? 25 : 1;
   const lines = Object.entries(ra)
-    .filter(([, v]) => v !== 0)
-    .map(([k, v]) => { const [a, b] = k.split('␟'); return `${a}↔${b}: ${v > 0 ? '+' : ''}${v}`; });
+    .filter(([, v]) => Math.abs(v) >= threshold)
+    .map(([k, v]) => { const [a, b] = k.split('␟'); return { a, b, v, abs: Math.abs(v) }; })
+    .filter(x => rel.has(x.a) && rel.has(x.b))
+    .sort((p, q) => q.abs - p.abs)
+    .slice(0, 30)
+    .map(x => `${x.a}↔${x.b}: ${x.v > 0 ? '+' : ''}${x.v}`);
   const wars = (worldState.aiWars || []).map(w => `⚔️ ${w[0]} против ${w[1]}`);
   if (!lines.length && !wars.length) return '';
-  return 'СКРЫТЫЕ ОТНОШЕНИЯ МЕЖДУ ДРУГИМИ СТРАНАМИ (игрок их не видит, но страны действуют исходя из них — они боятся и интригуют друг против друга):\n' +
+  return 'СКРЫТЫЕ ОТНОШЕНИЯ МЕЖДУ ДРУГИМИ СТРАНАМИ (игрок их не видит, но страны действуют исходя из них — показаны только самые значимые):\n' +
     [...wars, ...lines].join('; ');
 }
 
@@ -172,26 +214,40 @@ function describeWorldState() {
   return `Отношения ${pc} со странами: ${relText}.\n${warText} ${allyText}\n${treatyText}\n${goalsText}\n${repLine}\n${hidden ? hidden + '\n' : ''}\n${newsText}`;
 }
 
-// Компактный список провинций стран сценария с текущим владельцем
+// Компактный список провинций с владельцем — для валидации province_transfer.
+// На большой карте (4123 провинции) слать все нельзя: передача провинций реально
+// происходит только на СВОих землях и на землях тех, с кем игрок воюет/граничит.
 function describeProvinces() {
   if (typeof scenarioProvinces === 'undefined' || !scenarioProvinces.length) return 'Список провинций пока не загружен.';
-  return scenarioProvinces
-    .map(p => ({ name: p.name, owner: (typeof provinceOwnerOf === 'function') ? provinceOwnerOf(p.id, p.owner) : p.owner }))
-    .filter(p => p.owner && ALL_COUNTRIES.includes(p.owner))
-    .map(p => `${p.name}(${p.owner})`)
-    .join(', ');
+  const ownerOf = p => (typeof provinceOwnerOf === 'function') ? provinceOwnerOf(p.id, p.owner) : (provinceOwners[p.id] || p.owner);
+  const total = scenarioProvinces.length;
+  let scope = null;
+  if (total > 400) {
+    // релевантные владельцы: игрок + воюющие + соседи
+    scope = new Set([playerCountry, ...(worldState.atWarWith || [])]);
+    if (typeof countryDistance === 'function') {
+      ALL_COUNTRIES.forEach(c => { if (c !== playerCountry && countryDistance(playerCountry, c) < 16) scope.add(c); });
+    }
+  }
+  const rows = scenarioProvinces
+    .map(p => ({ name: p.name, owner: ownerOf(p) }))
+    .filter(p => p.owner && ALL_COUNTRIES.includes(p.owner) && (!scope || scope.has(p.owner)));
+  const capped = rows.slice(0, 400);
+  const note = rows.length > 400 ? ` …(+${rows.length - 400}; для передачи иных территорий назови страну-владельца)` : '';
+  return capped.map(p => `${p.name}(${p.owner})`).join(', ') + note;
 }
 
 // Провинции страны игрока с доходами — база для внутренних новостей по регионам
 function describePlayerProvinces() {
   if (typeof scenarioProvinces === 'undefined') return '';
-  const rows = scenarioProvinces
-    .filter(p => (provinceOwners[p.id] || p.owner) === playerCountry)
-    .map(p => {
-      const e = provinceEcon[p.id] || {};
-      return `${p.name} (доход ${e.income || '?'} фр./мес, развитие ${e.dev || '?'}/5)`;
-    });
-  return rows.length ? 'ПРОВИНЦИИ страны игрока: ' + rows.join(', ') : '';
+  const mine = scenarioProvinces.filter(p => (provinceOwners[p.id] || p.owner) === playerCountry);
+  // У больших империй сотни провинций — для новостей хватает крупнейших по доходу; шлём до 90.
+  const sorted = mine.map(p => ({ p, e: provinceEcon[p.id] || {} }))
+    .sort((a, b) => (b.e.income || 0) - (a.e.income || 0));
+  const cap = 90;
+  const rows = sorted.slice(0, cap).map(({ p, e }) => `${p.name} (доход ${e.income || '?'} фр./мес, развитие ${e.dev || '?'}/5)`);
+  const note = mine.length > cap ? ` …(+${mine.length - cap} менее значимых)` : '';
+  return rows.length ? 'ПРОВИНЦИИ страны игрока (крупнейшие): ' + rows.join(', ') + note : '';
 }
 
 async function askGemini(prompt, maxTokens = 400) {

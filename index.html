@@ -152,7 +152,9 @@ body{background:#20180e;color:var(--ink);font-family:var(--fb);overflow:hidden;h
 body.menu-mode .game-ui{display:none !important;}
 /* Экран входа (аккаунты Supabase) */
 #gs-login{position:fixed;inset:0;z-index:900;display:flex;align-items:center;justify-content:center;background:radial-gradient(ellipse at center,#2b2114 0%,#151009 100%);}
-.gs-login-card{width:340px;max-width:88vw;background:#f2ead6;border:1px solid #c3b389;border-radius:6px;padding:30px 26px;box-shadow:0 18px 60px rgba(0,0,0,.6);display:flex;flex-direction:column;gap:12px;text-align:center;}
+.gs-login-card{position:relative;width:340px;max-width:88vw;background:#f2ead6;border:1px solid #c3b389;border-radius:6px;padding:30px 26px;box-shadow:0 18px 60px rgba(0,0,0,.6);display:flex;flex-direction:column;gap:12px;text-align:center;}
+.gs-login-close{position:absolute;top:8px;right:10px;background:none!important;border:none;color:#7c6a4a!important;font-size:16px;cursor:pointer;padding:2px 6px;width:auto;}
+.gs-login-close:hover{color:#7c2417!important;}
 .gs-login-title{font-family:var(--fd);font-weight:700;font-size:30px;color:#2c2114;letter-spacing:.04em;}
 .gs-login-sub{font-size:12px;color:#5a4a30;font-style:italic;margin-bottom:6px;}
 .gs-login-card input{padding:11px 12px;border:1px solid #c3b389;border-radius:3px;background:#fff8ea;font-size:14px;color:#2c2114;}
@@ -286,6 +288,7 @@ input[type=checkbox]{accent-color:var(--gold);}
     <button class="menu-btn" onclick="openScenarioMenu()">Сценарии</button>
     <button class="menu-btn" onclick="openScenarioEditor()">Редактор сценариев</button>
     <button class="menu-btn" onclick="openModelMenu()">Модель ИИ</button>
+    <button id="menu-login-btn" class="menu-btn" onclick="openLogin()" style="display:none">👤 Войти</button>
   </div>
 </div>
 
@@ -819,12 +822,11 @@ input[type=checkbox]{accent-color:var(--gold);}
 <script src="ui.js?v=36"></script>
 <script src="editor.js?v=36"></script>
 <script>
-  // Backend включён → сначала вход, меню запускается после аутентификации
-  // (initAuth сам вызовет старт через onSignedIn). Backend выключен → игра как раньше.
+  // Игра запускается СРАЗУ. Вход — необязательный (кнопка «Войти» в меню).
+  // initAuth молча восстанавливает прошлую сессию, если игрок уже входил.
   (async () => {
-    const ready = await initAuth();
-    if (ready) { initMenu(); initSkipSelect(); }
-    else { window.__bootAfterLogin = () => { initMenu(); initSkipSelect(); }; }
+    await initAuth();
+    initMenu(); initSkipSelect();
   })();
 </script>
 </body>

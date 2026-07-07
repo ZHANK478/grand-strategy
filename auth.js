@@ -17,39 +17,48 @@ function backendOn() { return !!window.GS_BACKEND_ON; }
 // ИНИЦИАЛИЗАЦИЯ. Вызывается из index.html до старта меню.
 // ------------------------------------------------------------
 async function initAuth() {
-  if (!backendOn()) return true;               // локальный режим — вход не нужен
+  // Вход НЕ обязателен: игра всегда стартует сразу. initAuth лишь молча
+  // восстанавливает прошлую сессию и показывает кнопку «Войти» в меню.
+  if (!backendOn()) return true;               // ключи не заполнены — входа нет вовсе
   if (!window.supabase) { console.warn('Supabase SDK не загрузился'); return true; }
 
   sb = window.supabase.createClient(window.GS_CONFIG.SUPABASE_URL, window.GS_CONFIG.SUPABASE_ANON_KEY);
 
-  // Реагируем на возврат по magic-link и на выход
+  // Реагируем на возврат по ссылке/Google и на выход
   sb.auth.onAuthStateChange((_e, session) => {
     if (session && session.user) onSignedIn(session.user);
     else onSignedOut();
   });
 
   const { data } = await sb.auth.getSession();
-  if (data && data.session) { await onSignedIn(data.session.user); return true; }
-
-  showLoginOverlay();
-  return false;                                // игра стартует после входа
+  if (data && data.session) await onSignedIn(data.session.user);
+  else renderMenuAuth();
+  return true;
 }
 
-let gsBooted = false;
 async function onSignedIn(user) {
   gsUser = { id: user.id, email: user.email };
   hideLoginOverlay();
   await loadProfile();
   renderAccountBar();
-  // Первый успешный вход запускает игру (если она ждала аутентификации)
-  if (!gsBooted && typeof window.__bootAfterLogin === 'function') { gsBooted = true; window.__bootAfterLogin(); }
+  renderMenuAuth();
 }
 
 function onSignedOut() {
   gsUser = null; gsProfile = null;
   renderAccountBar();
-  if (backendOn()) showLoginOverlay();
+  renderMenuAuth();
 }
+
+// Кнопка «Войти» в главном меню: показываем только когда backend включён
+// и игрок ещё не вошёл; после входа его имя видно в плашке аккаунта.
+function renderMenuAuth() {
+  const btn = document.getElementById('menu-login-btn');
+  if (!btn) return;
+  btn.style.display = (backendOn() && !gsUser) ? 'block' : 'none';
+}
+
+function openLogin() { showLoginOverlay(); }
 
 async function loadProfile() {
   if (!sb || !gsUser) return;
@@ -70,8 +79,9 @@ function showLoginOverlay() {
   el.id = 'gs-login';
   el.innerHTML = `
     <div class="gs-login-card">
+      <button class="gs-login-close" onclick="closeLogin()" title="Закрыть">✕</button>
       <div class="gs-login-title">GRAND STRATEGY</div>
-      <div class="gs-login-sub">Войдите, чтобы играть и сохранять партии в облаке</div>
+      <div class="gs-login-sub">Войдите, чтобы сохранять партии в облаке и получать больше ходов</div>
       <input id="gs-login-email" type="email" placeholder="твоя@почта" autocomplete="email">
       <button id="gs-login-btn" onclick="sendMagicLink()">Получить ссылку для входа</button>
       <button id="gs-google-btn" class="gs-google" onclick="signInGoogle()">Войти через Google</button>
@@ -80,6 +90,7 @@ function showLoginOverlay() {
   document.body.appendChild(el);
 }
 function hideLoginOverlay() { const el = document.getElementById('gs-login'); if (el) el.style.display = 'none'; }
+function closeLogin() { hideLoginOverlay(); }
 
 async function sendMagicLink() {
   const email = (document.getElementById('gs-login-email').value || '').trim();

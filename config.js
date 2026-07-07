@@ -8,8 +8,8 @@
 // доступ к данным ограничивают политики RLS в supabase/schema.sql.
 // ============================================================
 window.GS_CONFIG = {
-  SUPABASE_URL: 'https://pebnjhbofduhzkduaaxt.supabase.co',       // напр. https://abcdxyz.supabase.co
-  SUPABASE_ANON_KEY: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBlYm5qaGJvZmR1aHprZHVhYXh0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODMzODkyNjgsImV4cCI6MjA5ODk2NTI2OH0.G59G7YbP5zgKGPgKrWDGkstxzgGRMrEw9oJhAENhw8s',
+  SUPABASE_URL: '__SUPABASE_URL__',       // напр. https://abcdxyz.supabase.co
+  SUPABASE_ANON_KEY: '__SUPABASE_ANON_KEY__',
 
   // Сервер-прокси (шаг 2): сюда пойдут вызовы ИИ вместо прямого OpenRouter.
   // Оставь пустым, пока прокси не готов — тогда ИИ работает по старому пути.
@@ -19,3 +19,9 @@ window.GS_CONFIG = {
 // Backend считается настроенным, только если оба значения заменены на реальные.
 window.GS_BACKEND_ON = !/^__/.test(window.GS_CONFIG.SUPABASE_URL) &&
                        !/^__/.test(window.GS_CONFIG.SUPABASE_ANON_KEY);
+
+// Адрес серверной функции-прокси выводится автоматически из URL проекта.
+// Пусто до тех пор, пока backend не настроен → тогда ИИ работает по старому пути.
+if (window.GS_BACKEND_ON && !window.GS_CONFIG.API_BASE) {
+  window.GS_CONFIG.API_BASE = window.GS_CONFIG.SUPABASE_URL.replace(/\/+$/, '') + '/functions/v1';
+}

@@ -8,7 +8,10 @@
 // Ключ жёстко очищается от любых непечатаемых/неASCII символов — иначе Bearer-заголовок
 // ломается с ошибкой "String contains non ISO-8859-1 code point".
 let GEMINI_API_KEY = (localStorage.getItem('openrouter_key') || '').replace(/[^\x20-\x7E]/g, '').trim();
-if (!GEMINI_API_KEY) {
+// ПРОКСИ-РЕЖИМ: если задан адрес серверной функции (config.js), ключ живёт на сервере
+// и в браузер не попадает — тогда игрока о ключе не спрашиваем вовсе.
+const USE_PROXY = !!(window.GS_CONFIG && window.GS_CONFIG.API_BASE);
+if (!GEMINI_API_KEY && !USE_PROXY) {
   const k = prompt('Введите OpenRouter API ключ:');
   if (k) {
     GEMINI_API_KEY = k.replace(/[^\x20-\x7E]/g, '').trim();
@@ -250,7 +253,41 @@ function describePlayerProvinces() {
   return rows.length ? 'ПРОВИНЦИИ страны игрока (крупнейшие): ' + rows.join(', ') + note : '';
 }
 
+// Единый вызов серверной функции-прокси. Возвращает JSON OpenRouter (+ turns_balance)
+// или {error}. Обновляет счётчик ходов в плашке аккаунта.
+async function proxyCall(kind, payload) {
+  const token = (typeof authToken === 'function') ? await authToken() : null;
+  if (!token) {
+    if (typeof showNotif === 'function') showNotif('👤 Войдите в аккаунт, чтобы играть');
+    if (typeof openLogin === 'function') openLogin();
+    return null;
+  }
+  try {
+    const res = await fetch(window.GS_CONFIG.API_BASE + '/ai', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+      body: JSON.stringify(Object.assign({ kind }, payload))
+    });
+    const data = await res.json();
+    if (typeof data.turns_balance === 'number' && typeof gsProfile !== 'undefined' && gsProfile) {
+      gsProfile.turns_balance = data.turns_balance;
+      if (typeof renderAccountBar === 'function') renderAccountBar();
+    }
+    return data;
+  } catch (e) {
+    return { error: String(e) };
+  }
+}
+
 async function askGemini(prompt, maxTokens = 400) {
+  if (USE_PROXY) {
+    const data = await proxyCall('text', { model: MODEL, messages: [{ role: 'user', content: prompt }], max_tokens: maxTokens, temperature: 0.75 });
+    if (!data) return 'Войдите в аккаунт, чтобы играть.';
+    if (data.error === 'no_turns') return '⛔ Ходы на сегодня закончились. Зарегистрируйтесь или пополните баланс, чтобы продолжить.';
+    if (data.error) return 'Ошибка ИИ: ' + data.error;
+    if (data.choices && data.choices[0]) return data.choices[0].message.content;
+    return 'ИИ не ответил.';
+  }
   try {
     const response = await fetch(GEMINI_URL, {
       method: 'POST',
@@ -280,6 +317,15 @@ async function askGemini(prompt, maxTokens = 400) {
 // Возвращает dataURL (data:image/...;base64,...) или null.
 // ============================================================
 async function askGeminiImage(promptText) {
+  if (USE_PROXY) {
+    const data = await proxyCall('image', { model: IMAGE_MODEL, messages: [{ role: 'user', content: promptText }], modalities: ['image', 'text'] });
+    if (!data || data.error) return null; // premium_required / no_auth → просто нет портрета
+    const msg = data.choices && data.choices[0] && data.choices[0].message;
+    if (msg && msg.images && msg.images[0] && msg.images[0].image_url && msg.images[0].image_url.url) {
+      return msg.images[0].image_url.url;
+    }
+    return null;
+  }
   try {
     const response = await fetch(GEMINI_URL, {
       method: 'POST',

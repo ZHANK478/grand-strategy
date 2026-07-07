@@ -17,35 +17,61 @@ function backendOn() { return !!window.GS_BACKEND_ON; }
 // ------------------------------------------------------------
 // ИНИЦИАЛИЗАЦИЯ. Вызывается из index.html до старта меню.
 // ------------------------------------------------------------
+// Видимая диагностика входа (временно). Пишет и в консоль, и в уголок экрана,
+// чтобы было видно, где ломается вход. Отключается: localStorage.setItem('gs_nodebug','1').
+function authDebug(msg) {
+  console.log('[GS-AUTH]', msg);
+  if (localStorage.getItem('gs_nodebug') === '1') return;
+  try {
+    let box = document.getElementById('gs-debug');
+    if (!box) {
+      box = document.createElement('div');
+      box.id = 'gs-debug';
+      box.style.cssText = 'position:fixed;left:6px;bottom:6px;z-index:99999;max-width:360px;font:11px/1.4 monospace;background:rgba(0,0,0,.82);color:#8f8;padding:6px 8px;border-radius:4px;white-space:pre-wrap;';
+      box.onclick = () => box.remove();
+      document.body.appendChild(box);
+    }
+    box.textContent = (box.textContent ? box.textContent + '\n' : 'AUTH (клик — скрыть):\n') + msg;
+  } catch (e) {}
+}
+
 async function initAuth() {
   // Вход НЕ обязателен: игра всегда стартует сразу. initAuth лишь молча
   // восстанавливает прошлую сессию и показывает кнопку «Войти» в меню.
-  if (!backendOn()) return true;               // ключи не заполнены — входа нет вовсе
-  if (!window.supabase) { console.warn('Supabase SDK не загрузился'); return true; }
+  if (!backendOn()) { authDebug('backend ВЫКЛ (config.js без ключей)'); return true; }
+  if (!window.supabase) { authDebug('Supabase SDK не загрузился'); return true; }
+  authDebug('backend ВКЛ, SDK ok');
 
-  // Явные настройки сессии: хранить в localStorage, авто-обновлять токен,
-  // забирать токен из URL после входа. flowType 'implicit' — самый надёжный
-  // для статичного сайта (токен приходит в адресе и сразу сохраняется).
+  // Стандартный flowType 'pkce' (как у Google): сессия возвращается как ?code=…,
+  // а detectSessionInUrl/exchangeCodeForSession превращают её в сессию.
   sb = window.supabase.createClient(window.GS_CONFIG.SUPABASE_URL, window.GS_CONFIG.SUPABASE_ANON_KEY, {
     auth: {
       persistSession: true,
       autoRefreshToken: true,
       detectSessionInUrl: true,
-      flowType: 'implicit',
+      flowType: 'pkce',
       storage: window.localStorage,
       storageKey: 'gs-auth'
     }
   });
 
-  // Реагируем на вход/выход/обновление токена. КЕШИРУЕМ токен здесь, а тяжёлые
-  // вызовы (профиль из БД) откладываем — иначе возможен дедлок Supabase.
-  sb.auth.onAuthStateChange((_e, session) => {
+  sb.auth.onAuthStateChange((ev, session) => {
     gsAccessToken = session ? session.access_token : null;
+    authDebug('событие: ' + ev + ' | сессия: ' + (session ? 'ЕСТЬ' : 'нет'));
     if (session && session.user) { gsUser = { id: session.user.id, email: session.user.email }; onSignedIn(session.user); }
     else onSignedOut();
   });
 
-  const { data } = await sb.auth.getSession();
+  // Явный обмен кода на сессию (если вернулись с Google/почты с ?code=…)
+  try {
+    if (location.search.includes('code=') && sb.auth.exchangeCodeForSession) {
+      const { error } = await sb.auth.exchangeCodeForSession(window.location.href);
+      authDebug('обмен кода: ' + (error ? 'ОШИБКА ' + error.message : 'ok'));
+    }
+  } catch (e) { authDebug('обмен кода упал: ' + e.message); }
+
+  const { data, error } = await sb.auth.getSession();
+  authDebug('getSession: ' + (data && data.session ? 'ЕСТЬ (' + (data.session.user.email || '') + ')' : 'НЕТ') + (error ? ' | err ' + error.message : ''));
   if (data && data.session) {
     gsAccessToken = data.session.access_token;
     gsUser = { id: data.session.user.id, email: data.session.user.email };

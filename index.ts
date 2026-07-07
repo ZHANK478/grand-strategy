@@ -51,11 +51,14 @@ Deno.serve(async (req: Request) => {
       const { data: prof } = await admin.from('profiles').select('plan').eq('id', userId).maybeSingle();
       if (!prof || prof.plan !== 'premium') return json({ error: 'premium_required' }, 403);
     } else {
-      // Списываем 1 ход атомарно; если не хватило — стоп
-      const { data: remaining, error } = await admin.rpc('spend_turn', { p_user: userId, p_cost: 1 });
-      if (error) return json({ error: 'spend_failed' }, 500);
-      if (remaining === -1 || remaining === null) return json({ error: 'no_turns', turns_balance: 0 }, 402);
-      balance = remaining as number;
+      // cost: 1 — действие игрока; 0 — фоновая работа движка (профили/летопись) — не списываем.
+      const cost = Math.max(0, Math.min(3, Number(body.cost ?? 1)));
+      if (cost > 0) {
+        const { data: remaining, error } = await admin.rpc('spend_turn', { p_user: userId, p_cost: cost });
+        if (error) return json({ error: 'spend_failed' }, 500);
+        if (remaining === -1 || remaining === null) return json({ error: 'no_turns', turns_balance: 0 }, 402);
+        balance = remaining as number;
+      }
     }
 
     // Прокидываем запрос в OpenRouter ТВОИМ ключом

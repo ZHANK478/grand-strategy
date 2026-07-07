@@ -19,9 +19,11 @@ function backendOn() { return !!window.GS_BACKEND_ON; }
 // ------------------------------------------------------------
 // Видимая диагностика входа (временно). Пишет и в консоль, и в уголок экрана,
 // чтобы было видно, где ломается вход. Отключается: localStorage.setItem('gs_nodebug','1').
+// Диагностика входа — теперь только в консоль (зелёную надпись на экране убрали).
+// Чтобы снова показать на экране: localStorage.setItem('gs_debug','1').
 function authDebug(msg) {
   console.log('[GS-AUTH]', msg);
-  if (localStorage.getItem('gs_nodebug') === '1') return;
+  if (localStorage.getItem('gs_debug') !== '1') return;
   try {
     let box = document.getElementById('gs-debug');
     if (!box) {

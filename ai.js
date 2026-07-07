@@ -283,9 +283,12 @@ async function proxyCall(kind, payload) {
   }
 }
 
-async function askGemini(prompt, maxTokens = 400) {
+// cost — сколько ХОДОВ списать с игрока за этот вызов:
+//   1 — действие игрока (месячный ход, письмо, советник);
+//   0 — фоновая работа движка (генерация профилей стран, летопись) — БЕСПЛАТНО.
+async function askGemini(prompt, maxTokens = 400, cost = 1) {
   if (USE_PROXY) {
-    const data = await proxyCall('text', { model: MODEL, messages: [{ role: 'user', content: prompt }], max_tokens: maxTokens, temperature: 0.75 });
+    const data = await proxyCall('text', { model: MODEL, messages: [{ role: 'user', content: prompt }], max_tokens: maxTokens, temperature: 0.75, cost });
     if (!data) return 'Войдите в аккаунт, чтобы играть.';
     if (data.error === 'no_turns') return '⛔ Ходы на сегодня закончились. Зарегистрируйтесь или пополните баланс, чтобы продолжить.';
     if (data.error) return 'Ошибка ИИ: ' + data.error;
@@ -424,7 +427,7 @@ ${knownLine}
 Ответь ТОЛЬКО валидным JSON-массивом без пояснений, по объекту на страну:
 [{"country":"название как в списке","ruler":"имя реального/правдоподобного правителя на ${year} год","ruler_age":число (реальный возраст, обычно 30-75),"ruler_title":"титул","government":"форма правления","pm":"глава правительства","pm_title":"его должность","treasury":число (казна во франках, масштаб: великая держава 3000-5000, средняя 1500-2500, малая 400-1200),"income":число (доход/мес: великая 400-700, средняя 200-350, малая 60-180),"army":число солдат,"stability":число 0-100,"capital":"столица","pop":"население текстом","gdp":"ВВП текстом","blurb":"2 предложения о положении страны в ${year} году","agenda":"1-2 предложения: национальные интересы, чего страна боится, чего добивается, с кем соперничает","religion":{"main":"главная религия","dist":{"Религия1":число%,"Религия2":число%}} (реальное распределение верующих, сумма ~100),"ruler_religion":"вера правителя","church":{"name":"название церкви/конфессии","influence":число 0-100},"parliament":null или {"name":"название органа","support":число 0-100,"power":число 0-100 (реальная власть органа),"term_years":число (срок между выборами),"factions":[{"name":"фракция","pct":число}]}}]
 ${full ? '' : 'Для этого списка заполни ТОЛЬКО поля country, agenda, religion, ruler_religion, parliament — остальные ставь null.'}`;
-  const raw = await askGemini(prompt, Math.min(6000, 220 * names.length + 500));
+  const raw = await askGemini(prompt, Math.min(6000, 220 * names.length + 500), 0); // фон — бесплатно
   try {
     const start = raw.indexOf('[');
     const end = raw.lastIndexOf(']');
@@ -1135,7 +1138,7 @@ ${worldState.pastEvents.slice(0, -15).map((e, i) => `${i + 1}. ${e}`).join('\n')
 
 Напиши ОДНУ новую главу летописи: самое важное из этих событий (войны и их итоги, смены власти, договоры и предательства, территориальные изменения, великие потрясения) — 100-160 слов, связным текстом, без нумерации. Не повторяй то, что уже есть в предыдущих главах.
 Первой строкой дай короткое название главы (3-6 слов), со второй строки — текст.`;
-    const raw = await askGemini(prompt, 500);
+    const raw = await askGemini(prompt, 500, 0); // летопись — фон, бесплатно
     const lines = raw.trim().split('\n').filter(l => l.trim());
     if (!lines.length) return null;
     const title = lines[0].replace(/^[#*\d.\s«»"]+|[«»"]+$/g, '').slice(0, 60) || ('Глава ' + ((worldState.historySummary || []).length + 1));

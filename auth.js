@@ -10,6 +10,7 @@
 let sb = null;                 // supabase client
 let gsUser = null;             // текущий пользователь {id, email}
 let gsProfile = null;          // {turns_balance, plan, ...}
+let gsAccessToken = null;      // кешированный access-token (для прокси; без getSession)
 
 function backendOn() { return !!window.GS_BACKEND_ON; }
 
@@ -22,30 +23,58 @@ async function initAuth() {
   if (!backendOn()) return true;               // ключи не заполнены — входа нет вовсе
   if (!window.supabase) { console.warn('Supabase SDK не загрузился'); return true; }
 
-  sb = window.supabase.createClient(window.GS_CONFIG.SUPABASE_URL, window.GS_CONFIG.SUPABASE_ANON_KEY);
+  // Явные настройки сессии: хранить в localStorage, авто-обновлять токен,
+  // забирать токен из URL после входа. flowType 'implicit' — самый надёжный
+  // для статичного сайта (токен приходит в адресе и сразу сохраняется).
+  sb = window.supabase.createClient(window.GS_CONFIG.SUPABASE_URL, window.GS_CONFIG.SUPABASE_ANON_KEY, {
+    auth: {
+      persistSession: true,
+      autoRefreshToken: true,
+      detectSessionInUrl: true,
+      flowType: 'implicit',
+      storage: window.localStorage,
+      storageKey: 'gs-auth'
+    }
+  });
 
-  // Реагируем на возврат по ссылке/Google и на выход
+  // Реагируем на вход/выход/обновление токена. КЕШИРУЕМ токен здесь, а тяжёлые
+  // вызовы (профиль из БД) откладываем — иначе возможен дедлок Supabase.
   sb.auth.onAuthStateChange((_e, session) => {
-    if (session && session.user) onSignedIn(session.user);
+    gsAccessToken = session ? session.access_token : null;
+    if (session && session.user) { gsUser = { id: session.user.id, email: session.user.email }; onSignedIn(session.user); }
     else onSignedOut();
   });
 
   const { data } = await sb.auth.getSession();
-  if (data && data.session) await onSignedIn(data.session.user);
-  else renderMenuAuth();
+  if (data && data.session) {
+    gsAccessToken = data.session.access_token;
+    gsUser = { id: data.session.user.id, email: data.session.user.email };
+    onSignedIn(data.session.user);
+  } else {
+    renderMenuAuth();
+  }
   return true;
 }
 
 async function onSignedIn(user) {
   gsUser = { id: user.id, email: user.email };
   hideLoginOverlay();
-  await loadProfile();
   renderAccountBar();
   renderMenuAuth();
+  cleanAuthUrl();
+  // Профиль читаем ОТДЕЛЬНО от колбэка (через таймаут) — так безопаснее для Supabase
+  setTimeout(() => { loadProfile().then(renderAccountBar); }, 0);
+}
+
+// Убираем из адресной строки хвост #access_token=... после входа
+function cleanAuthUrl() {
+  if (location.hash && /access_token|error/.test(location.hash)) {
+    history.replaceState(null, '', location.pathname + location.search);
+  }
 }
 
 function onSignedOut() {
-  gsUser = null; gsProfile = null;
+  gsUser = null; gsProfile = null; gsAccessToken = null;
   renderAccountBar();
   renderMenuAuth();
 }
@@ -169,7 +198,9 @@ async function cloudDelete(id) {
 // браузер авторизуется на сервере-прокси. Прокси проверит его и спишет ход.
 // ------------------------------------------------------------
 async function authToken() {
+  if (gsAccessToken) return gsAccessToken;      // быстрый путь — кешированный токен
   if (!sb) return null;
-  const { data } = await sb.auth.getSession();
-  return data && data.session ? data.session.access_token : null;
+  const { data } = await sb.auth.getSession();  // резерв: вдруг колбэк ещё не отработал
+  if (data && data.session) { gsAccessToken = data.session.access_token; return gsAccessToken; }
+  return null;
 }

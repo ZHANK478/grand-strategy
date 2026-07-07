@@ -1,0 +1,164 @@
+// ============================================================
+// AUTH.JS — аккаунты, профили, баланс ходов, облачные сейвы (Supabase).
+// Шаг 1 монетизации. Работает поверх готовой игры, ничего в ней не ломая:
+//  - backend ВЫКЛЮЧЕН (config.js не заполнен) → игра как раньше, без входа;
+//  - backend ВКЛЮЧЁН → перед игрой экран входа по email (magic link),
+//    профиль с балансом ходов, сейвы уезжают в облако.
+// Прокси ключа и оплата подключаются на шаге 2/3 (тут заготовлены крючки).
+// ============================================================
+
+let sb = null;                 // supabase client
+let gsUser = null;             // текущий пользователь {id, email}
+let gsProfile = null;          // {turns_balance, plan, ...}
+
+function backendOn() { return !!window.GS_BACKEND_ON; }
+
+// ------------------------------------------------------------
+// ИНИЦИАЛИЗАЦИЯ. Вызывается из index.html до старта меню.
+// ------------------------------------------------------------
+async function initAuth() {
+  if (!backendOn()) return true;               // локальный режим — вход не нужен
+  if (!window.supabase) { console.warn('Supabase SDK не загрузился'); return true; }
+
+  sb = window.supabase.createClient(window.GS_CONFIG.SUPABASE_URL, window.GS_CONFIG.SUPABASE_ANON_KEY);
+
+  // Реагируем на возврат по magic-link и на выход
+  sb.auth.onAuthStateChange((_e, session) => {
+    if (session && session.user) onSignedIn(session.user);
+    else onSignedOut();
+  });
+
+  const { data } = await sb.auth.getSession();
+  if (data && data.session) { await onSignedIn(data.session.user); return true; }
+
+  showLoginOverlay();
+  return false;                                // игра стартует после входа
+}
+
+let gsBooted = false;
+async function onSignedIn(user) {
+  gsUser = { id: user.id, email: user.email };
+  hideLoginOverlay();
+  await loadProfile();
+  renderAccountBar();
+  // Первый успешный вход запускает игру (если она ждала аутентификации)
+  if (!gsBooted && typeof window.__bootAfterLogin === 'function') { gsBooted = true; window.__bootAfterLogin(); }
+}
+
+function onSignedOut() {
+  gsUser = null; gsProfile = null;
+  renderAccountBar();
+  if (backendOn()) showLoginOverlay();
+}
+
+async function loadProfile() {
+  if (!sb || !gsUser) return;
+  // Профиль создаётся триггером при регистрации; но подстрахуемся и подождём его
+  for (let i = 0; i < 4; i++) {
+    const { data } = await sb.from('profiles').select('*').eq('id', gsUser.id).maybeSingle();
+    if (data) { gsProfile = data; return; }
+    await new Promise(r => setTimeout(r, 400));
+  }
+}
+
+// ------------------------------------------------------------
+// ЭКРАН ВХОДА (magic link по email + опционально Google).
+// ------------------------------------------------------------
+function showLoginOverlay() {
+  if (document.getElementById('gs-login')) { document.getElementById('gs-login').style.display = 'flex'; return; }
+  const el = document.createElement('div');
+  el.id = 'gs-login';
+  el.innerHTML = `
+    <div class="gs-login-card">
+      <div class="gs-login-title">GRAND STRATEGY</div>
+      <div class="gs-login-sub">Войдите, чтобы играть и сохранять партии в облаке</div>
+      <input id="gs-login-email" type="email" placeholder="твоя@почта" autocomplete="email">
+      <button id="gs-login-btn" onclick="sendMagicLink()">Получить ссылку для входа</button>
+      <button id="gs-google-btn" class="gs-google" onclick="signInGoogle()">Войти через Google</button>
+      <div id="gs-login-msg" class="gs-login-msg"></div>
+    </div>`;
+  document.body.appendChild(el);
+}
+function hideLoginOverlay() { const el = document.getElementById('gs-login'); if (el) el.style.display = 'none'; }
+
+async function sendMagicLink() {
+  const email = (document.getElementById('gs-login-email').value || '').trim();
+  const msg = document.getElementById('gs-login-msg');
+  if (!email) { msg.textContent = 'Введите почту'; return; }
+  const btn = document.getElementById('gs-login-btn');
+  btn.disabled = true; btn.textContent = 'Отправляем...';
+  const { error } = await sb.auth.signInWithOtp({ email, options: { emailRedirectTo: location.href.split('#')[0] } });
+  btn.disabled = false; btn.textContent = 'Получить ссылку для входа';
+  msg.textContent = error ? ('Ошибка: ' + error.message) : '📧 Проверьте почту — там ссылка для входа.';
+}
+
+async function signInGoogle() {
+  const { error } = await sb.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: location.href.split('#')[0] } });
+  if (error) document.getElementById('gs-login-msg').textContent = 'Google-вход не настроен: ' + error.message;
+}
+
+async function signOut() { if (sb) await sb.auth.signOut(); }
+
+// ------------------------------------------------------------
+// ПЛАШКА АККАУНТА (почта + баланс ходов) в углу меню/игры.
+// ------------------------------------------------------------
+function renderAccountBar() {
+  let bar = document.getElementById('gs-account');
+  if (!backendOn() || !gsUser) { if (bar) bar.remove(); return; }
+  if (!bar) { bar = document.createElement('div'); bar.id = 'gs-account'; document.body.appendChild(bar); }
+  const turns = gsProfile ? gsProfile.turns_balance : '…';
+  const plan = gsProfile && gsProfile.plan === 'premium' ? ' ★' : '';
+  bar.innerHTML = `<span class="gs-turns" title="Осталось ходов">🎲 ${turns}</span>` +
+    `<span class="gs-email">${gsUser.email}${plan}</span>` +
+    `<button onclick="signOut()" title="Выйти">⎋</button>`;
+}
+
+function turnsLeft() { return gsProfile ? gsProfile.turns_balance : Infinity; }
+
+// ------------------------------------------------------------
+// ОБЛАЧНЫЕ СЕЙВЫ. game.js вызывает эти функции, когда backend включён
+// (иначе — старый localStorage). Формат state — тот же объект, что и раньше.
+// ------------------------------------------------------------
+async function cloudSave(id, meta, state) {
+  if (!sb || !gsUser) return false;
+  const row = { id, user_id: gsUser.id, state, updated_at: new Date().toISOString(),
+    scenario_ref: meta.scenarioRef, scenario_name: meta.scenarioName, country: meta.country,
+    ruler: meta.ruler, turn: meta.turn, year: meta.year, month: meta.month, treasury: meta.treasury };
+  const { error } = await sb.from('saves').upsert(row);
+  if (error) console.warn('cloudSave:', error.message);
+  return !error;
+}
+
+async function cloudListSaves() {
+  if (!sb || !gsUser) return [];
+  const { data, error } = await sb.from('saves').select('id,scenario_name,country,ruler,turn,year,month,treasury,updated_at')
+    .eq('user_id', gsUser.id).order('updated_at', { ascending: false });
+  if (error) { console.warn('cloudListSaves:', error.message); return []; }
+  return (data || []).map(s => ({
+    id: s.id, country: s.country, ruler: s.ruler, scenarioName: s.scenario_name,
+    turn: s.turn, year: s.year, month: s.month, treasury: s.treasury,
+    savedAt: s.updated_at ? new Date(s.updated_at).getTime() : 0
+  }));
+}
+
+async function cloudLoad(id) {
+  if (!sb || !gsUser) return null;
+  const { data, error } = await sb.from('saves').select('state').eq('user_id', gsUser.id).eq('id', id).maybeSingle();
+  if (error || !data) return null;
+  return data.state;
+}
+
+async function cloudDelete(id) {
+  if (!sb || !gsUser) return;
+  await sb.from('saves').delete().eq('user_id', gsUser.id).eq('id', id);
+}
+
+// ------------------------------------------------------------
+// КРЮЧОК ДЛЯ ШАГА 2 (прокси): access-token текущей сессии, которым
+// браузер авторизуется на сервере-прокси. Прокси проверит его и спишет ход.
+// ------------------------------------------------------------
+async function authToken() {
+  if (!sb) return null;
+  const { data } = await sb.auth.getSession();
+  return data && data.session ? data.session.access_token : null;
+}

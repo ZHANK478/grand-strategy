@@ -1460,6 +1460,16 @@ function saveGame(opts) {
       localStorage.setItem(key, JSON.stringify(slim));
       if (typeof showNotif === 'function') showNotif('💾 Сохранено (портреты убраны — не хватало места)');
     }
+    // Облачное зеркало: когда backend включён и игрок вошёл — партия уезжает
+    // в его профиль (кросс-девайс). Fire-and-forget, локальный сейв уже сделан.
+    if (typeof backendOn === 'function' && backendOn() && typeof cloudSave === 'function' && gsUser) {
+      const pc = countries[playerCountry] || {};
+      cloudSave(currentSlotId, {
+        scenarioRef: data.scenarioRef, scenarioName: data.scenarioName,
+        country: playerCountryDisplayName || playerCountry, ruler: pc.ruler || '',
+        turn, year, month, treasury: pc.treasury || 0
+      }, data).catch(() => {});
+    }
     if (opts.announce && typeof showNotif === 'function') showNotif('💾 Игра сохранена');
     return true;
   } catch (e) {

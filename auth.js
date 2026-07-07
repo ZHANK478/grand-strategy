@@ -42,17 +42,15 @@ async function initAuth() {
   if (!window.supabase) { authDebug('Supabase SDK не загрузился'); return true; }
   authDebug('backend ВКЛ, SDK ok');
 
-  // flowType 'implicit': токен приходит ПРЯМО в адресе (#access_token=…) и сразу
-  // сохраняется — без «черновика» (code verifier), который у pkce терялся между
-  // уходом на Google и возвратом. Для статичного сайта на GitHub Pages это надёжнее.
+  // СТАНДАРТНАЯ заводская настройка Supabase (pkce + detectSessionInUrl):
+  // библиотека САМА обменивает ?code=… на сессию при возврате. Никаких ручных
+  // обменов и своих ключей хранилища — они и создавали кашу.
   sb = window.supabase.createClient(window.GS_CONFIG.SUPABASE_URL, window.GS_CONFIG.SUPABASE_ANON_KEY, {
     auth: {
       persistSession: true,
       autoRefreshToken: true,
       detectSessionInUrl: true,
-      flowType: 'implicit',
-      storage: window.localStorage,
-      storageKey: 'gs-auth'
+      flowType: 'pkce'
     }
   });
 
@@ -63,14 +61,8 @@ async function initAuth() {
     else onSignedOut();
   });
 
-  // Явный обмен кода на сессию (если вернулись с Google/почты с ?code=…)
-  try {
-    if (location.search.includes('code=') && sb.auth.exchangeCodeForSession) {
-      const { error } = await sb.auth.exchangeCodeForSession(window.location.href);
-      authDebug('обмен кода: ' + (error ? 'ОШИБКА ' + error.message : 'ok'));
-    }
-  } catch (e) { authDebug('обмен кода упал: ' + e.message); }
-
+  // Даём библиотеке мгновение обработать ?code=… из адреса, затем читаем сессию.
+  await new Promise(r => setTimeout(r, 300));
   const { data, error } = await sb.auth.getSession();
   authDebug('getSession: ' + (data && data.session ? 'ЕСТЬ (' + (data.session.user.email || '') + ')' : 'НЕТ') + (error ? ' | err ' + error.message : ''));
   if (data && data.session) {

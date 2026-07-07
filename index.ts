@@ -14,8 +14,8 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 // variant_id → сколько ходов начислить. ВПИШИ свои ID (Lemon Squeezy → Products →
 // вариант → его ID). Значения ходов ДОЛЖНЫ совпадать с shop.js.
 const TURNS_BY_VARIANT: Record<string, number> = {
-  // '111111': 500,
-  // '222222': 1500,
+  '1879573': 500,
+  '1879575': 1500,
 };
 // variant_id подписки Premium → ставим план 'premium' (и немного ходов в подарок).
 const PREMIUM_VARIANTS: string[] = [

@@ -265,7 +265,11 @@ async function proxyCall(kind, payload) {
   try {
     const res = await fetch(window.GS_CONFIG.API_BASE + '/ai', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + token,
+        'apikey': window.GS_CONFIG.SUPABASE_ANON_KEY   // нужен шлюзу функций Supabase
+      },
       body: JSON.stringify(Object.assign({ kind }, payload))
     });
     const data = await res.json();

@@ -1428,6 +1428,17 @@ function hasSave() {
 // Возвращает true/false. ГЛАВНОЕ: при нехватке места больше НЕ падаем молча —
 // иначе большая партия (48 стран) незаметно не сохранялась, и «Продолжить» открывал
 // старый слот на 6 стран.
+// Освобождает память браузера: удаляет ВСЕ прочие слоты сохранений, кроме текущего.
+// Для вошедших игроков полные партии всё равно лежат в облаке.
+function pruneOldSaves(keepKey) {
+  const toRemove = [];
+  for (let i = 0; i < localStorage.length; i++) {
+    const k = localStorage.key(i);
+    if (k && k.startsWith(SAVE_PREFIX) && k !== keepKey) toRemove.push(k);
+  }
+  toRemove.forEach(k => { try { localStorage.removeItem(k); } catch (e) {} });
+}
+
 function saveGame(opts) {
   opts = opts || {};
   try {
@@ -1450,19 +1461,33 @@ function saveGame(opts) {
       savedAt: Date.now()
     };
     const key = SAVE_PREFIX + currentSlotId;
+    const cloudOn = (typeof backendOn === 'function' && backendOn() && typeof cloudSave === 'function' && gsUser);
+
+    // Локальная копия. Для ВОШЕДШИХ игроков — БЕЗ портретов: они тяжёлые (мегабайты)
+    // и хранятся в облаке. Иначе память браузера переполняется и ВЫТЕСНЯЕТ токен входа —
+    // из-за чего вход «не запоминался». Гостям (без облака) пишем полную версию.
+    let localData = data;
+    if (cloudOn) {
+      localData = JSON.parse(JSON.stringify(data));
+      Object.values(localData.countries).forEach(c => { c.portrait = null; c.pmPortrait = null; });
+    }
     try {
-      // 1) полное сохранение
-      localStorage.setItem(key, JSON.stringify(data));
+      localStorage.setItem(key, JSON.stringify(localData));
     } catch (quotaErr) {
-      // 2) резерв: без портретов правителя И премьера (они регенерируются)
+      // Память забита: убираем портреты и, если надо, чистим старые слоты, пробуем снова.
       const slim = JSON.parse(JSON.stringify(data));
       Object.values(slim.countries).forEach(c => { c.portrait = null; c.pmPortrait = null; });
-      localStorage.setItem(key, JSON.stringify(slim));
+      try {
+        localStorage.setItem(key, JSON.stringify(slim));
+      } catch (e2) {
+        pruneOldSaves(key);
+        localStorage.setItem(key, JSON.stringify(slim)); // последняя попытка после чистки
+      }
       if (typeof showNotif === 'function') showNotif('💾 Сохранено (портреты убраны — не хватало места)');
     }
-    // Облачное зеркало: когда backend включён и игрок вошёл — партия уезжает
+    // Облачное зеркало: когда backend включён и игрок вошёл — партия (с портретами) уезжает
     // в его профиль (кросс-девайс). Fire-and-forget, локальный сейв уже сделан.
-    if (typeof backendOn === 'function' && backendOn() && typeof cloudSave === 'function' && gsUser) {
+    if (cloudOn) {
       const pc = countries[playerCountry] || {};
       cloudSave(currentSlotId, {
         scenarioRef: data.scenarioRef, scenarioName: data.scenarioName,

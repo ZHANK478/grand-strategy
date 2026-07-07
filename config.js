@@ -8,8 +8,12 @@
 // доступ к данным ограничивают политики RLS в supabase/schema.sql.
 // ============================================================
 window.GS_CONFIG = {
-  SUPABASE_URL: '__SUPABASE_URL__',       // напр. https://abcdxyz.supabase.co
-  SUPABASE_ANON_KEY: '__SUPABASE_ANON_KEY__',
+  SUPABASE_URL: 'https://pebnjhbofduhzkduaaxt.supabase.co',   // уже вписан за тебя
+
+  // ↓↓↓ ВСТАВЬ СЮДА между кавычек свой anon public ключ ↓↓↓
+  // Supabase → Project Settings → API → секция «Project API keys» → строка «anon public».
+  // Это длинная строка, начинается на eyJ...  Кавычки не удаляй!
+  SUPABASE_ANON_KEY: 'ВСТАВЬ_СЮДА_ANON_КЛЮЧ',
 
   // Сервер-прокси (шаг 2): сюда пойдут вызовы ИИ вместо прямого OpenRouter.
   // Оставь пустым, пока прокси не готов — тогда ИИ работает по старому пути.

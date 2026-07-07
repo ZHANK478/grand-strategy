@@ -13,7 +13,7 @@ window.GS_CONFIG = {
   // ↓↓↓ ВСТАВЬ СЮДА между кавычек свой anon public ключ ↓↓↓
   // Supabase → Project Settings → API → секция «Project API keys» → строка «anon public».
   // Это длинная строка, начинается на eyJ...  Кавычки не удаляй!
-  SUPABASE_ANON_KEY: 'ВСТАВЬ_СЮДА_ANON_КЛЮЧ',
+  SUPABASE_ANON_KEY: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBlYm5qaGJvZmR1aHprZHVhYXh0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODMzODkyNjgsImV4cCI6MjA5ODk2NTI2OH0.G59G7YbP5zgKGPgKrWDGkstxzgGRMrEw9oJhAENhw8s',
 
   // Сервер-прокси (шаг 2): сюда пойдут вызовы ИИ вместо прямого OpenRouter.
   // Оставь пустым, пока прокси не готов — тогда ИИ работает по старому пути.

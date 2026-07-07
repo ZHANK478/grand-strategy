@@ -290,7 +290,7 @@ async function askGemini(prompt, maxTokens = 400, cost = 1) {
   if (USE_PROXY) {
     const data = await proxyCall('text', { model: MODEL, messages: [{ role: 'user', content: prompt }], max_tokens: maxTokens, temperature: 0.75, cost });
     if (!data) return 'Войдите в аккаунт, чтобы играть.';
-    if (data.error === 'no_turns') return '⛔ Ходы на сегодня закончились. Зарегистрируйтесь или пополните баланс, чтобы продолжить.';
+    if (data.error === 'no_turns') { if (typeof openShop === 'function') openShop(); return '⛔ Ходы закончились. Пополни баланс в магазине, чтобы продолжить.'; }
     if (data.error) return 'Ошибка ИИ: ' + data.error;
     if (data.choices && data.choices[0]) return data.choices[0].message.content;
     return 'ИИ не ответил.';

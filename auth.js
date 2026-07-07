@@ -170,12 +170,51 @@ function renderAccountBar() {
   if (!bar) { bar = document.createElement('div'); bar.id = 'gs-account'; document.body.appendChild(bar); }
   const turns = gsProfile ? gsProfile.turns_balance : '…';
   const plan = gsProfile && gsProfile.plan === 'premium' ? ' ★' : '';
+  const buyBtn = shopOn() ? `<button onclick="openShop()" title="Купить ходы" style="background:#2f6b34">＋</button>` : '';
   bar.innerHTML = `<span class="gs-turns" title="Осталось ходов">🎲 ${turns}</span>` +
+    buyBtn +
     `<span class="gs-email">${gsUser.email}${plan}</span>` +
     `<button onclick="signOut()" title="Выйти">⎋</button>`;
 }
 
 function turnsLeft() { return gsProfile ? gsProfile.turns_balance : Infinity; }
+
+// ------------------------------------------------------------
+// МАГАЗИН ХОДОВ (Lemon Squeezy). Открывает hosted-checkout с привязкой к игроку;
+// после оплаты вебхук (Edge Function lemon-webhook) начислит ходы через add_turns.
+// ------------------------------------------------------------
+function shopOn() { return !!window.GS_SHOP_ON; }
+
+function openShop() {
+  if (!gsUser) { openLogin(); return; }
+  if (!shopOn()) { if (typeof showNotif === 'function') showNotif('🛒 Магазин ещё не настроен'); return; }
+  let el = document.getElementById('gs-shop');
+  if (!el) { el = document.createElement('div'); el.id = 'gs-shop'; document.body.appendChild(el); }
+  const items = (window.GS_SHOP.PACKS || []).filter(p => p.variant);
+  if (window.GS_SHOP.PREMIUM && window.GS_SHOP.PREMIUM.variant) items.push(window.GS_SHOP.PREMIUM);
+  el.innerHTML = `
+    <div class="gs-shop-card">
+      <button class="gs-login-close" onclick="closeShop()" title="Закрыть">✕</button>
+      <div class="gs-login-title" style="font-size:24px">Купить ходы</div>
+      <div class="gs-login-sub">Осталось: 🎲 ${gsProfile ? gsProfile.turns_balance : '…'}</div>
+      ${items.map((p, i) => `<button class="gs-buy" onclick="buyItem(${i})">${p.label} — ${p.price}</button>`).join('')}
+      <div class="gs-login-msg">Оплата откроется в новой вкладке. Ходы начислятся через минуту после оплаты.</div>
+    </div>`;
+  el.style.display = 'flex';
+  // сохраняем список, на который ссылаются кнопки
+  window.__shopItems = items;
+}
+function closeShop() { const el = document.getElementById('gs-shop'); if (el) el.style.display = 'none'; }
+
+function buyItem(i) {
+  const p = (window.__shopItems || [])[i];
+  if (!p || !gsUser) return;
+  const store = window.GS_SHOP.STORE;
+  const url = `https://${store}.lemonsqueezy.com/checkout/buy/${p.variant}` +
+    `?checkout[custom][user_id]=${encodeURIComponent(gsUser.id)}` +
+    `&checkout[email]=${encodeURIComponent(gsUser.email)}`;
+  window.open(url, '_blank');
+}
 
 // ------------------------------------------------------------
 // ОБЛАЧНЫЕ СЕЙВЫ. game.js вызывает эти функции, когда backend включён

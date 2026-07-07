@@ -41,6 +41,7 @@ async function initAuth() {
   if (!backendOn()) { authDebug('backend ВЫКЛ (config.js без ключей)'); return true; }
   if (!window.supabase) { authDebug('Supabase SDK не загрузился'); return true; }
   authDebug('backend ВКЛ, SDK ok');
+  authDebug('адрес вернул: ' + (location.search.includes('code=') ? '?code ЕСТЬ ✓' : location.hash.includes('access_token') ? '#token ЕСТЬ ✓' : 'НИ кода, НИ токена ✗'));
 
   // СТАНДАРТНАЯ заводская настройка Supabase (pkce + detectSessionInUrl):
   // библиотека САМА обменивает ?code=… на сессию при возврате. Никаких ручных

@@ -42,14 +42,15 @@ async function initAuth() {
   if (!window.supabase) { authDebug('Supabase SDK не загрузился'); return true; }
   authDebug('backend ВКЛ, SDK ok');
 
-  // Стандартный flowType 'pkce' (как у Google): сессия возвращается как ?code=…,
-  // а detectSessionInUrl/exchangeCodeForSession превращают её в сессию.
+  // flowType 'implicit': токен приходит ПРЯМО в адресе (#access_token=…) и сразу
+  // сохраняется — без «черновика» (code verifier), который у pkce терялся между
+  // уходом на Google и возвратом. Для статичного сайта на GitHub Pages это надёжнее.
   sb = window.supabase.createClient(window.GS_CONFIG.SUPABASE_URL, window.GS_CONFIG.SUPABASE_ANON_KEY, {
     auth: {
       persistSession: true,
       autoRefreshToken: true,
       detectSessionInUrl: true,
-      flowType: 'pkce',
+      flowType: 'implicit',
       storage: window.localStorage,
       storageKey: 'gs-auth'
     }

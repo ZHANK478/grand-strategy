@@ -197,21 +197,36 @@ function setLawSlot(country, slot, optionId) {
 function econInitCountry(c, name) {
   if (c.gdp && c.population) return; // уже инициализирована (загрузка сейва)
   const era = getEra();
-  const r = hashRand((name || c.displayName || '') + 'econ');
-  const inc = Math.max(40, c.income || 100);
-  c.population = Math.round(inc * 62 * (0.75 + r * 0.5));        // тыс. чел.
-  c.gdp = Math.round(inc * 12 / 0.125 * (0.9 + r * 0.2));        // млн, в год
+  const seed = (typeof worldEconSeed === 'function') ? worldEconSeed(name || c.displayName) : null;
+  if (seed) {
+    // ИСТОРИЧЕСКАЯ КАЛИБРОВКА: реальные данные державы (детерминированно, без рандома).
+    c.population = seed.pop;
+    c.gdp = seed.gdp;
+    c.sectors = Object.assign({}, era.sectors, seed.sectors);
+    c.currency = seed.currency || era.currency;
+    c.debtDomestic = seed.debtDom || 0;
+    c.debtForeign = seed.debtFor || 0;
+    c.debt = c.debtDomestic + c.debtForeign;
+    c.infrastructure = (typeof seed.infra === 'number') ? seed.infra : Math.round(12 + (c.stability || 50) / 4);
+  } else {
+    // Неизвестная страна/колония: скромная детерминированная оценка (с потолком,
+    // чтобы малые территории НЕ обгоняли исторические державы).
+    const r = hashRand((name || c.displayName || '') + 'econ');
+    const inc = Math.max(30, Math.min(260, c.income || 70));
+    c.population = Math.round(inc * 42 * (0.7 + r * 0.5));         // тыс. чел.
+    c.gdp = Math.round(inc * 12 / 0.125 * (0.85 + r * 0.25));      // млн, в год
+    c.currency = era.currency;
+    c.infrastructure = Math.round(10 + (c.stability || 50) / 5 + r * 12);
+    const rich = inc > 230 ? 3 : -4;
+    c.sectors = {
+      agriculture: Math.max(5, era.sectors.agriculture - rich + Math.round(r * 8 - 4)),
+      industry: Math.max(2, era.sectors.industry + rich + Math.round(r * 6 - 3)),
+      finance: era.sectors.finance + (r > 0.7 ? 3 : 0),
+      resources: era.sectors.resources + (r < 0.25 ? 4 : 0),
+      services: era.sectors.services
+    };
+  }
   c.gdpGrowth = era.baseGrowth;
-  c.infrastructure = Math.round(12 + (c.stability || 50) / 4 + r * 20);
-  // Секторы: шаблон эпохи ± перекос (богатые страны индустриальнее)
-  const rich = inc > 380 ? 6 : inc > 200 ? 2 : -4;
-  c.sectors = {
-    agriculture: Math.max(5, era.sectors.agriculture - rich + Math.round(r * 8 - 4)),
-    industry: Math.max(2, era.sectors.industry + rich + Math.round(r * 6 - 3)),
-    finance: era.sectors.finance + (r > 0.7 ? 3 : 0),
-    resources: era.sectors.resources + (r < 0.25 ? 4 : 0),
-    services: era.sectors.services
-  };
   econNormalizeSectors(c);
   if (!c.lawSlots) c.lawSlots = defaultLawSlots(c);
   // Классы: ярлыки эпохи; налоговые ставки сохраняем, если уже были выставлены
@@ -487,8 +502,9 @@ function econGrowProvinces() {
 function econDescribeMacro(c) {
   if (!c || !c.gdp) return '';
   const era = getEra();
+  const cur = c.currency || era.currency;
   const s = c.sectors || {};
-  return `МАКРОЭКОНОМИКА: население ${(c.population / 1000).toFixed(1)} млн, ВВП ${Math.round(c.gdp).toLocaleString('ru')} ${era.currency}/год, темп роста ${c.gdpGrowth > 0 ? '+' : ''}${c.gdpGrowth}%/год, инфраструктура ${Math.round(c.infrastructure)}/100. Структура ВВП: сельское хозяйство ${s.agriculture}%, промышленность ${s.industry}%, финансы ${s.finance}%, сырьё ${s.resources}%, услуги ${s.services}%.`;
+  return `МАКРОЭКОНОМИКА: население ${(c.population / 1000).toFixed(1)} млн, ВВП ${Math.round(c.gdp).toLocaleString('ru')} ${cur}/год, темп роста ${c.gdpGrowth > 0 ? '+' : ''}${c.gdpGrowth}%/год, инфраструктура ${Math.round(c.infrastructure)}/100. Структура ВВП: сельское хозяйство ${s.agriculture}%, промышленность ${s.industry}%, финансы ${s.finance}%, сырьё ${s.resources}%, услуги ${s.services}%.`;
 }
 
 function econDescribeLaws(c) {

@@ -109,6 +109,7 @@ async function generateOrderPlan(){
 Игрок управляет ТОЛЬКО страной с каноническим ID "${playerCountry}", глава государства ${countries[playerCountry].ruler}.
 ${getRealismRules()}
 Решения исполняет КОД, а не новость. Не исполняй утверждения игрока о чужих событиях, не создавай деньги из ничего и не допускай фантастику или технологии вне эпохи.
+Регулярные выборы: electionPending=${!!countries[playerCountry].electionPending}.
 Полномочия: парламент ${JSON.stringify(countries[playerCountry].parliament)}.
 Экономика: ${describePlayerEconomy()}
 ${describePlayerSociety()}
@@ -257,5 +258,5 @@ loadGameSlot=async function(...args){const result=await originalLoadForOrders(..
 window.addEventListener('gs:scenario-status',()=>{
  if(gameStarted)return;
  const picker=document.getElementById('mobile-country-picker');
- if(picker&&activeScenario?.countryProfiles?.['Королевство Франция'])picker.value='Королевство Франция';
+ if(picker&&activeScenario?.rules?.defaultPlayer)picker.value=activeScenario.rules.defaultPlayer;
 });

@@ -1363,7 +1363,7 @@ async function nextTurn(kind) {
     renderPlayerStats();renderDate();renderPlayerPowerPanel();renderActionsList();
     renderOrderReceipts(results,changes);
     if(typeof renderMapObjects==='function')renderMapObjects();
-    saveGame();
+    if(!saveGame())throw Error('Не удалось сохранить результат хода');
     return true;
   }catch(error){
     ({turn,month,year,week,countries,worldState,playerActions,pendingDirectives,

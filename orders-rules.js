@@ -23,7 +23,9 @@ function leader(e){LEADERS.forEach(k=>{if(e[k]!=null){if(k==='ruler_age')number(
 function validateEffects(raw,ctx,scope,kind){
  keys(raw,scope==='world'?WORLD_FIELDS:(KIND_FIELDS[kind]||[]));
  const e=clean(raw),mine=ctx.countries[ctx.player];
- const country=n=>{text(n,180);check(ctx.countries[n]&&!ctx.countries[n].annexed,'Неизвестная или аннексированная страна: '+n);};
+ ['economy','society','law_slots','institutions','parliament','relations','other_countries','country_color'].forEach(k=>{if(e[k]!=null)check(plain(e[k]),'Неверный объект: '+k);});
+ ['laws','treaties','relations_between','wars_between','battles','foreign_leader_change','province_transfer','map_objects','war_declared','peace_made'].forEach(k=>{if(e[k]!=null)list(e[k],30);});
+ const country=n=>{text(n,180);check(Object.hasOwn(ctx.countries,n)&&!ctx.countries[n].annexed,'Неизвестная или аннексированная страна: '+n);};
  const pair=(a,b)=>{country(a);country(b);check(a!==b,'Страна не может действовать против себя');};
  if(e.stability_delta!=null)number(e.stability_delta,-10,10);
  if(e.army_delta!=null){number(e.army_delta,-mine.army,100000);check(Number.isInteger(e.army_delta),'Нужна целая численность');}
@@ -43,7 +45,7 @@ function validateEffects(raw,ctx,scope,kind){
   ['dissolve','restore'].forEach(k=>{if(p[k]!=null)check(typeof p[k]==='boolean','Неверное действие с парламентом');});
   check(!(p.dissolve&&p.restore),'Нельзя одновременно распустить и созвать парламент');
   if(p.ban_party!=null)text(p.ban_party,100);
-  if(p.veto!=null)text(p.veto,300);
+  if(p.veto!=null){text(p.veto,300);if(scope==='world')check(mine.parliament&&(mine.parliament.power??50)>=50&&mine.parliament.support<50,'Нет оснований для парламентского вето');}
   if(p.factions){check(mine.electionPending,'Нет назначенных выборов');list(p.factions,12);let sum=0;p.factions.forEach(f=>{keys(f,['name','pct']);text(f.name,100);number(f.pct,0,100);sum+=f.pct;});check(Math.abs(sum-100)<.01,'Доли фракций должны дать 100%');}
   e.parliament=p;
  }

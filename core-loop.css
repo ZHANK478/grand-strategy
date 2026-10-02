@@ -403,3 +403,6 @@ body.laptop-mode :is(.mobile-country-close,.country-card-heading){cursor:default
 
 #test-ai-connection{position:absolute;inset:0;z-index:900;display:none;align-items:center;justify-content:center;padding:12px;background:#102019ba;overflow-y:auto}
 #test-ai-used-model{overflow-wrap:anywhere}
+
+#mobile-start-btn~button[hidden],#map-load-retry[hidden],#map-load-default[hidden]{display:none!important}
+#map-load-status{display:block;line-height:1.4;overflow-wrap:anywhere}

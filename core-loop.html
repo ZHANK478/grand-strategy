@@ -252,7 +252,7 @@ select{background:var(--raise);color:var(--ink);border:1px solid var(--edge);bor
 input[type=checkbox]{accent-color:var(--gold);}
 
 </style>
-<link rel="stylesheet" href="core-loop.css?v=2">
+<link rel="stylesheet" href="core-loop.css?v=3">
 <script>window.GS_MOBILE = true;</script>
 </head>
 <body class="menu-mode">
@@ -311,6 +311,9 @@ input[type=checkbox]{accent-color:var(--gold);}
     <small class="mobile-eyebrow">ИСТОРИЯ В ВАШИХ РУКАХ</small>
     <h1>GRAND<br>STRATEGY</h1>
     <p id="menu-hint">Выберите страну и начните игру.</p>
+    <small id="map-load-status" role="status">Загружаем карту…</small>
+    <button id="map-load-retry" hidden onclick="retryScenarioLoad()">Повторить загрузку карты</button>
+    <button id="map-load-default" hidden onclick="loadDefaultWorld()">Загрузить «Мир 1852»</button>
     <label for="mobile-country-picker">Ваша страна</label>
     <select id="mobile-country-picker"><option value="">Загрузка карты…</option></select>
     <button id="mobile-start-btn" class="primary" onclick="mobileStartGame()" disabled>Начать игру</button>
@@ -775,8 +778,8 @@ input[type=checkbox]{accent-color:var(--gold);}
   </div>
 </div>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/topojson/3.0.2/topojson.min.js"></script>
+<script src="vendor/d3.v7.min.js?v=1"></script>
+<script async src="https://cdnjs.cloudflare.com/ajax/libs/topojson/3.0.2/topojson.min.js"></script>
 <!-- ВКЛАДКА ЭКОНОМИКА -->
 <div id="economy-panel" style="position:absolute;top:88px;right:14px;width:360px;max-height:calc(100vh - 110px);background:#0f1930;border:1px solid #bbb;border-radius:5px;z-index:210;display:none;box-shadow:0 4px 16px rgba(0,0,0,0.2);overflow:hidden;flex-direction:column;">
   <div class="pop-hdr" style="background:#1a3a2a;color:#fff">
@@ -839,7 +842,7 @@ input[type=checkbox]{accent-color:var(--gold);}
  <div class="load-box model-picker-box">
   <div class="menu-heading"><h3 id="model-heading">Модель ИИ · OpenRouter</h3><button class="sheet-close" onclick="closeModelMenu()" aria-label="Закрыть">✕</button></div>
   <p>Модель для приказов, дипломатии, советников и новостей. Портреты используют отдельную модель.</p>
-  <p>Для этих моделей подключите свой OpenRouter-ключ или аккаунт. Гостевой сервер поддерживает только Gemini Flash Lite.</p><button class="load-close-btn" onclick="testOpenAIConnection()">Подключение ИИ</button>
+  <p>Выбор модели работает через Supabase, если сервер разрешает её. Проверить подключение можно ниже. Собственный ключ — необязательный способ тестирования.</p><button class="load-close-btn" onclick="testOpenAIConnection()">Подключение ИИ</button>
   <label for="model-select">Текстовая модель</label>
   <select id="model-select"><option value="__custom__">Загрузка списка…</option></select>
   <label for="model-custom" class="model-manual-label">Точный ID для ручного выбора</label>
@@ -870,21 +873,22 @@ input[type=checkbox]{accent-color:var(--gold);}
  </div>
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="config.js?v=44"></script>
+<script src="core-loop-startup.js?v=1"></script>
+<script async src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2" onload="window.dispatchEvent(new Event('gs:supabase-ready'))"></script>
+<script src="core-loop-config.js?v=1"></script>
 <script src="shop.js?v=44"></script>
 <script src="auth.js?v=44"></script>
-<script src="map.js?v=47"></script>
+<script src="core-loop-map.js?v=1"></script>
 <script src="econ_data.js?v=44"></script>
 <script src="econ.js?v=44"></script>
-<script src="ai.js?v=45"></script>
+<script src="core-loop-ai.js?v=1"></script>
 <script src="core-loop-game.js?v=2"></script>
 <script src="ui.js?v=45"></script>
 <script src="editor.js?v=44"></script>
 
 <script src="mobile-flags.js?v=13"></script>
-<script src="mobile.js?v=13"></script>
-<script src="experimental-session.js?v=1"></script>
+<script src="core-loop-mobile.js?v=1"></script>
+<script src="experimental-session.js?v=3"></script>
 <script src="core-loop-model-selector.js?v=1"></script>
 </body>
 </html>

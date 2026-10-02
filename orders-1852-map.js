@@ -691,11 +691,12 @@ function applyMapObjects(list) {
       if(!item.id||worldState.mapObjects.some(o=>o.id===item.id))throw Error('ID объекта должен быть уникальным');
       const troops=item.type==='army'?(item.troops||0):0;
       if(item.type==='army'&&(troops<=0||troops>room(owner,null)))throw Error('Недостаточно свободных солдат для '+item.label);
-      worldState.mapObjects.push({id:item.id,type:item.type,owner,label:item.label||'Объект',troops,location:item.location,createdTurn:turn});
+      worldState.mapObjects.push({id:item.id,type:item.type,owner,label:item.label||'Объект',troops,location:item.location,createdTurn:turn,...(item.expires_in_months!=null?{expiresAtMonth:year*12+month+item.expires_in_months}:{})});
       changeLog.push('Создано: '+(item.label||'Объект')+(troops?' ('+troops+')':''));
     }else{
       const obj=worldState.mapObjects.find(o=>o.id===item.id);
       if(!obj)throw Error('Объект не найден: '+item.id);
+      if(item.expires_in_months!=null&&item.action!=='remove')obj.expiresAtMonth=year*12+month+item.expires_in_months;
       if(item.action==='update'){
         if(item.troops!=null){
           if(obj.type!=='army')throw Error('Численность задаётся только армии');
@@ -716,6 +717,14 @@ function applyMapObjects(list) {
   renderMapObjects();return changeLog;
 }
 
+function expireMapObjects(){
+ const due=year*12+month,expired=(worldState.mapObjects||[]).filter(o=>Number.isFinite(o.expiresAtMonth)&&o.expiresAtMonth<=due);
+ if(!expired.length)return;
+ const ids=new Set(expired.map(o=>o.id));
+ worldState.mapObjects=worldState.mapObjects.filter(o=>!ids.has(o.id));
+ expired.forEach(o=>{if(typeof recordWorldEvent==='function')recordWorldEvent(o.owner===playerCountry?'domestic':'foreign',
+  'Завершилось временное присутствие','Истёк заданный срок пребывания: «'+o.label+'» ('+o.location+').',[o.owner]);});
+}
 function renderMapObjects() {
   if (typeof worldState === 'undefined' || !worldState.mapObjects) return;
   const zoom = W / vb.w;

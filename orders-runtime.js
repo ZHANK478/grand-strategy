@@ -57,30 +57,13 @@ removeAction=function(index){
  worldState.orders=worldState.orders.filter(o=>o.id!==order.id);playerActions=worldState.orders.filter(o=>['prepared','deferred'].includes(o.status)).map(o=>o.text);
  saveGame();renderActionsList();
 };
-window.queueOrderCard=function(card){
- const c=countries[playerCountry];if(!c?.economy)return;
- if(card==='tax'){
-  const rate=Math.min(45,c.economy.classes.commons.tax+2);
-  queueOrder('Повысить налог рабочих и крестьян до '+rate+'%.','tax',{economy:{tax_commons:rate}});
- }else if(card==='education'){
-  const amount=Math.min(Math.round(c.income*.25),(c.society.spending.education||0)+5);
-  queueOrder('Установить расходы на образование '+amount+' расчётных единиц в месяц.','spending',{society:{education_spending:amount}});
- }else if(card==='dissolve'){
-  if(!c.parliament){showNotif('В стране сейчас нет парламента');return;}
-  queueOrder('Попытаться распустить парламент (шанс при текущих условиях '+Math.round(OrderRules.powerChance(c)*100)+'%).','power',{parliament:{dissolve:true}});
- }
-};
 renderActionsList=function(){
  const pending=ensureOrders(),box=document.getElementById('actions-list');if(!box)return;
  box.replaceChildren();const b=orderBudgetPreview();
  const summary=document.createElement('div');summary.className='order-summary';
  summary.textContent=b?'Прогноз месяца: доход '+b.gross.toLocaleString('ru')+', баланс '+(b.net>=0?'+':'')+b.net.toLocaleString('ru')+'. '+(b.net<0?'Нужно уменьшить дефицит.':'Можно направить избыток на развитие.')+' Прогноз при текущих показателях; рост и события могут изменить итог.':'Подготовьте решения на следующий месяц.';
  box.appendChild(summary);
- const cards=document.createElement('div');cards.className='order-cards';
- [['tax','Налог населению +2 п.п.'],['education','Образование +5 / месяц'],['dissolve','Попытка роспуска парламента']].forEach(([id,label])=>{
-  const button=document.createElement('button');button.textContent=label;button.disabled=turnRunning;button.onclick=()=>queueOrderCard(id);cards.appendChild(button);
- });box.appendChild(cards);
- if(!pending.length){const empty=document.createElement('p');empty.textContent='Нет подготовленных приказов. Выберите карточку или напишите свой приказ.';box.appendChild(empty);}
+ if(!pending.length){const empty=document.createElement('p');empty.textContent='Нет подготовленных приказов. Напишите решение главы государства.';box.appendChild(empty);}
  pending.forEach((o,index)=>{
   const row=document.createElement('div');row.className='action-item order-card';
   const content=document.createElement('div'),label=document.createElement('strong'),status=document.createElement('small');
@@ -90,8 +73,8 @@ renderActionsList=function(){
  });
  const recent=worldState.orders.filter(o=>!['prepared','deferred'].includes(o.status)).slice(-5).reverse();
  if(recent.length){
-  const title=document.createElement('p');title.textContent='Последние результаты';box.appendChild(title);
-  recent.forEach(o=>{const row=document.createElement('div');row.className='order-result';row.textContent=ORDER_STATUS[o.status]+': '+o.text+' — '+o.reason;box.appendChild(row);});
+  const log=document.createElement('details');log.className='order-technical-log';const title=document.createElement('summary');title.textContent='Журнал приказов';log.appendChild(title);box.appendChild(log);
+  recent.forEach(o=>{const row=document.createElement('div');row.className='order-result';row.textContent=ORDER_STATUS[o.status]+': '+o.text+' — '+o.reason;log.appendChild(row);});
  }
 };
 function parseOrderReply(raw){
@@ -114,7 +97,9 @@ ${getRealismRules()}
 Полномочия: парламент ${JSON.stringify(countries[playerCountry].parliament)}.
 Экономика: ${describePlayerEconomy()}
 ${describePlayerSociety()}
-Страны (ID используй ТОЧНО): ${JSON.stringify(context)}.
+Все действующие страны сценария (ID используй ТОЧНО): ${JSON.stringify(ALL_COUNTRIES.filter(n=>countries[n]&&!countries[n].annexed))}.
+Подробности крупнейших стран, это НЕ полный список мира: ${JSON.stringify(context)}.
+Страна не отсутствует только потому, что её нет в подробностях. Если у неё есть ID в полном списке, дипломатию к ней применять можно.
 Войны: ${JSON.stringify({player:worldState.atWarWith,others:worldState.aiWars})}.
 Договоры: ${JSON.stringify(worldState.treaties||[])}.
 Переговоры этого хода: ${JSON.stringify(worldState.diploLog||[])}.
@@ -122,6 +107,7 @@ ${describePlayerSociety()}
 Задания движка: ${JSON.stringify(pendingDirectives||[])}.
 Объекты: ${JSON.stringify(worldState.mapObjects||[])}.
 Допустимые места: ${JSON.stringify(scenarioProvinces.filter(p=>(provinceOwners[p.id]||p.owner)===playerCountry).slice(0,35).map(p=>p.name))}. Города: ${Object.keys(CITY_COORDS).slice(0,60).join(', ')}.
+Руководство страны: ${JSON.stringify({ruler:countries[playerCountry].ruler,ruler_age:countries[playerCountry].rulerAge,ruler_title:countries[playerCountry].rulerTitle,pm_name:countries[playerCountry].pm,pm_title:countries[playerCountry].pmTitle})}.
 Свободные приказы: ${JSON.stringify(free.map(o=>({id:o.id,text:o.text})))}.
 Готовые карточки уже заданы кодом, НЕ включай их в orders: ${JSON.stringify(pending.filter(o=>o.fixedEffects).map(o=>({text:o.text,kind:o.kind,effects:o.fixedEffects})))}.
 
@@ -131,12 +117,12 @@ ${describePlayerSociety()}
 Неподдерживаемое действие = unsupported/reject с честным объяснением; пожелание/придуманное событие не устанавливает факт.
 execute — только предложение: код может заблокировать его или сорвать политическую попытку. НЕ описывай новые приказы как уже исполненные в news/domestic.
 Типы и единственные разрешённые эффекты:
-tax: economy:{tax_noble:N,tax_burgher:N,tax_commons:N}, ставки 0..45.
+tax: economy:{tax_noble:N,tax_burgher:N,tax_commons:N}, ставки 0..100. Высокая ставка разрешена; недовольство и экономические последствия рассчитываются кодом.
 spending: society:{education_spending:N,welfare_spending:N,infrastructure_spending:N}, каждый 0..${Math.round(countries[playerCountry].income*.25)}.
 law: law_slots:{слот:id}; laws допустим только вместе с поддерживаемой системной реформой, иначе defer. laws:[{action:"enact|repeal",name:"...",description:"..."}], institutions:{church:"abolish|restore"}. Известные слоты: ${econLawSpecForPrompt()}.
 power: government/ruler_name/ruler_age/ruler_title/pm_name/pm_title; parliament:{dissolve:true|restore:true|ban_party:"имя"}. Роспуск/диктатура — политическая ПОПЫТКА, исход определит код. Для диктатуры с действующим парламентом укажи dissolve:true. Нельзя присвоить поддержку парламента.
 army: army_delta — набор/демобилизация, стоимость посчитает код, либо map_objects.
-map: map_objects:[{action:"create",id:"unique_id",type:"army|hq|naval|diplomat|other",owner:"${playerCountry}",label:"...",troops:N,location:"..."}] или {action:"update",id:"...",troops:N}, {action:"move",id:"...",to:"..."}, {action:"remove",id:"..."}. Армия распределяется из наличных сил.
+map: map_objects:[{action:"create",id:"unique_id",type:"army|hq|naval|diplomat|other",owner:"${playerCountry}",label:"...",troops:N,location:"..."}] или {action:"update",id:"...",troops:N}, {action:"move",id:"...",to:"..."}, {action:"remove",id:"..."}. Армия распределяется из наличных сил. Для временного объекта добавь expires_in_months: целое число 1..120; срок считает код по календарю, не по числу ходов. Например, поездка правителя на 4 месяца — other с его именем, location и expires_in_months:4; удаление отметки не означает смерть персонажа.
 finance: debt_delta — заём/погашение, код двигает и долг, и казну.
 diplomacy: relations:{ID:дельта -40..20}; treaties:[{action:"sign|break",type:"alliance|nonaggression",a:"ID",b:"ID"}]; war_declared:["ID"], peace_made:["ID"]; province_transfer:[{province:"...",new_owner:"ID"}] — только уступка своей провинции.
 identity: country_name или country_color:{country:"${playerCountry}",color:"#RRGGBB"}.

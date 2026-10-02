@@ -463,3 +463,11 @@ body.menu-mode #mobile-actions-button,body.menu-mode #mobile-actions-menu{displa
 
 #left-panel,#mobile-country-card,#actions-panel,#adv-pop,#diplo-pop,#economy-panel,#history-panel,#changes-box{padding-bottom:62px!important}
 #society-screen>div{padding-bottom:62px!important;box-sizing:border-box}
+
+/* Keep the launcher beside an open country cabinet. */
+body.mobile-country-open #mobile-actions-button{left:calc(30vw + 12px)}
+body.mobile-country-open #mobile-actions-menu{left:calc(30vw + 12px);width:min(390px,calc(70vw - 24px))}
+.order-technical-log{margin-top:10px;border-top:1px solid var(--edge);padding-top:8px}
+.order-technical-log summary{cursor:pointer;min-height:36px;display:flex;align-items:center;font-size:11px}
+
+.newspaper-details{font-size:10px;opacity:.8;margin-top:7px}.newspaper-details summary{cursor:pointer;min-height:32px;display:flex;align-items:center}

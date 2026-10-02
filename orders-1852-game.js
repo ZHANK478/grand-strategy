@@ -397,7 +397,7 @@ function tickClasses(c, isPlayer) {
 function setClassTax(country, classKey, rate) {
   const c = countries[country];
   if (!c || !c.economy || !c.economy.classes[classKey]) return;
-  c.economy.classes[classKey].tax = Math.max(0, Math.min(45, Math.round(rate)));
+  c.economy.classes[classKey].tax = Math.max(0, Math.min(100, Math.round(rate)));
   if (country === playerCountry) { recomputeIncomes(); renderPlayerStats(); if (typeof renderEconomyPanel === 'function') renderEconomyPanel(); }
 }
 
@@ -1241,6 +1241,7 @@ function setCountryLeader(country, fields) {
     if(c.leadershipHistory.length>50)c.leadershipHistory=c.leadershipHistory.slice(-50);
   }
   Object.assign(c, fields);
+  if(fields.government&&c.lawSlots&&typeof defaultLawSlots==='function')c.lawSlots.polity=defaultLawSlots(c).polity;
   if (rulerChanged) {
     c.pendingSuccession = false;
     c.pendingCoup=false;c.awaitingSuccessorName=false;
@@ -1294,6 +1295,7 @@ const SKIP_OPTIONS = {
 function stepOneMonth() {
   month++;
   if (month >= 12) { month = 0; year++; }
+  expireMapObjects();
   const econ = simulateWorldEconomy();
   ALL_COUNTRIES.forEach(c => { if (countries[c] && !countries[c].annexed) { tickClasses(countries[c], c === playerCountry); tickSociety(countries[c]); } });
   checkElections();

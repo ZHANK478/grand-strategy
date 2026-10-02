@@ -58,6 +58,13 @@ Deno.serve(async(req:Request)=>{
   if(statusError)return json({error:'guest_setup_required'},503);
   if(body.operation==='status')return json({guest_turns_remaining:remaining,guest_models:GUEST_MODELS});
   const uuid=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  if(body.operation==='redeem_tester'){
+   if(!uuid.test(body.code||''))return json({error:'bad_tester_code'},400);
+   const {data:left,error}=await admin.rpc('mobile_guest_redeem',{p_user:id,p_token:body.code});
+   if(error)return json({error:'quota_unavailable'},503);
+   if(left<0)return json({error:'bad_tester_code'},400);
+   return json({guest_turns_remaining:left,guest_models:GUEST_MODELS});
+  }
   if(body.operation==='begin_turn'){
    if(!uuid.test(body.request_id||''))return json({error:'bad_request_id'},400);
    const {data:left,error}=await admin.rpc('mobile_guest_begin',{p_user:id,p_request:body.request_id});

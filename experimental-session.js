@@ -7,13 +7,19 @@
  const note=document.getElementById('mobile-guest-note');
  const status=document.getElementById('test-ai-status');
  const guestModel='google/gemini-3.1-flash-lite';
- let guestModels=[guestModel];
+ let guestModels=[guestModel],guestRemaining=null;
  window.GS_GUEST_TURN_ID=null;
  function render(){
   const labels={direct:'OpenRouter · свой ключ',account:'ИИ · аккаунт',guest:'Гость · серверный ИИ',offline:'ИИ не подключён'};
   if(badge)badge.textContent=labels[connection.mode];
   if(note)note.textContent=connection.mode==='offline'?'ИИ не подключён · откройте «Подключение ИИ».':connection.message;
   if(status)status.textContent=connection.message;
+  const remaining=document.getElementById('test-hud-remaining');
+  if(remaining){
+   const value=connection.mode==='guest'?guestRemaining:connection.mode==='account'?gsProfile?.turns_balance:null;
+   remaining.hidden=typeof value!=='number';
+   remaining.textContent=typeof value==='number'?'Осталось '+value:'';
+  }
  }
  function set(mode,message){connection={mode,message};render();}
  function errorMessage(code,http){
@@ -24,6 +30,7 @@
    no_auth:'Сессия входа недоступна. Повторите подключение или используйте свой ключ.',
    bad_auth:'Сессия входа истекла. Войдите снова.',
    premium_required:'Сервер разрешает портреты только премиум-аккаунтам. Для теста можно использовать свой ключ.',
+   bad_tester_code:'Код неверен или уже активирован другим гостем.',
    no_turns:'Серверный баланс ходов исчерпан.',
    request_limit:'Лимит гостевых запросов исчерпан.',
    model_not_allowed:'Выбранная модель не разрешена гостевым сервером. Повторите подключение.',
@@ -57,6 +64,7 @@
    const used=document.getElementById('test-ai-used-model');if(used)used.textContent='Последний ответ: '+data.model;
   }
   if(typeof data.guest_turns_remaining==='number'&&connection.mode==='guest'){
+   guestRemaining=data.guest_turns_remaining;
    connection.message='Гость · осталось '+data.guest_turns_remaining+' ходов. Доступно моделей: '+guestModels.length+'.';render();
   }
   if(typeof data.turns_balance==='number'&&gsProfile)gsProfile.turns_balance=data.turns_balance;
@@ -109,7 +117,18 @@
  renderAccountBar=render;
  renderMenuAuth=function(){};
  openShop=()=>showNotif('Серверный баланс ходов исчерпан. Для собственного теста доступен свой OpenRouter-ключ.');
- turnsLeft=()=>connection.mode==='direct'?Infinity:(gsProfile?.turns_balance??Infinity);
+ turnsLeft=()=>connection.mode==='guest'?(guestRemaining??0):connection.mode==='direct'?Infinity:(gsProfile?.turns_balance??0);
+ window.testRedeemTesterCode=async()=>{
+  if(running||turnRunning){showNotif('Дождитесь завершения хода');return;}
+  if(!await initAuth()||connection.mode!=='guest'){showNotif('Код доступен при гостевом серверном подключении.');return;}
+  const field=document.getElementById('test-tester-code'),button=document.getElementById('test-tester-redeem');
+  button.disabled=true;
+  try{
+   await serverRequest('guest-ai',{operation:'redeem_tester',code:field.value.trim()});
+   field.value='';showNotif('Тестовые ходы активированы.');
+  }catch(error){status.textContent=error.message;}
+  finally{button.disabled=false;}
+ };
  window.testOpenAIConnection=function(){
   closePauseMenu();closeModelMenu();
   document.getElementById('test-ai-connection').style.display='flex';render();
@@ -187,7 +206,7 @@
   if(connection.mode==='guest'){
    if(kind==='image')throw Error(errorMessage('premium_required'));
    if(!guestModels.includes(payload.model))throw Error('Модель '+payload.model+' пока не разрешена гостевым сервером. Нужна настройка Supabase; ключ остаётся на сервере.');
-   return serverRequest('guest-ai',{...payload,operation:'generate',turn_id:window.GS_GUEST_TURN_ID});
+   return serverRequest('guest-ai',{...payload,cost:window.GS_GUEST_TURN_ID?payload.cost:0,operation:'generate',turn_id:window.GS_GUEST_TURN_ID});
   }
   return serverRequest('ai',{kind,...payload});
  }

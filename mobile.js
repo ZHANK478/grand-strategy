@@ -86,105 +86,175 @@
   };
   refreshCountries();
   window.setInterval(()=>{if(document.body.classList.contains('menu-mode'))refreshCountries();},700);
+
+  /* One camera owns pointer, mouse and wheel input in the mobile edition. */
   const map = document.getElementById('map-svg');
   const wrap = document.getElementById('map-wrap');
-  const points = new Map();
-  let previous = null, moved = false, suppressUntil = 0, frame = 0;
-  function screenPoint(p) {
-    const matrix = map.getScreenCTM();
-    return matrix ? new DOMPoint(p.x, p.y).matrixTransform(matrix.inverse()) : null;
+  const pointers = new Map();
+  const world = {width:960,height:560};
+  let baseline=null, moved=false, maxPointers=0, tapTarget=null;
+  let suppressUntil=0, labelFrame=0, oldRect=null;
+  map.setAttribute('preserveAspectRatio','none');
+
+  function limits(rect) {
+    const ratio=rect.width/rect.height;
+    return {ratio,maxWidth:Math.min(world.width,world.height*ratio)};
   }
-  function gesture() {
-    const p = [...points.values()];
-    if (!p.length) return null;
-    return p.length === 1 ? { x:p[0].x, y:p[0].y, distance:0 } : {
-      x:(p[0].x+p[1].x)/2, y:(p[0].y+p[1].y)/2,
-      distance:Math.hypot(p[0].x-p[1].x,p[0].y-p[1].y)
-    };
+  function bounded(view,rect) {
+    const {ratio,maxWidth}=limits(rect);
+    const width=Math.max(12,Math.min(maxWidth,view.w));
+    const height=width/ratio;
+    return {x:((view.x+world.width/2)%world.width+world.width)%world.width-world.width/2,
+      y:Math.max(0,Math.min(world.height-height,view.y)),w:width,h:height};
   }
-  function render() {
-    map.setAttribute('viewBox', [vb.x,vb.y,vb.w,vb.h].join(' '));
-    if (!frame) frame = requestAnimationFrame(() => {
-      frame = 0;
-      updateLabels();
+  function render(view) {
+    const rect=map.getBoundingClientRect();
+    if(!rect.width||!rect.height)return;
+    vb=bounded(view,rect);
+    map.setAttribute('viewBox',[vb.x,vb.y,vb.w,vb.h].join(' '));
+    // Keep input responsive even on maps with thousands of labels/objects.
+    if(!labelFrame)labelFrame=requestAnimationFrame(()=>{
+      labelFrame=0;updateLabels();
     });
   }
-  function scaleAt(factor, center) {
-    const anchor = screenPoint(center);
-    if (!anchor) return;
-    const nextWidth = Math.max(25, Math.min(1800, vb.w * factor));
-    const ratio = nextWidth / vb.w;
-    vb.x = anchor.x - (anchor.x - vb.x) * ratio;
-    vb.y = anchor.y - (anchor.y - vb.y) * ratio;
-    vb.w = nextWidth;
-    vb.h *= ratio;
+  function sample() {
+    const p=[...pointers.values()];
+    if(!p.length)return null;
+    if(p.length===1)return {x:p[0].x,y:p[0].y,distance:0};
+    return {x:(p[0].x+p[1].x)/2,y:(p[0].y+p[1].y)/2,
+      distance:Math.hypot(p[0].x-p[1].x,p[0].y-p[1].y)};
   }
-  map.addEventListener('pointerdown', e => {
-    if (e.pointerType === 'mouse') return;
-    if (!points.size) { moved = false; suppressUntil = 0; }
-    points.set(e.pointerId, {x:e.clientX, y:e.clientY, startX:e.clientX, startY:e.clientY});
-    previous = gesture();
-    if (points.size > 1) moved = true;
-    // Keep the original target for taps so existing country click handlers work.
-    if (points.size > 1) map.setPointerCapture(e.pointerId);
-  });
-  map.addEventListener('pointermove', e => {
-    if (!points.has(e.pointerId)) return;
-    const old = points.get(e.pointerId);
-    if (Math.hypot(e.clientX-old.startX,e.clientY-old.startY) > 8) moved = true;
-    points.set(e.pointerId, {...old,x:e.clientX,y:e.clientY});
-    const next = gesture();
-    if (previous && moved) {
-      const a = screenPoint(previous), b = screenPoint(next);
-      if (a && b) { vb.x += a.x-b.x; vb.y += a.y-b.y; }
-      if (previous.distance > 0 && next.distance > 0) {
-        map.setAttribute('viewBox', [vb.x,vb.y,vb.w,vb.h].join(' '));
-        scaleAt(previous.distance/next.distance, next);
-      }
-      render();
-      document.getElementById('tooltip').style.display = 'none';
-      suppressUntil = performance.now() + 500;
-      if (!map.hasPointerCapture(e.pointerId)) map.setPointerCapture(e.pointerId);
-    }
-    previous = next;
-  });
+  function rebase() {
+    const origin=sample();
+    baseline=origin?{origin,view:{...vb},rect:map.getBoundingClientRect()}:null;
+  }
+  function moveCamera(start,current) {
+    const {origin,view,rect}=start;
+    const factor=origin.distance>0&&current.distance>0?origin.distance/current.distance:1;
+    const {maxWidth,ratio}=limits(rect);
+    const width=Math.max(12,Math.min(maxWidth,view.w*factor));
+    const height=width/ratio;
+    const anchorX=view.x+(origin.x-rect.left)/rect.width*view.w;
+    const anchorY=view.y+(origin.y-rect.top)/rect.height*view.h;
+    return bounded({x:anchorX-(current.x-rect.left)/rect.width*width,
+      y:anchorY-(current.y-rect.top)/rect.height*height,w:width,h:height},rect);
+  }
+  function zoomAt(factor,point) {
+    const rect=map.getBoundingClientRect();
+    render(moveCamera({origin:{...point,distance:1},view:{...vb},rect},
+      {...point,distance:1/factor}));
+    rebase();
+  }
+  function fitWorld() {
+    const rect=map.getBoundingClientRect();
+    if(!rect.width||!rect.height)return;
+    const {ratio,maxWidth}=limits(rect);
+    render({x:(world.width-maxWidth)/2,y:(world.height-maxWidth/ratio)/2,
+      w:maxWidth,h:maxWidth/ratio});
+    oldRect=rect;rebase();
+  }
+  function resizeCamera() {
+    const rect=map.getBoundingClientRect();
+    if(!rect.width||!rect.height)return;
+    if(!oldRect){fitWorld();return;}
+    if(Math.abs(rect.width-oldRect.width)<0.5&&Math.abs(rect.height-oldRect.height)<0.5)return;
+    const zoom=limits(oldRect).maxWidth/vb.w;
+    const width=limits(rect).maxWidth/zoom;
+    const height=width/limits(rect).ratio;
+    render({x:vb.x+vb.w/2-width/2,y:vb.y+vb.h/2-height/2,w:width,h:height});
+    oldRect=rect;rebase();
+  }
+  map.addEventListener('pointerdown',e=>{
+    if(e.pointerType==='mouse'&&e.button!==0)return;
+    e.preventDefault();
+    dragging=false;
+    if(!pointers.size){moved=false;maxPointers=0;tapTarget=e.target;}
+    pointers.set(e.pointerId,{x:e.clientX,y:e.clientY,startX:e.clientX,startY:e.clientY});
+    maxPointers=Math.max(maxPointers,pointers.size);
+    if(pointers.size>1)moved=true;
+    // Capture at gesture start, not partway through a drag.
+    map.setPointerCapture(e.pointerId);
+    rebase();
+    document.getElementById('tooltip').style.display='none';
+  },{passive:false});
+  map.addEventListener('pointermove',e=>{
+    if(!pointers.has(e.pointerId))return;
+    e.preventDefault();
+    const old=pointers.get(e.pointerId);
+    if(Math.hypot(e.clientX-old.startX,e.clientY-old.startY)>4)moved=true;
+    pointers.set(e.pointerId,{...old,x:e.clientX,y:e.clientY});
+    if(baseline&&moved)render(moveCamera(baseline,sample()));
+  },{passive:false});
   function finish(e) {
-    if (!points.has(e.pointerId)) return;
-    points.delete(e.pointerId);
-    if (moved) suppressUntil = performance.now() + 500;
-    previous = gesture();
-    if (!points.size) dragging = false;
-  }
-  window.addEventListener('pointerup', finish);
-  window.addEventListener('pointercancel', finish);
-  map.addEventListener('lostpointercapture', finish);
-  wrap.addEventListener('click', e => {
-    if (performance.now() < suppressUntil) { e.preventDefault(); e.stopImmediatePropagation(); }
-  }, true);
-  // Prevent synthetic mouse dragging after a touch gesture.
-  wrap.addEventListener('mousedown', e => {
-    if (e.sourceCapabilities && e.sourceCapabilities.firesTouchEvents) {
-      e.preventDefault(); e.stopImmediatePropagation();
-    }
-  }, true);
-  const zoom = document.createElement('div');
-  zoom.id = 'mobile-zoom';
-  const controls = [['+', 'Приблизить карту', 0.8], ['−', 'Отдалить карту', 1.25], ['⌂', 'Показать всю карту', null]];
-  controls.forEach(([label, title, factor]) => {
-    const button = document.createElement('button');
-    button.type = 'button'; button.textContent = label;
-    button.setAttribute('aria-label', title); button.title = title;
-    button.addEventListener('click', () => {
-      if (factor === null) { vb = {x:0,y:0,w:960,h:560}; }
-      else {
-        const rect = map.getBoundingClientRect();
-        scaleAt(factor, {x:rect.left+rect.width/2,y:rect.top+rect.height/2});
+    if(!pointers.has(e.pointerId))return;
+    // Implicit capture on an SVG province can be released when the root takes
+    // capture. That event bubbles; it does not mean that the finger was lifted.
+    if(e.type==='lostpointercapture'&&e.target!==map)return;
+    const target=tapTarget;
+    const tap=e.type==='pointerup'&&!moved&&maxPointers===1;
+    pointers.delete(e.pointerId);
+    suppressUntil=performance.now()+700;
+    if(map.hasPointerCapture(e.pointerId))map.releasePointerCapture(e.pointerId);
+    rebase();
+    if(!pointers.size){
+      dragging=false;tapTarget=null;
+      if(tap){
+        let hit=target;
+        // Copies use the same rendered world; resolve a tap back to its real
+        // province so all existing diplomacy/country handlers still work.
+        if(!hit?.closest?.('.scenario-province,.map-obj')){
+          const rect=map.getBoundingClientRect();
+          const x=((vb.x+(e.clientX-rect.left)/rect.width*vb.w)%world.width+world.width)%world.width;
+          const y=vb.y+(e.clientY-rect.top)/rect.height*vb.h;
+          const point=map.createSVGPoint();point.x=x;point.y=y;
+          hit=[...map.querySelectorAll('path.scenario-province')].find(path=>{
+            try {const box=path.getBBox();return x>=box.x&&x<=box.x+box.width&&y>=box.y&&y<=box.y+box.height&&path.isPointInFill(point);}
+            catch {return false;}
+          })||target;
+        }
+        if(hit?.isConnected)hit.dispatchEvent(new MouseEvent('click',{
+          bubbles:true,cancelable:true,clientX:e.clientX,clientY:e.clientY,view:window
+        }));
       }
-      render();
+    }
+  }
+  window.addEventListener('pointerup',finish);
+  window.addEventListener('pointercancel',finish);
+  map.addEventListener('lostpointercapture',finish);
+  wrap.addEventListener('click',e=>{
+    // The tap above is dispatched once to the original province. Browser
+    // compatibility clicks must not select a country after a pan or pinch.
+    if(e.isTrusted&&performance.now()<suppressUntil){
+      e.preventDefault();e.stopImmediatePropagation();
+    }
+  },true);
+  wrap.addEventListener('mousedown',e=>{
+    if(map.contains(e.target)){e.preventDefault();e.stopImmediatePropagation();dragging=false;}
+  },true);
+  wrap.addEventListener('wheel',e=>{
+    if(!map.contains(e.target))return;
+    e.preventDefault();e.stopImmediatePropagation();
+    const delta=e.deltaY*(e.deltaMode===1?16:e.deltaMode===2?map.clientHeight:1);
+    zoomAt(Math.exp(Math.max(-0.5,Math.min(0.5,delta*0.002))),
+      {x:e.clientX,y:e.clientY});
+  },{capture:true,passive:false});
+  const zoom=document.createElement('div');
+  zoom.id='mobile-zoom';
+  [['+','Приблизить карту',0.8],['−','Отдалить карту',1.25],['⌂','Обзор мира',null]].forEach(([label,title,factor])=>{
+    const button=document.createElement('button');
+    button.type='button';button.textContent=label;button.title=title;button.setAttribute('aria-label',title);
+    button.addEventListener('click',()=>{
+      if(factor===null){fitWorld();return;}
+      const rect=map.getBoundingClientRect();
+      zoomAt(factor,{x:rect.left+rect.width/2,y:rect.top+rect.height/2});
     });
     zoom.append(button);
   });
   wrap.append(zoom);
+  fitWorld();
+  if(typeof ResizeObserver!=='undefined')new ResizeObserver(resizeCamera).observe(map);
+  window.addEventListener('resize',resizeCamera);
+
 })();
 
 /* Editor: touch drawing, box selection, navigation and explicit finish button. */
@@ -276,6 +346,7 @@
   });
   function end(e) {
     if (!pointers.has(e.pointerId)) return;
+    if (e.type==='lostpointercapture' && e.target!==canvas) return;
     const cancelled=e.type==='pointercancel'||e.type==='lostpointercapture';
     if (pointers.size===1) {
       if (!pinched && !panMode && !cancelled) {

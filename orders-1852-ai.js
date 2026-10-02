@@ -952,41 +952,8 @@ function parseAndApplyEffects(text, baseChanges) {
 }
 
 // Парсинг изменения отношений из дипломатического ответа
-function parseDiploEffects(text, targetCountry) {
-  try {
-    const jsonText = extractBalancedJson(text, 'DIPLO_EFFECTS:');
-    if (!jsonText) return;
-    const effects = JSON.parse(jsonText);
-    if (effects.relations_delta && effects.relations_delta !== 0) {
-      changeRelations(targetCountry, effects.relations_delta);
-      if (effects.relations_delta <= -20) {
-        showNotif(`😠 ${targetCountry} крайне недоволен переговорами`);
-      } else if (effects.relations_delta >= 10) {
-        showNotif(`🤝 Отношения с ${targetCountry} улучшились`);
-      }
-    }
-    if (effects.treaty && effects.treaty.action && (effects.treaty.type === 'alliance' || effects.treaty.type === 'nonaggression') && typeof signTreaty === 'function') {
-      if (effects.treaty.action === 'sign') {
-        signTreaty(effects.treaty.type, playerCountry, targetCountry);
-      } else if (effects.treaty.action === 'break') {
-        const breaker = normalizeCountryName(effects.treaty.breaker) === playerCountry ? playerCountry : targetCountry;
-        const other = breaker === playerCountry ? targetCountry : playerCountry;
-        breakTreaty(effects.treaty.type, breaker, other);
-      }
-    }
-    if (effects.war_start) {
-      if (!worldState.atWarWith.includes(targetCountry)) {
-        worldState.atWarWith.push(targetCountry);
-        if (worldState.warGoals && typeof makeWarGoal === 'function') {
-          worldState.warGoals[mutualRelKey(playerCountry, targetCountry)] = makeWarGoal(targetCountry, playerCountry);
-        }
-        showNotif(`⚔️ ${targetCountry} объявляет войну!`);
-        if (typeof showBreakingNews === 'function') showBreakingNews('ВОЙНА', `${targetCountry} объявляет войну ${playerCountryDisplayName}!`);
-      }
-    }
-  } catch (e) {
-    console.log('DIPLO_EFFECTS parse error:', e.message);
-  }
+function parseDiploEffects(text,targetCountry) {
+  return applyCheckedDiplomacy(text,targetCountry);
 }
 
 // ============================================================
@@ -1304,8 +1271,8 @@ treaty: null, либо {"action":"sign","type":"alliance"|"nonaggression"} — �
   const diploIdx = rawResponse.indexOf('DIPLO_EFFECTS:');
   const response = diploIdx > -1 ? rawResponse.slice(0, diploIdx).trim() : rawResponse;
 
-  diplomacyHistories[targetCountry].push({ role: targetCountry, text: response });
   parseDiploEffects(rawResponse, targetCountry);
+  diplomacyHistories[targetCountry].push({ role: targetCountry, text: response });
 
   worldState.diploLog.push(`Переговоры с ${targetCountry}: "${message.slice(0, 60)}" → "${response.slice(0, 80)}"`);
   if (worldState.diploLog.length > 15) worldState.diploLog = worldState.diploLog.slice(-15);

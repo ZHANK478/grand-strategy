@@ -177,7 +177,7 @@ function buildCountriesFromScenario() {
     const d = activeScenario?.countryProfiles?.[c] || (year===1852?COUNTRY_DEFAULTS[c]:null) || placeholderCountry(c);
     countries[c] = normalizeCountry({
       displayName: d.displayName || c,
-      succession: d.succession || null, economySeed: d.economySeed || null,
+      succession: d.succession || null, economySeed: d.economySeed || null, militarySupport:d.militarySupport??60,
       ruler: d.ruler, rulerAge: d.rulerAge, rulerSince: d.rulerSince || year, rulerTitle: d.rulerTitle,
       government: d.government, pm: d.pm, pmTitle: d.pmTitle,
       treasury: d.treasury, income: d.income, army: d.army, stability: d.stability,
@@ -895,6 +895,7 @@ function declareEngineWar(attacker, defender) {
   }
   addRelation(attacker, defender, -40);
   const goal = makeWarGoal(attacker, defender);
+  goal.startCalendarMonth = year * 12 + month;
   worldState.warGoals[warKey(attacker, defender)] = goal;
   worldState.pastEvents.push(`⚔️ ${attacker} ОБЪЯВИЛА ВОЙНУ ${defender}. Цель войны: ${warGoalLabel(goal)}.`);
   if (defender === playerCountry && typeof showBreakingNews === 'function') {
@@ -918,64 +919,41 @@ let pendingDirectives = [];
 // Плюс уборка карты: устаревшие объекты закончившихся войн ИИ обязан убирать.
 // ============================================================
 function runInternalPoliticsEngine() {
-  ALL_COUNTRIES.forEach(country => {
-    const c = countries[country];
-    if (!c || c.annexed) return;
-    const st = c.stability;
-
-    if (st < 15 && Math.random() < 0.30) {
-      const secession = Math.random() < 0.5;
-      if (secession) {
-        pendingDirectives.push(`КАТАСТРОФА в ${country} (стабильность ${st}): происходит СЕЦЕССИЯ — часть провинций провозглашает независимость. ОБЯЗАТЕЛЬНО создай мятежное государство через new_countries (type "rebel", from "${country}", 1-3 её провинции по названию из списка) и опиши гражданскую войну.`);
-      } else {
+  ALL_COUNTRIES.slice().forEach(country=>{
+    const c=countries[country];if(!c||c.annexed)return;
+    if(c.stability<15&&Math.random()<.30){
+      const owned=scenarioProvinces.filter(p=>(provinceOwners[p.id]||p.owner)===country);
+      const rebelName='Повстанческое правительство: '+country;
+      if(Math.random()<.5&&owned.length>2&&!countries[rebelName]){
+        const army=Math.min(c.army,Math.max(1000,Math.round(c.army*.08)));
+        const treasury=Math.min(c.treasury,Math.max(0,Math.round(c.treasury*.05)));
+        changeCountryStat(country,'army',-army);changeCountryStat(country,'treasury',-treasury);
+        createDynamicCountry({name:rebelName,type:'rebel',from:country,provinces:owned.slice(-Math.min(3,owned.length-1)).map(p=>p.id),
+          ruler:'Председатель повстанческого правительства',ruler_age:40,ruler_title:'Глава правительства',
+          government:'Повстанческое правительство',army,treasury,stability:35,
+          agenda:'Добиться независимости от '+country+' и удержать контролируемые земли.'});
+        pendingDirectives.push('Движок создал восставшее государство '+rebelName+'. Это уже подтверждённый факт, не создавай его повторно.');
+      }else{
         c.pendingCoup=true;
-        pendingDirectives.push(`КАТАСТРОФА в ${country} (стабильность ${st}): происходит ГОСУДАРСТВЕННЫЙ ПЕРЕВОРОТ. ОБЯЗАТЕЛЬНО смени власть (${country === playerCountry ? 'ruler_name/ruler_age/government' : 'foreign_leader_change с ruler_age'}) — заговорщики, военные или радикалы приходят к власти. Опиши это как большое событие.`);
+        pendingDirectives.push('В '+country+' произошёл переворот; движок назначит нового главу государства. Не объявляй конец партии.');
       }
-    } else if (st < 25 && Math.random() < 0.15) {
-      pendingDirectives.push(`В ${country} (стабильность ${st}) вспыхивает БУНТ: создай на карте армию мятежников (map_objects, owner "Бунтовщики", 5000-30000 солдат в одной из провинций ${country}) и опиши беспорядки. Если бунт не подавить — в следующие ходы он может перерасти в переворот.`);
+    }else if(c.stability<25&&Math.random()<.15){
+      changeCountryStat(country,'stability',-3);
+      worldState.pastEvents.push(country+': беспорядки ослабили режим (стабильность −3).');
     }
-
-    if (c.economy) {
-      Object.values(c.economy.classes).forEach(k => {
-        if (k.loyalty < 20 && Math.random() < 0.2) {
-          pendingDirectives.push(`В ${country} класс «${k.label}» (лояльность ${k.loyalty}) поднимает ВОССТАНИЕ — опиши его, создай отряды восставших (map_objects, owner "Бунтовщики") и накажи страну стабильностью через ${country === playerCountry ? 'stability_delta' : 'other_countries'}.`);
-        }
-      });
+    if(c.economy&&Object.values(c.economy.classes).some(k=>k.loyalty<20)&&Math.random()<.20){
+      changeCountryStat(country,'stability',-2);
+      c.militarySupport=Math.max(0,(c.militarySupport??60)-2);
+      worldState.pastEvents.push(country+': недовольные общественные группы усилили давление на власть.');
     }
   });
-
-  // Уборка карты: объекты аннексированных владельцев удаляем сами; устаревшие армии
-  // мирных стран — директива ИИ убрать/обновить (война кончилась, а армия «висит»)
-  if (worldState.mapObjects && worldState.mapObjects.length) {
-    worldState.mapObjects = worldState.mapObjects.filter(o => {
-      if (o.owner && countries[o.owner] && countries[o.owner].annexed) return false; // страны нет — объекта нет
-      return true;
-    });
-    const stale = worldState.mapObjects.filter(o => {
-      if (o.owner === 'Бунтовщики' || o.owner === 'Мятежники') return false;
-      if (!countries[o.owner]) return false;
-      const atPeace = o.owner === playerCountry
-        ? worldState.atWarWith.length === 0
-        : !(worldState.aiWars || []).some(w => w.includes(o.owner)) && !worldState.atWarWith.includes(o.owner);
-      const age = turn - (o.createdTurn || 0);
-      return o.type === 'army' && atPeace && age > 5;
-    });
-    if (stale.length && Math.random() < 0.5) {
-      pendingDirectives.push(`УБОРКА КАРТЫ: войны этих объектов закончились, они бессмысленно стоят на карте уже много ходов — верни солдат домой или переформируй: ${stale.slice(0, 6).map(o => `id:"${o.id}" (${o.label}, ${o.owner})`).join(', ')}. Используй map_objects remove (роспуск по домам) или update/move. Не оставляй мёртвые объекты.`);
-    }
-    // Совсем древние армии мирных стран (>18 ходов) движок убирает сам
-    const before = worldState.mapObjects.length;
-    worldState.mapObjects = worldState.mapObjects.filter(o => {
-      if (o.type !== 'army' || o.owner === 'Бунтовщики') return true;
-      const atPeace = o.owner === playerCountry
-        ? worldState.atWarWith.length === 0
-        : !(worldState.aiWars || []).some(w => w.includes(o.owner)) && !worldState.atWarWith.includes(o.owner);
-      return !(atPeace && turn - (o.createdTurn || 0) > 18);
-    });
-    if (before !== worldState.mapObjects.length && typeof renderMapObjects === 'function') renderMapObjects();
-  }
+  worldState.mapObjects=(worldState.mapObjects||[]).filter(o=>!countries[o.owner]?.annexed);
+  reconcileOrderArmies();
 }
 
+// ============================================================
+// ДИПЛОМАТИЧЕСКОЕ ЯДРО
+// ============================================================
 function runDiplomacyEngine() {
   const live = ALL_COUNTRIES.filter(c => countries[c] && !countries[c].annexed);
 
@@ -1073,25 +1051,24 @@ function runDiplomacyEngine() {
     if (!d || !atk) return;
     const defBroken = d.stability < 25 || d.army < goal.defStartArmy * 0.3;
     const atkExhausted = atk.stability < 25;
-    // Затяжная война (>30 месяцев) заканчивается белым миром от истощения — движок сам
-    if (typeof goal.startTurn === 'number' && turn - goal.startTurn > 30) {
-      if (goal.attacker === playerCountry || goal.defender === playerCountry) {
-        const other = goal.attacker === playerCountry ? goal.defender : goal.attacker;
-        worldState.atWarWith = worldState.atWarWith.filter(x => x !== other);
-        changeRelations(other, 10);
-      } else {
-        worldState.aiWars = worldState.aiWars.filter(w => !(w.includes(goal.attacker) && w.includes(goal.defender)));
-        addRelation(goal.attacker, goal.defender, 10);
+    const elapsed=typeof goal.startCalendarMonth==='number' ? year*12+month-goal.startCalendarMonth : turn-goal.startTurn;
+    if (elapsed>30 || defBroken || atkExhausted) {
+      if (goal.attacker===playerCountry || goal.defender===playerCountry) {
+        const other=goal.attacker===playerCountry?goal.defender:goal.attacker;
+        worldState.atWarWith=worldState.atWarWith.filter(x=>x!==other);
+      } else worldState.aiWars=worldState.aiWars.filter(w=>!(w.includes(goal.attacker)&&w.includes(goal.defender)));
+      let outcome='белый мир';
+      if(defBroken && !atkExhausted && elapsed<=30){
+        const payment=Math.max(0,Math.min(d.treasury,Math.round((d.gdp||0)*.02)));
+        d.treasury-=payment;atk.treasury+=payment;
+        d.stability=Math.max(25,d.stability);
+        outcome='поражение '+goal.defender+'; контрибуция '+payment;
       }
+      addRelation(goal.attacker,goal.defender,10);
       delete worldState.warGoals[key];
-      worldState.pastEvents.push(`🕊️ Война ${goal.attacker} против ${goal.defender} завершилась БЕЛЫМ МИРОМ — обе стороны истощены.`);
-      pendingDirectives.push(`Война ${goal.attacker} против ${goal.defender} закончилась истощением (белый мир) — опиши это и убери её армии с карты (map_objects remove).`);
+      worldState.pastEvents.push('Мир: '+goal.attacker+' / '+goal.defender+' — '+outcome+'.');
+      pendingDirectives.push('Уже заключён мир '+goal.attacker+' / '+goal.defender+': '+outcome+'. Опиши подтверждённый итог; территориальных изменений и смены власти не произошло.');
       return;
-    }
-    if (defBroken) {
-      pendingDirectives.push(`${goal.defender} разбита в войне с ${goal.attacker} — ЗАКЛЮЧИ МИР в этом ходу согласно цели войны (${warGoalLabel(goal)}): используй province_transfer/territory_transfer/new_countries/treasury по смыслу цели, затем peace_made/wars_between end.`);
-    } else if (atkExhausted) {
-      pendingDirectives.push(`${goal.attacker} истощена войной с ${goal.defender} — пусть предложит белый мир или урезанные требования (peace_made/wars_between end).`);
     } else if (Math.random() < 0.5) {
       pendingDirectives.push(`Война ${goal.attacker} против ${goal.defender} продолжается (цель: ${warGoalLabel(goal)}) — ОБЯЗАТЕЛЬНО battles в этом ходу, фронт должен двигаться.`);
     }
@@ -1338,6 +1315,7 @@ function announceDeaths(deaths) {
 let turnRunning = false;
 async function nextTurn(kind) {
   if(turnRunning)return;
+  if(window.ordersCanStartTurn&&!window.ordersCanStartTurn()){showNotif('Дождитесь дипломатического ответа');return false;}
   kind=kind||(typeof getSelectedSkip==='function'?getSelectedSkip():'m1');
   const opt=SKIP_OPTIONS[kind]||SKIP_OPTIONS.m1;
   const snapshot=JSON.parse(JSON.stringify({turn,month,year,week,countries,worldState,playerActions,pendingDirectives,
@@ -1347,7 +1325,8 @@ async function nextTurn(kind) {
     turn++;
     // Decisions take effect before the month's budget and social simulation.
     const results=await onTurnEnd();
-    let changes=[],deaths=[];
+    let changes=[],deaths=[],netSum=0,borrowedSum=0;
+    const engineHistoryStart=worldState.pastEvents.length;
     if(kind==='week'){
       week++;
       if(week>=4){week=0;const r=stepOneMonth();changes=r.econ;deaths=r.deaths;resolvePendingSuccessions();}
@@ -1355,10 +1334,15 @@ async function nextTurn(kind) {
       week=0;
       for(let i=0;i<opt.months;i++){
         const r=stepOneMonth();changes=r.econ;deaths.push(...r.deaths);
+        netSum+=countries[playerCountry].lastBudget?.net||0;borrowedSum+=countries[playerCountry].lastBudget?.borrowed||0;
         resolvePendingSuccessions();
       }
     }
     announceDeaths(deaths);
+    if(opt.months>1){changes=[{label:'Бюджет за '+opt.months+' месяцев',value:(netSum>=0?'+':'')+netSum.toLocaleString('ru')+' расчётных единиц',sign:netSum}];
+      if(borrowedSum)changes.push({label:'Займы за период',value:'+'+borrowedSum.toLocaleString('ru'),sign:-1});}
+    const eventsList=document.getElementById('events-list');
+    worldState.pastEvents.slice(engineHistoryStart).slice(-8).forEach(text=>{const row=document.createElement('div');row.className='ev-item';row.textContent='Движок: '+text;eventsList.appendChild(row);});
     reconcileOrderArmies();
     renderPlayerStats();renderDate();renderPlayerPowerPanel();renderActionsList();
     renderOrderReceipts(results,changes);
@@ -1668,6 +1652,7 @@ function resetGame(country) {
   playerCountryDisplayName=countries[playerCountry]?.displayName || playerCountry;
   initProvinceEconomy();
   recomputeIncomes();
+  ALL_COUNTRIES.forEach(name=>{const c=countries[name];econInitCountry(c,name);if(!c.society){initSociety(c);const seed=year===1852?SOCIETY_SEEDS[name]:null;if(seed)Object.assign(c.society,seed);}});
 
   if (typeof updateMapCountryLabel === 'function') {
     ALL_COUNTRIES.forEach(c => updateMapCountryLabel(c, countries[c]?.displayName||c));

@@ -10,7 +10,7 @@ const KIND_FIELDS={
 };
 const LEADERS=['ruler_name','ruler_age','ruler_title','government','pm_name','pm_title'];
 const WORLD_FIELDS=['stability_delta','relations','relations_between','other_countries','battles',
- 'wars_between','foreign_leader_change',...LEADERS,'map_objects','war_declared','peace_made','parliament'];
+ 'wars_between','foreign_leader_change',...LEADERS,'map_objects','war_declared','parliament'];
 const INVALID_FICTION=/инопланет|пришельц|телепорт|машин[аы] времени|alien invasion|extraterrestrial/i;
 const plain=v=>!!v&&typeof v==='object'&&!Array.isArray(v)&&Object.getPrototypeOf(v)===Object.prototype;
 const check=(condition,message)=>{if(!condition)throw Error(message);};
@@ -31,6 +31,7 @@ function validateEffects(raw,ctx,scope,kind){
  if(e.army_delta!=null){number(e.army_delta,-mine.army,100000);check(Number.isInteger(e.army_delta),'Нужна целая численность');}
  if(e.debt_delta!=null)number(e.debt_delta,-mine.debt,Math.max(100,mine.income*12));
  leader(e);
+ if(e.government!=null&&ctx.governments)check(ctx.governments.includes(e.government),'Неподдерживаемая форма правления');
  if(e.country_name!=null)text(e.country_name,100);
  if(e.country_color){keys(e.country_color,['country','color']);check(e.country_color.country===ctx.player,'Можно менять только свою страну');check(/^#[a-f0-9]{6}$/i.test(e.country_color.color),'Некорректный цвет');}
  if(e.economy){keys(e.economy,['tax_noble','tax_burgher','tax_commons']);e.economy=clean(e.economy);Object.values(e.economy).forEach(v=>number(v,0,45));}
@@ -52,7 +53,7 @@ function validateEffects(raw,ctx,scope,kind){
  if(e.relations){keys(e.relations,Object.keys(ctx.countries).filter(n=>n!==ctx.player));Object.entries(e.relations).forEach(([n,v])=>{country(n);number(v,-40,20);});}
  if(e.relations_between){list(e.relations_between);e.relations_between.forEach(r=>{keys(r,['a','b','delta']);pair(r.a,r.b);check(r.a!==ctx.player&&r.b!==ctx.player,'Используйте relations');number(r.delta,-20,20);});}
  if(e.other_countries){keys(e.other_countries,Object.keys(ctx.countries).filter(n=>n!==ctx.player));Object.entries(e.other_countries).forEach(([n,d])=>{country(n);keys(d,['stability_delta']);Object.values(d).forEach(v=>number(v,-10,10));});}
- if(e.treaties){list(e.treaties,5);e.treaties.forEach(t=>{keys(t,['action','type','a','b']);pair(t.a,t.b);check(['sign','break'].includes(t.action)&&['alliance','nonaggression'].includes(t.type),'Неверный договор');check(t.a===ctx.player||t.b===ctx.player,'Договор должен касаться своей страны');if(t.action==='sign')check(ctx.relation(t.a,t.b)>(t.type==='alliance'?60:40),'Недостаточно отношений для договора');});}
+ if(e.treaties){list(e.treaties,5);e.treaties.forEach(t=>{keys(t,['action','type','a','b']);pair(t.a,t.b);check(['sign','break'].includes(t.action)&&['alliance','nonaggression'].includes(t.type),'Неверный договор');check(t.a===ctx.player||t.b===ctx.player,'Договор должен касаться своей страны');if(t.action==='sign')check(!ctx.atWar(t.a,t.b)&&ctx.relation(t.a,t.b)>(t.type==='alliance'?60:40),'Недостаточно отношений или война для договора');});}
  ['war_declared','peace_made'].forEach(k=>{if(e[k]){list(e[k],5);e[k].forEach(n=>pair(ctx.player,n));}});
  if(e.wars_between){list(e.wars_between,5);e.wars_between.forEach(w=>{keys(w,['a','b','status']);pair(w.a,w.b);check(w.a!==ctx.player&&w.b!==ctx.player,'Используйте war_declared');check(['start','end'].includes(w.status),'Неверный статус войны');});}
  if(e.battles){list(e.battles,8);e.battles.forEach(b=>{keys(b,['a','b','scale','location']);pair(b.a,b.b);check(ctx.atWar(b.a,b.b),'Сражение возможно только в войне');check(['skirmish','battle','decisive'].includes(b.scale),'Неверный масштаб боя');if(b.location!=null){text(b.location,180);check(ctx.location(b.location),'Неизвестное место боя');}});}
@@ -97,6 +98,11 @@ function validatePlan(plan,pending,ctx){
  });
  return {...plan,orders,world_effects:validateEffects(plan.world_effects,ctx,'world')};
 }
+function powerChance(c){
+ const p=c.parliament,power=p?.power??0;
+ const security=c.army>0?(c.militarySupport??60):15;
+ return Math.max(.05,Math.min(.9,(c.stability*.4+security*.25+(p?.support??70)*.2+(100-power)*.15-power*.2)/100));
+}
 function authority(order,c,random=Math.random){
  const e=order.effects,p=c.parliament;
  if(order.status!=='execute')return {status:order.status==='reject'?'rejected':'deferred',reason:order.reason};
@@ -106,7 +112,7 @@ function authority(order,c,random=Math.random){
   const controversial=!!e.government||!!e.parliament?.dissolve||!!e.parliament?.ban_party;
   if(controversial){
    if(c.stability<25)return {status:'blocked',reason:'Режим слишком неустойчив для концентрации власти.'};
-   const chance=Math.max(.15,Math.min(.9,(c.stability*.5+(p?.support??70)*.3+(100-(p?.power??0))*.2)/100));
+   const chance=powerChance(c);
    if(random()>=chance)return {status:'failed',reason:'Попытка концентрации власти сорвана; стабильность −5.',penalty:5,chance};
    return {status:'executed',reason:order.reason+' Политическая попытка удалась.',chance};
   }
@@ -114,5 +120,5 @@ function authority(order,c,random=Math.random){
  }
  return {status:'executed',reason:order.reason};
 }
-root.OrderRules={KIND_FIELDS,WORLD_FIELDS,validatePlan,validateEffects,authority,INVALID_FICTION};
+root.OrderRules={KIND_FIELDS,WORLD_FIELDS,validatePlan,validateEffects,authority,powerChance,INVALID_FICTION};
 })(globalThis);

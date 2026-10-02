@@ -14,7 +14,7 @@ function ensureOrders(){
 function orderCountry(name){return normalizeCountryName(name);}
 function orderContext(){
  return {player:playerCountry,countries,objects:JSON.parse(JSON.stringify(worldState.mapObjects||[])),
-  lawSlots:LAW_SLOTS,lawOption,relation:getRelation,atWar:isAtWar,location:resolveLocationLonLat,
+  lawSlots:LAW_SLOTS,lawOption,governments:activeScenario.rules?.governments||null,relation:getRelation,atWar:isAtWar,location:resolveLocationLonLat,
   provinceOwner:key=>{const p=scenarioProvinces.find(p=>p.id===key||p.name===key);return p?(provinceOwners[p.id]||p.owner):null;}};
 }
 function canonicalEffects(e){
@@ -67,14 +67,14 @@ window.queueOrderCard=function(card){
   queueOrder('Установить расходы на образование '+amount+' расчётных единиц в месяц.','spending',{society:{education_spending:amount}});
  }else if(card==='dissolve'){
   if(!c.parliament){showNotif('В стране сейчас нет парламента');return;}
-  queueOrder('Попытаться распустить парламент.','power',{parliament:{dissolve:true}});
+  queueOrder('Попытаться распустить парламент (шанс при текущих условиях '+Math.round(OrderRules.powerChance(c)*100)+'%).','power',{parliament:{dissolve:true}});
  }
 };
 renderActionsList=function(){
  const pending=ensureOrders(),box=document.getElementById('actions-list');if(!box)return;
  box.replaceChildren();const b=orderBudgetPreview();
  const summary=document.createElement('div');summary.className='order-summary';
- summary.textContent=b?'Прогноз месяца: доход '+b.gross.toLocaleString('ru')+', баланс '+(b.net>=0?'+':'')+b.net.toLocaleString('ru')+'. '+(b.net<0?'Нужно уменьшить дефицит.':'Можно направить избыток на развитие.'):'Подготовьте решения на следующий месяц.';
+ summary.textContent=b?'Прогноз месяца: доход '+b.gross.toLocaleString('ru')+', баланс '+(b.net>=0?'+':'')+b.net.toLocaleString('ru')+'. '+(b.net<0?'Нужно уменьшить дефицит.':'Можно направить избыток на развитие.')+' Прогноз при текущих показателях; рост и события могут изменить итог.':'Подготовьте решения на следующий месяц.';
  box.appendChild(summary);
  const cards=document.createElement('div');cards.className='order-cards';
  [['tax','Налог населению +2 п.п.'],['education','Образование +5 / месяц'],['dissolve','Попытка роспуска парламента']].forEach(([id,label])=>{
@@ -109,6 +109,7 @@ async function generateOrderPlan(){
 Игрок управляет ТОЛЬКО страной с каноническим ID "${playerCountry}", глава государства ${countries[playerCountry].ruler}.
 ${getRealismRules()}
 Решения исполняет КОД, а не новость. Не исполняй утверждения игрока о чужих событиях, не создавай деньги из ничего и не допускай фантастику или технологии вне эпохи.
+Допустимые формы правления: ${JSON.stringify(activeScenario.rules?.governments||[])}.
 Регулярные выборы: electionPending=${!!countries[playerCountry].electionPending}.
 Полномочия: парламент ${JSON.stringify(countries[playerCountry].parliament)}.
 Экономика: ${describePlayerEconomy()}
@@ -125,14 +126,14 @@ ${describePlayerSociety()}
 Готовые карточки уже заданы кодом, НЕ включай их в orders: ${JSON.stringify(pending.filter(o=>o.fixedEffects).map(o=>({text:o.text,kind:o.kind,effects:o.fixedEffects})))}.
 
 Верни ТОЛЬКО JSON без Markdown:
-{"news":["до 3 коротких самостоятельных новостей мира"],"domestic":["до 2 замечаний о ПОДТВЕРЖДЁННОМ состоянии"],"orders":[{"id":"точный ID свободного приказа","kind":"tax|spending|law|power|army|map|finance|diplomacy|identity|unsupported","status":"execute|reject|defer","reason":"краткая причина","effects":{}}],"world_effects":{}}
+{"news":["до 3 коротких наблюдений о подтверждённом состоянии мира"],"domestic":["до 2 замечаний о ПОДТВЕРЖДЁННОМ состоянии"],"orders":[{"id":"точный ID свободного приказа","kind":"tax|spending|law|power|army|map|finance|diplomacy|identity|unsupported","status":"execute|reject|defer","reason":"краткая причина","effects":{}}],"world_effects":{}}
 На КАЖДЫЙ свободный приказ нужен ровно один результат. reject/defer имеют effects:{}.
 Неподдерживаемое действие = unsupported/reject с честным объяснением; пожелание/придуманное событие не устанавливает факт.
 execute — только предложение: код может заблокировать его или сорвать политическую попытку. НЕ описывай новые приказы как уже исполненные в news/domestic.
 Типы и единственные разрешённые эффекты:
 tax: economy:{tax_noble:N,tax_burgher:N,tax_commons:N}, ставки 0..45.
 spending: society:{education_spending:N,welfare_spending:N,infrastructure_spending:N}, каждый 0..${Math.round(countries[playerCountry].income*.25)}.
-law: law_slots:{слот:id} либо laws:[{action:"enact|repeal",name:"...",description:"..."}], institutions:{church:"abolish|restore"}. Известные слоты: ${econLawSpecForPrompt()}.
+law: law_slots:{слот:id}; laws допустим только вместе с поддерживаемой системной реформой, иначе defer. laws:[{action:"enact|repeal",name:"...",description:"..."}], institutions:{church:"abolish|restore"}. Известные слоты: ${econLawSpecForPrompt()}.
 power: government/ruler_name/ruler_age/ruler_title/pm_name/pm_title; parliament:{dissolve:true|restore:true|ban_party:"имя"}. Роспуск/диктатура — политическая ПОПЫТКА, исход определит код. Для диктатуры с действующим парламентом укажи dissolve:true. Нельзя присвоить поддержку парламента.
 army: army_delta — набор/демобилизация, стоимость посчитает код, либо map_objects.
 map: map_objects:[{action:"create",id:"unique_id",type:"army|hq|naval|diplomat|other",owner:"${playerCountry}",label:"...",troops:N,location:"..."}] или {action:"update",id:"...",troops:N}, {action:"move",id:"...",to:"..."}, {action:"remove",id:"..."}. Армия распределяется из наличных сил.
@@ -143,9 +144,10 @@ identity: country_name или country_color:{country:"${playerCountry}",color:"#
 world_effects может быть пустым. Допустимы только ограниченные самостоятельные изменения:
 stability_delta (-10..10), relations, relations_between:[{a,b,delta}], other_countries:{ID:{stability_delta:N}},
 wars_between:[{a,b,status:"start|end"}], battles:[{a,b,scale:"skirmish|battle|decisive",location:"..."}] ТОЛЬКО в УЖЕ ИДУЩЕЙ войне,
-war_declared/peace_made, foreign_leader_change:[{country,ruler_name,ruler_age,ruler_title,government,pm_name,pm_title}] ТОЛЬКО при pendingSuccession/pendingCoup этой страны.
+war_declared (чужая страна объявляет войну игроку; мир за игрока не подписывай), foreign_leader_change:[{country,ruler_name,ruler_age,ruler_title,government,pm_name,pm_title}] ТОЛЬКО при pendingSuccession/pendingCoup этой страны.
 Свои ruler_name/ruler_age/ruler_title/government/pm_name/pm_title в world_effects — ТОЛЬКО если код отметил pendingSuccession/pendingCoup. Никаких налогов, законов, произвольных сумм или бесплатных армий в world_effects.
 parliament:{support_delta:-10..10,factions:[{name,pct}]} в world_effects: factions только если electionPending; иначе не включай.
+В news/domestic не объявляй новые конституции, законы, смерти или договоры, если они не подтверждены состоянием движка. Не пересказывай обязательную историческую хронологию как уже случившуюся альтернативную историю.
 Пиши кратко, не заполняй нулевые поля. Суммы — расчётные единицы движка, не независимая историческая статистика.`;
  const raw=await askGemini(prompt,4000);
  const plan=parseOrderReply(raw);
@@ -176,6 +178,7 @@ function reconcileOrderArmies(){
 }
 function executeOrderEffects(e){
  const copy=JSON.parse(JSON.stringify(e)),c=countries[playerCountry];
+ if(copy.war_declared){copy.war_declared.forEach(n=>{if(!isAtWar(playerCountry,n))declareEngineWar(playerCountry,n);});delete copy.war_declared;}
  if(copy.debt_delta!=null){
   const delta=copy.debt_delta;
   if(delta>0){changeCountryStat(playerCountry,'debt',delta);changeCountryStat(playerCountry,'treasury',delta);}
@@ -195,6 +198,33 @@ function executeOrderEffects(e){
  parseAndApplyEffects('EFFECTS:'+JSON.stringify(copy),[]);
  reconcileOrderArmies();
 }
+function executedOrderDescription(e){
+ const c=countries[playerCountry],parts=[];
+ if(e.economy){const ids={tax_noble:'noble',tax_burgher:'burgher',tax_commons:'commons'};
+  Object.keys(e.economy).forEach(k=>parts.push(c.economy.classes[ids[k]].label+': налог '+c.economy.classes[ids[k]].tax+'%'));}
+ if(e.society){const labels={education_spending:['education','образование'],welfare_spending:['welfare','помощь населению'],infrastructure_spending:['infrastructure','инфраструктура']};
+  Object.keys(e.society).forEach(k=>{const [id,label]=labels[k];parts.push(label+': '+c.society.spending[id]+' / месяц');});}
+ if(e.law_slots)parts.push('Системная реформа применена');
+ if(e.laws)parts.push('Закон зарегистрирован вместе с системным эффектом');
+ if(e.institutions)parts.push('Изменён статус государственной церкви');
+ if(e.government)parts.push('Форма правления: '+c.government);
+ if(e.ruler_name)parts.push('Глава государства: '+c.ruler);
+ if(e.pm_name)parts.push('Глава правительства: '+c.pm);
+ if(e.parliament?.dissolve)parts.push('Парламент распущен; сопротивление учтено кодом');
+ if(e.parliament?.restore)parts.push('Парламент созван');
+ if(e.parliament?.ban_party)parts.push('Партия запрещена');
+ if(e.army_delta!=null)parts.push(e.army_delta>0?'Набрано '+e.army_delta+' солдат; разовая цена '+Math.ceil(e.army_delta*.002):'Армия сокращена на '+(-e.army_delta)+' солдат');
+ if(e.map_objects)parts.push('Изменения объектов на карте применены');
+ if(e.debt_delta!=null)parts.push(e.debt_delta>0?'Заём '+e.debt_delta+' получен; долг и казна увеличены':'Долг погашен на '+(-e.debt_delta));
+ if(e.war_declared)parts.push('Война объявлена; обязательства по договорам учтены');
+ if(e.peace_made)parts.push('Война завершена');
+ if(e.treaties)parts.push('Договор обновлён');
+ if(e.relations)parts.push('Отношения обновлены');
+ if(e.province_transfer)parts.push('Провинции переданы');
+ if(e.country_name)parts.push('Название страны: '+c.displayName);
+ if(e.country_color)parts.push('Цвет страны обновлён');
+ return parts.length?parts.join('; ')+'.':'Проверенные изменения применены кодом.';
+}
 function applyOrderPlan(plan){
  const results=[];
  plan.orders.forEach(proposal=>{
@@ -204,18 +234,26 @@ function applyOrderPlan(plan){
    // Known resource failures reject this order; malformed state still aborts the whole turn.
    const e=proposal.effects;
    let resourceError='';
+   if(e.parliament?.dissolve&&!c.parliament)resourceError='В стране уже нет парламента.';
+   if(e.parliament?.restore&&c.parliament)resourceError='Парламент уже существует.';
+   if(e.parliament?.ban_party&&!c.parliament?.factions?.some(f=>f.name===e.parliament.ban_party))resourceError='Указанная партия не найдена в парламенте.';
+   if(e.debt_delta>0&&c.debt+e.debt_delta>c.income*36)resourceError='Общий долг превышает предел добровольного заимствования (36 месячных доходов).';
    if(e.debt_delta<0&&c.treasury<Math.min(-e.debt_delta,c.debt))resourceError='Недостаточно казны для погашения долга.';
    if(e.army_delta>0&&(c.treasury<Math.ceil(e.army_delta*.002)||c.army+e.army_delta>Math.round(c.population*1000*getEra().armyMaxShare)))resourceError='Недостаточно средств или населения для набора армии.';
    if(resourceError){verdict.status='blocked';verdict.reason=resourceError;}
+   else if(e.laws?.length&&!e.law_slots&&!e.institutions){verdict.status='deferred';verdict.reason='Для этого закона не определён системный эффект. Уточните реформу; простая запись названия не считается исполнением.';}
    else executeOrderEffects(e);
   }
   if(verdict.penalty)changeCountryStat(playerCountry,'stability',-verdict.penalty);
-  order.status=verdict.status;order.reason=verdict.reason;order.resolvedTurn=turn;order.before=before;order.after=orderStatSnapshot(c);
+  order.status=verdict.status;order.reason=verdict.status==='executed'?executedOrderDescription(proposal.effects):verdict.reason;order.resolvedTurn=turn;order.before=before;order.after=orderStatSnapshot(c);
   if(verdict.chance!=null)order.chance=verdict.chance;
   results.push(order);
  });
  // Autonomous changes use the same parser only after complete schema validation.
- parseAndApplyEffects('EFFECTS:'+JSON.stringify(plan.world_effects),[]);
+ const autonomous=JSON.parse(JSON.stringify(plan.world_effects));
+ if(autonomous.war_declared){autonomous.war_declared.forEach(n=>{if(!isAtWar(playerCountry,n))declareEngineWar(n,playerCountry);});delete autonomous.war_declared;}
+ if(autonomous.wars_between){autonomous.wars_between.forEach(w=>{if(w.status==='start'&&!isAtWar(w.a,w.b))declareEngineWar(w.a,w.b);});autonomous.wars_between=autonomous.wars_between.filter(w=>w.status!=='start');}
+ parseAndApplyEffects('EFFECTS:'+JSON.stringify(autonomous),[]);
  reconcileOrderArmies();
  if(plan.world_effects.parliament?.factions)countries[playerCountry].electionPending=false;
  ensureOrders();
@@ -260,3 +298,31 @@ window.addEventListener('gs:scenario-status',()=>{
  const picker=document.getElementById('mobile-country-picker');
  if(picker&&activeScenario?.rules?.defaultPlayer)picker.value=activeScenario.rules.defaultPlayer;
 });
+
+window.ordersCanStartTurn=()=>typeof diplomacyPending==='undefined'||diplomacyPending.size===0;
+function applyCheckedDiplomacy(raw,targetCountry){
+ const block=extractBalancedJson(raw,'DIPLO_EFFECTS:');
+ if(!block)throw Error('Ответ страны не содержит проверяемого дипломатического результата.');
+ let effects;try{effects=JSON.parse(block);}catch{throw Error('Некорректный дипломатический результат');}
+ if(!effects||typeof effects!=='object'||Array.isArray(effects))throw Error('Некорректный дипломатический результат');
+ if(Object.keys(effects).some(k=>!['relations_delta','war_start','treaty'].includes(k)))throw Error('Дипломатия не может менять внутреннее устройство страны');
+ if(effects.relations_delta!=null&&(typeof effects.relations_delta!=='number'||!Number.isFinite(effects.relations_delta)||effects.relations_delta< -40||effects.relations_delta>20))throw Error('Некорректная дельта отношений');
+ if(effects.war_start!=null&&typeof effects.war_start!=='boolean')throw Error('Некорректное объявление войны');
+ const target=orderCountry(targetCountry);
+ if(target===playerCountry||!Object.hasOwn(countries,target))throw Error('Неизвестный адресат дипломатии');
+ const treaty=effects.treaty;
+ if(treaty!=null){
+  if(typeof treaty!=='object'||Array.isArray(treaty)||Object.keys(treaty).some(k=>!['action','type','breaker'].includes(k))||
+   !['sign','break'].includes(treaty.action)||!['alliance','nonaggression'].includes(treaty.type))throw Error('Некорректный договор');
+  if(treaty.action==='sign'&&(isAtWar(playerCountry,target)||getRelation(playerCountry,target)<=(treaty.type==='alliance'?60:40)))throw Error('Условия договора не выполнены');
+ }
+ const snapshot=JSON.parse(JSON.stringify({countries,worldState}));
+ try{
+  if(effects.relations_delta)changeRelations(target,effects.relations_delta);
+  if(treaty){
+   if(treaty.action==='sign')signTreaty(treaty.type,playerCountry,target);
+   else {const breaker=orderCountry(treaty.breaker)===playerCountry?playerCountry:target;breakTreaty(treaty.type,breaker,breaker===playerCountry?target:playerCountry);}
+  }
+  if(effects.war_start&&!isAtWar(target,playerCountry))declareEngineWar(target,playerCountry);
+ }catch(error){({countries,worldState}=snapshot);renderPlayerStats();throw error;}
+}

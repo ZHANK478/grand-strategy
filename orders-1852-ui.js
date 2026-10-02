@@ -273,7 +273,7 @@ function renderTurnChanges(changes) {
       return `<div class="chg-item"><span class="chg-label">${c.label}</span><span class="chg-val ${cls}">${c.value}</span></div>`;
     }).join('');
   }
-  box.style.display = 'block';
+  // Update the ledger without opening it over the newspaper.
 }
 
 // ============================================================

@@ -12,9 +12,9 @@ function captureWorldFacts(){
   society:c.society?JSON.parse(JSON.stringify(c.society)):null}];
  }));
 }
-function recordWorldEvent(section,headline,body,actors=[]){
+function recordWorldEvent(section,headline,body,actors=[],details=''){
  if(!worldState.periodEvents)worldState.periodEvents=[];
- const item={section,headline:newspaperText(headline),body:newspaperText(body),actors,date:dateLabel()};
+ const item={section,headline:newspaperText(headline),body:newspaperText(body),actors,details:newspaperText(details),date:dateLabel()};
  worldState.periodEvents.push(item);worldState.periodEvents=worldState.periodEvents.slice(-200);
  worldState.pastEvents.push(item.date+': '+item.headline+'. '+item.body);
 }
@@ -28,7 +28,7 @@ function reactToPlayerOrders(results){
    const shift=Math.max(-5,Math.min(3,-difference*.5));
    const before=group.loyalty;group.loyalty=Math.max(0,Math.min(100,Math.round((before+shift)*10)/10));
    recordWorldEvent('domestic',difference>0?'Новый налог вызывает недовольство':'Снижение налогов укрепляет поддержку',
-    group.label+': ставка '+old[key]+'% → '+now[key]+'%. Поддержка власти '+before+' → '+group.loyalty+'.',[playerCountry]);
+    (difference>0?'Правительство увеличило налоговую нагрузку на группу «':'Налоговое послабление получила группа «')+group.label+'». '+(difference>0?'Решение отразилось на поддержке власти.':'Снижение нагрузки укрепляет расположение к правительству.'),[playerCountry],group.label+': ставка '+old[key]+'% → '+now[key]+'%. Поддержка '+before+' → '+group.loyalty+'.');
   });
   if(o.before.government!==o.after.government){
    ALL_COUNTRIES.filter(n=>n!==playerCountry&&!countries[n].annexed&&isRelevantPair(n,playerCountry)).slice(0,4).forEach(n=>{
@@ -36,7 +36,7 @@ function reactToPlayerOrders(results){
     const before=getRelation(playerCountry,n);addRelation(playerCountry,n,aligned?2:-3);
     if(getRelation(playerCountry,n)!==before)recordWorldEvent('foreign',
       'Смена режима меняет дипломатические отношения',
-      (countries[n].displayName||n)+' пересматривает отношение к '+c.displayName+': '+before+' → '+getRelation(playerCountry,n)+'.',[n,playerCountry]);
+      (countries[n].displayName||n)+(aligned?' благосклоннее относится к новому политическому устройству государства.':' отдаляется от государства после перемены политического устройства.'),[n,playerCountry],'Отношения '+before+' → '+getRelation(playerCountry,n)+'.');
    });
   }
  });
@@ -54,8 +54,7 @@ function runWorldAutonomy(){
    const [a,b]=pairs[(offset+i)%pairs.length],before=getRelation(a,b),delta=before<-20?-3:3;
    addRelation(a,b,delta);const after=getRelation(a,b);if(before===after)continue;
    recordWorldEvent('foreign',delta>0?'Две державы сближаются':'Дипломатическое охлаждение',
-    (countries[a].displayName||a)+' и '+(countries[b].displayName||b)+': отношения '+before+' → '+after+
-    (delta>0?'. Сближение облегчает будущие договоры.':'. Нарастающая вражда повышает риск кризиса.'),[a,b]);break;
+    'Державы «'+(countries[a].displayName||a)+'» и «'+(countries[b].displayName||b)+(delta>0?'» сближаются. Улучшение отношений облегчает будущие договоры.':'» отдаляются друг от друга. Продолжение этой тенденции повышает риск кризиса.'),[a,b],'Отношения '+before+' → '+after);break;
   }
  }
  // At most two actual national decisions per month; never take domestic actions for the player.
@@ -78,15 +77,15 @@ function runWorldAutonomy(){
  });
 }
 function buildNewspaper(before,results,engineEvents,startDate){
- const domestic=[],foreign=[],add=(section,headline,body)=>{const list=section==='domestic'?domestic:foreign;
- const item={headline:newspaperText(headline),body:newspaperText(body)};if(!list.some(x=>x.headline===item.headline&&x.body===item.body))list.push(item);};
- (worldState.periodEvents||[]).forEach(e=>add(e.section,e.headline,e.body));
+ const domestic=[],foreign=[],add=(section,headline,body,details='')=>{const list=section==='domestic'?domestic:foreign;
+ const item={headline:newspaperText(headline),body:newspaperText(body),details:newspaperText(details)};if(!list.some(x=>x.headline===item.headline&&x.body===item.body))list.push(item);};
+ (worldState.periodEvents||[]).forEach(e=>add(e.section,e.headline,e.body,e.details));
  results.forEach(o=>{
   if(o.status==='executed'){
    const a=JSON.parse(o.before.spending||'{}'),b=JSON.parse(o.after.spending||'{}');
    Object.entries({education:'образование',welfare:'помощь бедным',infrastructure:'инфраструктуру'}).forEach(([k,label])=>{
     if(a[k]!==b[k])add('domestic','Правительство меняет расходы на '+label,
-     'Утверждено '+b[k]+' расчётных единиц в месяц вместо '+a[k]+'. Решение входит в бюджет; общественный эффект накапливается постепенно.');
+     'Кабинет '+(b[k]>a[k]?'увеличивает':'сокращает')+' финансирование этого направления. Решение входит в бюджет, а общественный эффект будет накапливаться постепенно.',a[k]+' → '+b[k]+' расчётных единиц в месяц.');
    });
    if(o.before.government!==o.after.government)add('domestic','Новая форма правления',o.before.government+' → '+o.after.government+'.');
    if(o.before.laws!==o.after.laws)add('domestic','Реформа меняет устройство государства',o.reason);
@@ -103,14 +102,14 @@ function buildNewspaper(before,results,engineEvents,startDate){
   if(a.ruler!==c.ruler)add(section,'Смена главы государства: '+c.displayName,a.ruler+' → '+c.ruler+'. Управление страной продолжается.');
   if(n!==playerCountry)return;
   if(c.society&&a.society&&Math.abs(c.society.literacy-a.society.literacy)>=.1)add(section,'Образование даёт первые результаты',
-   'Грамотность '+a.society.literacy+'% → '+c.society.literacy+'%. Изменение рассчитано за прошедший период.');
+   'Грамотность населения выросла за прошедший период. Расходы на образование постепенно меняют положение в стране.','Грамотность '+a.society.literacy+'% → '+c.society.literacy+'%.');
   if(c.society&&a.society&&Math.abs(c.society.poverty-a.society.poverty)>=.1)add(section,c.society.poverty<a.society.poverty?'Бедность отступает':'Бедность растёт',
-   'Доля бедных '+a.society.poverty+'% → '+c.society.poverty+'%.');
+   c.society.poverty<a.society.poverty?'За прошедший период доля бедных сократилась. Социальные расходы помогают улучшить положение населения.':'Доля бедных выросла. Экономическое неблагополучие и нестабильность усиливают давление на население.','Доля бедных '+a.society.poverty+'% → '+c.society.poverty+'%.');
   if(c.stability!==a.stability)add(section,c.stability<a.stability?'Власть теряет устойчивость':'Положение власти укрепляется',
-   'Стабильность '+a.stability+' → '+c.stability+'.');
+   c.stability<a.stability?'События прошедшего периода ослабили положение правительства.':'События прошедшего периода укрепили положение правительства.','Стабильность '+a.stability+' → '+c.stability+'.');
   Object.entries(c.economy?.classes||{}).forEach(([k,v])=>{
    const old=a.loyalty[k];if(old!=null&&v.loyalty<old-.1)add(section,'Общественное недовольство усиливается',
-    v.label+': поддержка '+old+' → '+v.loyalty+'. Налоги, инфляция и бедность учитываются движком.');
+    'Группа «'+v.label+'» теряет расположение к правительству. Налоговая нагрузка и положение населения отражаются на устойчивости власти.',v.label+': поддержка '+old+' → '+v.loyalty+'.');
   });
  });
  // Existing engine notices (wars, treaties, battles, institutions) remain authoritative.
@@ -131,7 +130,7 @@ function renderNewspaper(edition){
   const box=document.getElementById(id);if(!box)return;box.replaceChildren();
   articles.forEach(item=>{const article=document.createElement('article');article.className='newspaper-article';
    const title=document.createElement('h3');title.textContent=item.headline;
-   const body=document.createElement('p');body.textContent=item.body;article.append(title,body);box.appendChild(article);});
+   const body=document.createElement('p');body.textContent=item.body;article.append(title,body);if(item.details){const details=document.createElement('details');details.className='newspaper-details';const label=document.createElement('summary');label.textContent='Цифры и изменения';const text=document.createElement('p');text.textContent=item.details;details.append(label,text);article.appendChild(details);}box.appendChild(article);});
  };
  fill('domestic-list',edition.domestic);fill('events-list',edition.foreign);
  document.getElementById('mobile-news-button')?.classList.add('has-news');

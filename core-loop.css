@@ -400,3 +400,6 @@ body.laptop-mode :is(.mobile-country-close,.country-card-heading){cursor:default
 .model-picker-box input[hidden]{display:none}
 .model-picker-box .load-close-btn{min-height:44px;margin-top:8px}
 #model-selected-id{overflow-wrap:anywhere}
+
+#test-ai-connection{position:absolute;inset:0;z-index:900;display:none;align-items:center;justify-content:center;padding:12px;background:#102019ba;overflow-y:auto}
+#test-ai-used-model{overflow-wrap:anywhere}

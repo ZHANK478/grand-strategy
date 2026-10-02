@@ -11,6 +11,8 @@
     document.getElementById('mobile-country-card').hidden=true;
     document.getElementById('pause-menu').style.display='none';
     document.body.classList.remove('mobile-sheet-open','mobile-country-open');
+    document.getElementById('mobile-actions-menu').hidden=true;
+    document.getElementById('mobile-actions-button').setAttribute('aria-expanded','false');
     document.getElementById('mobile-flag-button').setAttribute('aria-expanded','false');
   }
   function mark() {}
@@ -34,6 +36,18 @@
 
     }
     document.body.classList.toggle('mobile-sheet-open',name!=='map'&&name!=='pause'&&name!=='more'&&name!=='country');
+  };
+  window.mobileCloseActions=()=>{
+    document.getElementById('mobile-actions-menu').hidden=true;
+    document.getElementById('mobile-actions-button').setAttribute('aria-expanded','false');
+  };
+  window.mobileOpenActions=()=>{
+    const opened=!document.getElementById('mobile-actions-menu').hidden;
+    closeSheets();
+    if(!opened){
+      document.getElementById('mobile-actions-menu').hidden=false;
+      document.getElementById('mobile-actions-button').setAttribute('aria-expanded','true');
+    }
   };
   window.mobileToggleCountry=()=>window.mobileSection(panelOpen?'map':'country');
   togglePanel=window.mobileToggleCountry;
@@ -111,11 +125,31 @@
     document.getElementById('mobile-country-name').textContent=
       typeof playerCountryDisplayName==='undefined'?'Страна':playerCountryDisplayName;
     if(typeof playerCountry!=='undefined'){
+      const c=countries[playerCountry]||{};
       const flag=document.getElementById('mobile-flag-button');
+      const img=document.getElementById('mobile-flag-image');
+      const fallback=document.getElementById('mobile-flag-fallback');
       flag.title='Моя страна: '+playerCountryDisplayName;
-      document.getElementById('mobile-flag-color').setAttribute('fill',getCountryColor(playerCountry));
+      const source=c.flagUrl||mobileFlagSource(playerCountry,year);
+      if(source){
+        if(img.getAttribute('src')!==source)img.setAttribute('src',source);
+        img.hidden=false;fallback.hidden=true;
+      }else{
+        img.hidden=true;fallback.hidden=false;
+        fallback.textContent=String(playerCountryDisplayName||playerCountry).slice(0,2).toUpperCase();
+      }
+      const gdp=document.getElementById('mobile-gdp');
+      // The economic engine stores GDP in millions of internal currency units.
+      gdp.textContent=typeof c.gdp==='number'?
+        new Intl.NumberFormat('ru',{maximumFractionDigits:1}).format(c.gdp/1000)+' млрд':
+        (c.gdp||'—');
     }
   }
+  document.getElementById('mobile-flag-image').addEventListener('error',()=>{
+    document.getElementById('mobile-flag-image').hidden=true;
+    document.getElementById('mobile-flag-fallback').hidden=false;
+    document.getElementById('mobile-flag-fallback').textContent=String(playerCountryDisplayName||playerCountry).slice(0,2).toUpperCase();
+  });
   const oldStats=renderPlayerStats;
   renderPlayerStats=function(...args){const result=oldStats(...args);updateHud();return result;};
   const oldTurnEnd=onTurnEnd;

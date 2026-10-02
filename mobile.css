@@ -164,3 +164,51 @@ body.mobile-sheet-open #actionbar,body.mobile-sheet-open #topbar{display:none!im
 .settings-extra button{flex:1;min-height:44px;padding:8px;border:1px solid #ccb990;border-radius:8px;background:#eee5ce;color:#302b22;font-size:12px}
 .settings-extra button.danger{color:#7c2417}
 .notif{left:12px;max-width:calc(100vw - 24px)}
+
+/* Country cabinet and game menu have separate roles. */
+#topbar{inset:8px 8px auto 8px;height:44px;display:flex;align-items:center;gap:7px;pointer-events:none}
+#topbar #menu-btn{flex:0 0 44px}
+#mobile-flag-button{pointer-events:auto;display:flex;align-items:center;justify-content:center;width:44px;height:44px;flex:0 0 44px;padding:6px;background:#fbf5e7ee!important;border:1px solid #b7a786!important;border-radius:9px;color:#554d3b!important;box-shadow:0 2px 8px #0003}
+#mobile-flag-button svg{width:29px;height:29px}
+#mobile-flag-button[aria-expanded="true"]{background:#dfcca0!important;border-color:#907432!important}
+.mobile-date{max-width:120px;margin-right:auto}
+#topbar .mobile-economic-stat{pointer-events:auto;min-height:44px;display:flex;flex-direction:column;justify-content:center;align-items:flex-start;gap:2px;padding:5px 10px;background:#fbf5e7ee!important;color:#302b22!important;border:1px solid #b7a786;border-radius:8px;box-shadow:0 2px 8px #0003;max-width:150px}
+.mobile-economic-stat small{font-size:9px;letter-spacing:.04em;text-transform:uppercase;color:#786945}
+.mobile-economic-stat strong{font-size:12px;line-height:1.2;white-space:nowrap;max-width:100%;overflow:hidden;text-overflow:ellipsis}
+#actionbar{display:flex;align-items:center;gap:6px}
+#actionbar #skip-select{width:98px;min-height:44px;padding:8px;font-size:12px!important;background:#fbf5e7ee;border:1px solid #b7a786;border-radius:8px;color:#302b22}
+#left-panel{
+ left:0!important;right:auto!important;top:60px!important;bottom:0!important;
+ width:25vw!important;max-width:25vw!important;max-height:none!important;
+ padding-top:0;border-radius:0 12px 0 0!important;background:#fbf5e7f7!important;
+ border-left:0!important;border-bottom:0!important;box-shadow:4px 0 20px #0004!important;
+ overflow-x:hidden!important;overflow-y:auto!important
+}
+.mobile-country-close{position:sticky;top:0;left:auto;right:auto;z-index:3;background:#eee5ce;padding:2px 5px 2px 9px;font-size:12px;min-height:44px}
+.mobile-country-close .sheet-close{font-size:17px}
+#left-panel .portrait-block{width:62px;margin:9px auto 5px}
+#left-panel .portrait-emoji{font-size:30px}
+#left-panel .portrait-caption{padding:3px 8px 7px}
+#left-panel .pc-name{font-size:13px;line-height:1.35;overflow-wrap:anywhere}
+#left-panel .pc-title{font-size:10px;line-height:1.4}
+#left-panel .govbadge{margin:5px 8px;padding:6px;font-size:10px;line-height:1.45}
+#left-panel .psec{padding:8px}
+#left-panel .cbtn{min-height:44px;padding:7px;font-size:11px;line-height:1.3;overflow-wrap:anywhere}
+#left-panel .irow{font-size:10px;gap:5px;flex-wrap:wrap}
+#left-panel .state-text{font-size:11px}
+#left-panel #portrait-gen-btn,#left-panel #pm-portrait-gen-btn{display:none}
+#mobile-country-sections{padding:5px 8px 8px;display:flex;flex-direction:column;gap:5px;border-bottom:1px solid #ccb990}
+#mobile-country-sections button{min-height:44px;text-align:left;padding:7px 10px;background:#eee5ce;color:#302b22;border:1px solid #ccb990;border-radius:7px;font-size:12px}
+#mobile-country-sections .has-news::after{content:" •";color:#9c7c22}
+.start-secondary.start-vertical{display:flex;flex-direction:column;gap:0}
+.start-secondary.start-vertical button{width:100%;font-size:13px;padding:8px;min-height:44px}
+.mobile-start .start-secondary.start-vertical{margin-top:3px}
+.game-menu-list{display:flex;flex-direction:column;gap:6px}
+.pause-box .game-menu-list button{margin:0;min-height:44px;padding:9px;font-size:13px;border-radius:8px;text-align:left}
+.mobile-menu-box{max-width:340px!important}
+@media(max-width:650px){
+ #topbar{gap:5px}
+ .mobile-date{max-width:80px}
+ #topbar .mobile-economic-stat{padding:5px 7px;max-width:120px}
+ .mobile-economic-stat strong{font-size:11px}
+}

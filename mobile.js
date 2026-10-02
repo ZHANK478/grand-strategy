@@ -10,14 +10,17 @@
     panel.classList.add('hidden');panelOpen=false;more.hidden=true;
     document.getElementById('mobile-country-card').hidden=true;
     document.getElementById('pause-menu').style.display='none';
-    document.body.classList.remove('mobile-sheet-open');
+    document.body.classList.remove('mobile-sheet-open','mobile-country-open');
+    document.getElementById('mobile-flag-button').setAttribute('aria-expanded','false');
   }
   function mark() {}
   window.mobileSection=name=>{
     closeSheets();
     mark(['map','actions','diplo','news','more'].includes(name)?name:'more');
     switch(name) {
-      case 'country':panel.classList.remove('hidden');panel.style.display='block';panelOpen=true;break;
+      case 'country':panel.classList.remove('hidden');panel.style.display='block';panelOpen=true;
+        document.body.classList.add('mobile-country-open');
+        document.getElementById('mobile-flag-button').setAttribute('aria-expanded','true');break;
       case 'actions':openActionsPanel();break;
       case 'diplo':openDiploPanel();break;
       case 'advisor':document.getElementById('adv-pop').style.display='block';break;
@@ -30,12 +33,13 @@
       case 'settings':openSettings();break;
 
     }
-    document.body.classList.toggle('mobile-sheet-open',name!=='map'&&name!=='pause'&&name!=='more');
+    document.body.classList.toggle('mobile-sheet-open',name!=='map'&&name!=='pause'&&name!=='more'&&name!=='country');
   };
-  togglePanel=()=>window.mobileSection(panelOpen?'map':'country');
+  window.mobileToggleCountry=()=>window.mobileSection(panelOpen?'map':'country');
+  togglePanel=window.mobileToggleCountry;
   const close=document.createElement('div');
   close.className='mobile-country-close';
-  close.innerHTML='<span>Досье страны</span><button class="sheet-close" aria-label="Закрыть" onclick="mobileSection(\'map\')">✕</button>';
+  close.innerHTML='<span>Моя страна</span><button class="sheet-close" aria-label="Закрыть" onclick="mobileSection(\'map\')">✕</button>';
   panel.prepend(close);
   const decorate=(name,nav)=>{
     const original=window[name];
@@ -76,7 +80,7 @@
     queueMicrotask(()=>{
       const visible=sheets.some(id=>{
         const el=document.getElementById(id);
-        return id!=='mobile-country-card'&&!el.hidden&&!el.classList.contains('hidden')&&
+        return id!=='mobile-country-card'&&id!=='left-panel'&&!el.hidden&&!el.classList.contains('hidden')&&
           (el.style.display==='block'||el.style.display==='flex');
       })||document.getElementById('society-screen').style.display==='flex'||
          document.getElementById('settings-panel').style.display==='flex';
@@ -106,6 +110,11 @@
   function updateHud() {
     document.getElementById('mobile-country-name').textContent=
       typeof playerCountryDisplayName==='undefined'?'Страна':playerCountryDisplayName;
+    if(typeof playerCountry!=='undefined'){
+      const flag=document.getElementById('mobile-flag-button');
+      flag.title='Моя страна: '+playerCountryDisplayName;
+      document.getElementById('mobile-flag-color').setAttribute('fill',getCountryColor(playerCountry));
+    }
   }
   const oldStats=renderPlayerStats;
   renderPlayerStats=function(...args){const result=oldStats(...args);updateHud();return result;};
@@ -252,7 +261,7 @@
         if(hit?.matches?.('path.scenario-province')&&typeof gameStarted!=='undefined'&&gameStarted){
           const p=hit.__data__;
           const owner=p&&provinceOwnerOf(p.id,p.owner);
-          if(owner){mobileCountryCard(owner);return;}
+          if(owner){if(owner===playerCountry)mobileSection('country');else mobileCountryCard(owner);return;}
         }
         if(hit?.isConnected)hit.dispatchEvent(new MouseEvent('click',{
           bubbles:true,cancelable:true,clientX:e.clientX,clientY:e.clientY,view:window

@@ -13,7 +13,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 const cors = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, content-type, apikey',
+  'Access-Control-Allow-Headers': 'authorization, content-type, apikey, x-client-info',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
 
@@ -33,18 +33,17 @@ Deno.serve(async (req: Request) => {
     if (!token) return json({ error: 'no_auth' }, 401);
 
     const url = Deno.env.get('SUPABASE_URL')!;
-    const anon = Deno.env.get('SUPABASE_ANON_KEY')!;
     const service = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const orKey = Deno.env.get('OPENROUTER_KEY');
     if (!orKey) return json({ error: 'server_no_key' }, 500);
 
-    // Кто это? Проверяем токен игрока.
-    const userClient = createClient(url, anon, { global: { headers: { Authorization: `Bearer ${token}` } } });
-    const { data: u } = await userClient.auth.getUser();
-    if (!u?.user) return json({ error: 'bad_auth' }, 401);
-    const userId = u.user.id;
-
+    // Кто это? Проверяем токен игрока — токен передаём ЯВНО (на сервере сессии нет).
     const admin = createClient(url, service);
+    const { data: u, error: uErr } = await admin.auth.getUser(token);
+    if (uErr || !u?.user) return json({ error: 'bad_auth' }, 401);
+    // Anonymous sessions must use the limited guest route, not account credits.
+    if (u.user.is_anonymous) return json({ error: 'guest_required' }, 403);
+    const userId = u.user.id;
     const body = await req.json();
     const kind = body.kind === 'image' ? 'image' : 'text';
 
@@ -54,11 +53,14 @@ Deno.serve(async (req: Request) => {
       const { data: prof } = await admin.from('profiles').select('plan').eq('id', userId).maybeSingle();
       if (!prof || prof.plan !== 'premium') return json({ error: 'premium_required' }, 403);
     } else {
-      // Списываем 1 ход атомарно; если не хватило — стоп
-      const { data: remaining, error } = await admin.rpc('spend_turn', { p_user: userId, p_cost: 1 });
-      if (error) return json({ error: 'spend_failed' }, 500);
-      if (remaining === -1 || remaining === null) return json({ error: 'no_turns', turns_balance: 0 }, 402);
-      balance = remaining as number;
+      // cost: 1 — действие игрока; 0 — фоновая работа движка (профили/летопись) — не списываем.
+      const cost = Math.max(0, Math.min(3, Number(body.cost ?? 1)));
+      if (cost > 0) {
+        const { data: remaining, error } = await admin.rpc('spend_turn', { p_user: userId, p_cost: cost });
+        if (error) return json({ error: 'spend_failed' }, 500);
+        if (remaining === -1 || remaining === null) return json({ error: 'no_turns', turns_balance: 0 }, 402);
+        balance = remaining as number;
+      }
     }
 
     // Прокидываем запрос в OpenRouter ТВОИМ ключом

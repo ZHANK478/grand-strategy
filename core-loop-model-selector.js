@@ -5,7 +5,7 @@
     {label:'GPT-6 Luna',id:'openai/gpt-6-luna'},
     {label:'GLM 5.3 FlashX',id:'z-ai/glm-5.3-flashx'},
     {label:'GLM 5.3',id:'z-ai/glm-5.3'},
-    {label:'Sonnet 5.5',id:null},
+    {label:'Sonnet 5.5',id:'anthropic/claude-sonnet-5.5'},
     {label:'Gemini 3.1 Flash Lite — для сравнения',id:'google/gemini-3.1-flash-lite'}
   ];
   function resolveCandidates(rows) {

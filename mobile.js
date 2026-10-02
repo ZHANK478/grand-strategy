@@ -7,15 +7,24 @@
   const more=document.getElementById('mobile-more');
   const desktopQuery=window.matchMedia('(min-width: 1024px) and (hover: hover) and (pointer: fine)');
   const isLaptop=()=>desktopQuery.matches;
-  function syncLaptop(){document.body.classList.toggle('laptop-mode',isLaptop());}
+  function syncLaptop(){
+    document.body.classList.toggle('laptop-mode',isLaptop());
+    if(typeof gameStarted!=='undefined'&&gameStarted)renderPlayerStats();
+  }
   desktopQuery.addEventListener?.('change',syncLaptop);syncLaptop();
   const workingPanels=['left-panel','mobile-country-card','actions-panel','adv-pop','diplo-pop','economy-panel','history-panel','changes-box','society-screen'];
   let panelZ=260,slot=0;
   function focusPanel(id){
     if(!isLaptop())return;
     const el=document.getElementById(id);
+    if(id==='left-panel'||id==='mobile-country-card'){
+      el.style.removeProperty('--desktop-left');
+      el.style.removeProperty('--desktop-top');
+      el.style.removeProperty('--desktop-z');
+      return;
+    }
     if(!el.style.getPropertyValue('--desktop-left')){
-      const n=slot++%3;
+      const n=1+slot++%2;
       el.style.setProperty('--desktop-left',n===0?'10px':n===1?'calc(35vw - 5px)':'calc(70vw - 20px)');
       el.style.setProperty('--desktop-top','90px');
     }
@@ -202,7 +211,8 @@
   workingPanels.forEach(id=>{
     const el=document.getElementById(id);
     el.addEventListener('pointerdown',()=>focusPanel(id));
-    const header=el.querySelector('.mobile-country-close,.country-card-heading,.actions-hdr,.pop-hdr,.changes-hdr');
+    if(id==='left-panel'||id==='mobile-country-card')return;
+    const header=el.querySelector('.actions-hdr,.pop-hdr,.changes-hdr');
     if(!header)return;
     let drag=null;
     header.addEventListener('pointerdown',e=>{
@@ -255,6 +265,22 @@
         img.hidden=true;fallback.hidden=false;
         fallback.textContent=String(playerCountryDisplayName||playerCountry).slice(0,2).toUpperCase();
       }
+      const compact=new Intl.NumberFormat('ru',{notation:'compact',maximumFractionDigits:1});
+      const statValues={army:c.army,stab:c.stability,debt:c.debt,infl:c.inflation};
+      for(const [id,value] of Object.entries(statValues)){
+        const el=document.getElementById(id);
+        el.title=id==='infl'?String(value||0)+'%':new Intl.NumberFormat('ru').format(value||0);
+        if(!isLaptop()&&typeof value==='number'){
+          el.textContent=id==='infl'?new Intl.NumberFormat('ru',{maximumFractionDigits:1}).format(value)+'%':
+            id==='debt'&&value<=0?'—':compact.format(value);
+        }
+      }
+      if(!isLaptop()){
+        document.getElementById('treasury').textContent=compact.format(c.treasury||0);
+        document.getElementById('income').textContent=(c.income>0?'+':'')+compact.format(c.income||0);
+      }
+      document.getElementById('treasury').title=new Intl.NumberFormat('ru').format(c.treasury||0)+' фр.';
+      document.getElementById('income').title=new Intl.NumberFormat('ru').format(c.income||0)+' фр./мес.';
       const gdp=document.getElementById('mobile-gdp');
       // The economic engine stores GDP in millions of internal currency units.
       gdp.textContent=typeof c.gdp==='number'?

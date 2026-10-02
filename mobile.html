@@ -248,55 +248,60 @@ select{background:var(--raise);color:var(--ink);border:1px solid var(--edge);bor
 input[type=checkbox]{accent-color:var(--gold);}
 
 </style>
-<link rel="stylesheet" href="mobile.css?v=1">
+<link rel="stylesheet" href="mobile.css?v=2">
+<script>window.GS_MOBILE = true;</script>
 </head>
 <body class="menu-mode">
 
-<div id="topbar" class="game-ui">
-  <div class="top-stat" style="cursor:pointer" onclick="openEconomyPanel()" title="Открыть вкладку Экономика"><span class="icon">💰</span><div class="stat-b"><span class="lbl">Казна</span><span class="val" id="treasury">4 200 фр.</span></div></div>
-  <div class="top-stat" style="cursor:pointer" onclick="openEconomyPanel()" title="Открыть вкладку Экономика"><span class="icon">📈</span><div class="stat-b"><span class="lbl">Доход/мес</span><span class="val" id="income">+580 фр.</span></div></div>
-  <div class="top-stat"><span class="icon">⚔️</span><div class="stat-b"><span class="lbl">Армия</span><span class="val" id="army">400 000</span></div></div>
-  <div class="top-stat"><span class="icon">🌾</span><div class="stat-b"><span class="lbl">Стабильность</span><span class="val" id="stab">81</span></div></div>
-  <div class="top-stat"><span class="icon">🏦</span><div class="stat-b"><span class="lbl">Долг</span><span class="val" id="debt">—</span></div></div>
-  <div class="top-stat"><span class="icon">📉</span><div class="stat-b"><span class="lbl">Инфляция</span><span class="val" id="infl">0%</span></div></div>
-  <div id="date-disp">Январь 1852 г.</div>
-</div>
 
+<div id="rotate-screen"><div class="rotate-symbol">↻</div><h1>Поверните телефон</h1><p>Grand Strategy играется горизонтально.</p><button onclick="mobileFullscreen()">На весь экран</button></div>
+<header id="topbar" class="game-ui">
+  <button class="mobile-country" onclick="mobileSection('country')" aria-label="Открыть досье"><span id="mobile-country-name">Страна</span><span id="date-disp">1852</span></button>
+  <button class="mobile-treasury" onclick="mobileSection('economy')"><small>Казна</small><strong id="treasury">—</strong></button>
+  <span id="mobile-turn-balance" aria-live="polite">Гость · 10 ходов</span>
+  <button class="icon-button" onclick="mobileFullscreen()" aria-label="На весь экран">⛶</button>
+</header>
+<!-- Existing statistics remain available to the simulation; shown in the dossier. -->
+<div id="mobile-engine-stats" hidden><span id="income"></span><span id="army"></span><span id="stab"></span><span id="debt"></span><span id="infl"></span><span id="turn-info"></span></div>
+<nav id="mobile-nav" class="game-ui" aria-label="Разделы игры">
+  <button data-section="map" onclick="mobileSection('map')" class="selected"><span>◎</span>Карта</button>
+  <button data-section="actions" onclick="mobileSection('actions')"><span>✎</span>Действия</button>
+  <button data-section="diplo" onclick="mobileSection('diplo')"><span>⚑</span>Дипломатия</button>
+  <button data-section="news" onclick="mobileSection('news')"><span>▤</span>Новости</button>
+  <button data-section="more" onclick="mobileSection('more')"><span>•••</span>Ещё</button>
+</nav>
 <div id="actionbar" class="game-ui">
-  <button class="abtn action-btn" onclick="openActionsPanel()">Действия</button>
-  <button class="abtn" onclick="togglePop('diplo-pop','adv-pop')">Дипломатия</button>
-  <button class="abtn" onclick="togglePop('adv-pop','diplo-pop')">Советник</button>
-  <button class="abtn" onclick="openEconomyPanel()">Экономика</button>
-  <button class="abtn" onclick="openSocietyScreen()">Общество</button>
-  <button class="abtn" onclick="openHistoryPanel()">История</button>
-  <span class="turn-lbl" id="turn-info">Ход 1</span>
-  <select id="skip-select" onchange="onSkipChange()" style="margin-left:auto;padding:6px 10px;font-family:'LoraG',Georgia,serif;font-size:12px;border:1px solid #c9b98f;border-radius:3px;background:#f6efdd;color:#2c2114" title="Шаг времени за один ход">
-    <option value="week">Неделя</option>
-    <option value="m1" selected>Месяц</option>
-    <option value="m3">3 месяца</option>
-    <option value="m6">6 месяцев</option>
-    <option value="m12">Год</option>
-    <option value="m60">5 лет</option>
-  </select>
-  <button class="abtn next-btn" style="margin-left:0" onclick="nextTurn()">Следующий ход ▶</button>
-  <button class="abtn" id="auto-btn" onclick="toggleAutoPlay()" title="Автоматически пропускать время выбранным шагом, пока не остановите">Авто</button>
-  <button class="abtn" id="menu-btn" onclick="openPauseMenu()">Меню</button>
+  <select id="skip-select" onchange="onSkipChange()" aria-label="Длительность хода"><option value="week">Неделя</option><option value="m1" selected>Месяц</option><option value="m3">3 месяца</option><option value="m6">6 месяцев</option><option value="m12">Год</option><option value="m60">5 лет</option></select>
+  <button class="next-btn" onclick="nextTurn()">Следующий ход ▶</button>
 </div>
-
-<button id="toggle-btn" class="game-ui" onclick="togglePanel()">◀</button>
-
-<!-- ГЛАВНОЕ МЕНЮ -->
-<div id="main-menu">
-  <div class="menu-title">GRAND STRATEGY</div>
-  <div class="menu-hint" id="menu-hint">Нажмите на страну на карте, чтобы начать за неё новую игру</div>
-  <div class="menu-btns">
-    <button id="continue-btn" class="menu-btn" onclick="continueGame()" style="display:none">▶ Продолжить</button>
-    <button class="menu-btn" onclick="openLoadMenu()">Загрузить игру</button>
-    <button class="menu-btn" onclick="openScenarioMenu()">Сценарии</button>
-    <button class="menu-btn" onclick="openScenarioEditor()">Редактор сценариев</button>
-    <button class="menu-btn" onclick="openModelMenu()">Модель ИИ</button>
-    <button id="menu-login-btn" class="menu-btn" onclick="openLogin()" style="display:none">👤 Войти</button>
+<button id="toggle-btn" hidden onclick="togglePanel()">◀</button>
+<div id="mobile-more" class="mobile-sheet game-ui" hidden>
+  <div class="pop-hdr"><span>Управление страной</span><button class="sheet-close" onclick="mobileSection('map')" aria-label="Закрыть">✕</button></div>
+  <div class="more-grid">
+    <button onclick="mobileSection('country')">Досье страны</button>
+    <button onclick="mobileSection('economy')">Экономика</button>
+    <button onclick="mobileSection('society')">Общество</button>
+    <button onclick="mobileSection('advisor')">Советник</button>
+    <button onclick="mobileSection('history')">История</button>
+    <button onclick="mobileSection('changes')">Итоги хода</button>
+    <button onclick="saveGame({announce:true})">Сохранить</button>
+    <button onclick="mobileSection('pause')">Меню игры</button>
   </div>
+</div>
+<div id="main-menu">
+  <section class="mobile-start">
+    <small class="mobile-eyebrow">ИСТОРИЯ В ВАШИХ РУКАХ</small>
+    <h1>GRAND<br>STRATEGY</h1>
+    <p id="menu-hint">Выберите страну и начните игру.</p>
+    <label for="mobile-country-picker">Ваша страна</label>
+    <select id="mobile-country-picker"><option value="">Загрузка карты…</option></select>
+    <button id="mobile-start-btn" class="primary" onclick="mobileStartGame()" disabled>Начать игру</button>
+    <button id="continue-btn" onclick="continueGame()" style="display:none">Продолжить партию</button>
+    <div class="start-secondary"><button onclick="openScenarioMenu()">Сценарий</button><button onclick="openLoadMenu()">Сохранения</button><button onclick="openScenarioEditor()">Редактор</button></div>
+    <small id="mobile-guest-note">10 гостевых ходов. Регистрация не нужна.</small>
+    <button id="menu-login-btn" hidden onclick="openLogin()"></button>
+  </section>
+  <div class="mobile-map-hint">Карта: один палец — движение · два — масштаб</div>
 </div>
 
 <!-- ВЫБОР СЦЕНАРИЯ -->
@@ -830,14 +835,8 @@ input[type=checkbox]{accent-color:var(--gold);}
 <script src="game.js?v=44"></script>
 <script src="ui.js?v=44"></script>
 <script src="editor.js?v=44"></script>
-<script>
-  // Игра запускается СРАЗУ. Вход — необязательный (кнопка «Войти» в меню).
-  // initAuth молча восстанавливает прошлую сессию, если игрок уже входил.
-  (async () => {
-    await initAuth();
-    initMenu(); initSkipSelect();
-  })();
-</script>
-<script src="mobile.js?v=1"></script>
+
+<script src="mobile.js?v=2"></script>
+<script src="mobile-session.js?v=2"></script>
 </body>
 </html>

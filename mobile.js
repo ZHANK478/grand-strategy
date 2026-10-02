@@ -1,89 +1,91 @@
-/* Touch controls and compact UI for mobile.html. Uses existing game state. */
+
+/* Landscape navigation: one sheet at a time, with a persistent map. */
 (() => {
   'use strict';
-  const narrow = window.matchMedia('(max-width: 900px)');
-  const panel = document.getElementById('left-panel');
-  const toggleButton = document.getElementById('toggle-btn');
-  function setDossier(open) {
-    panelOpen = open;
-    panel.classList.toggle('hidden', !open);
-    document.body.classList.toggle('mobile-dossier-open', open);
-    toggleButton.textContent = open ? '◀' : '▶';
-    toggleButton.setAttribute('aria-expanded', String(open));
-    toggleButton.setAttribute('aria-label', open ? 'Закрыть досье страны' : 'Открыть досье страны');
-    if (!narrow.matches) {
-      document.getElementById('map-wrap').style.left = open ? '296px' : '0';
-      toggleButton.style.left = open ? '296px' : '0';
-    }
+  const sheets=['left-panel','events-box','changes-box','actions-panel','adv-pop','diplo-pop','relations-panel','economy-panel','history-panel'];
+  const panel=document.getElementById('left-panel');
+  const more=document.getElementById('mobile-more');
+  function closeSheets() {
+    sheets.forEach(id=>document.getElementById(id).style.display='none');
+    panel.classList.add('hidden');panelOpen=false;more.hidden=true;
+    document.querySelectorAll('#mobile-nav button').forEach(b=>b.classList.remove('selected'));
   }
-  togglePanel = () => setDossier(!panelOpen);
-  setDossier(!narrow.matches);
-  narrow.addEventListener('change', () => setDossier(!narrow.matches));
-
-  const floating = ['events-box', 'changes-box', 'actions-panel', 'adv-pop',
-    'diplo-pop', 'relations-panel', 'economy-panel', 'history-panel'];
-  // On a phone, the most recently opened panel occupies the available sheet.
-  const observer = new MutationObserver(records => {
-    if (!narrow.matches) return;
-    const opened = records.map(r => r.target).filter(el =>
-      el.style.display && el.style.display !== 'none' &&
-      !el.dataset.mobileVisible);
-    const latest = opened[opened.length - 1];
-    if (latest) {
-      floating.forEach(id => {
-        const el = document.getElementById(id);
-        if (el !== latest && el.style.display !== 'none') el.style.display = 'none';
-      });
-      setDossier(false);
+  function mark(name) {
+    document.querySelector('#mobile-nav [data-section="'+name+'"]')?.classList.add('selected');
+  }
+  window.mobileSection=name=>{
+    closeSheets();
+    mark(['map','actions','diplo','news','more'].includes(name)?name:'more');
+    switch(name) {
+      case 'country':panel.classList.remove('hidden');panel.style.display='block';panelOpen=true;break;
+      case 'actions':openActionsPanel();break;
+      case 'diplo':openDiploPanel();break;
+      case 'advisor':document.getElementById('adv-pop').style.display='block';break;
+      case 'economy':openEconomyPanel();break;
+      case 'society':openSocietyScreen();break;
+      case 'history':openHistoryPanel();break;
+      case 'news':document.getElementById('events-box').style.display='block';document.querySelector('[data-section="news"]').classList.remove('has-news');break;
+      case 'changes':document.getElementById('changes-box').style.display='block';break;
+      case 'more':more.hidden=false;break;
+      case 'pause':openPauseMenu();break;
     }
-    floating.forEach(id => {
-      const el = document.getElementById(id);
-      if (el.style.display && el.style.display !== 'none') el.dataset.mobileVisible = '1';
-      else delete el.dataset.mobileVisible;
-    });
+  };
+  togglePanel=()=>window.mobileSection(panelOpen?'map':'country');
+  const close=document.createElement('div');
+  close.className='mobile-country-close';
+  close.innerHTML='<span>Досье страны</span><button class="sheet-close" aria-label="Закрыть" onclick="mobileSection(\'map\')">✕</button>';
+  panel.prepend(close);
+  const decorate=(name,nav)=>{
+    const original=window[name];
+    if(typeof original!=='function')return;
+    window[name]=function(...args){closeSheets();mark(nav);return original.apply(this,args);};
+  };
+  [['openCountryRelations','diplo'],['selectCountry','diplo'],['openDiploPanel','diplo'],
+   ['openEconomyPanel','more'],['openActionsPanel','actions'],['openHistoryPanel','more'],
+   ['openSocietyScreen','more']].forEach(([name,nav])=>decorate(name,nav));
+  document.querySelectorAll('.xbtn').forEach(el=>{
+    el.role='button';el.tabIndex=0;el.setAttribute('aria-label','Закрыть');
+    el.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();el.click();}});
   });
-  floating.forEach(id => observer.observe(document.getElementById(id), {
-    attributes: true, attributeFilter: ['style']
-  }));
-  document.querySelectorAll('.xbtn').forEach(el => {
-    el.setAttribute('role', 'button');
-    el.tabIndex = 0;
-    el.setAttribute('aria-label', 'Закрыть');
-    el.addEventListener('keydown', e => {
-      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); el.click(); }
-    });
-  });
-
-  const picker = document.createElement('select');
-  picker.id = 'mobile-country-picker';
-  picker.setAttribute('aria-label', 'Выберите страну для новой игры');
-  document.querySelector('#main-menu .menu-hint').after(picker);
-  let countrySignature = '';
+  const picker=document.getElementById('mobile-country-picker');
+  const start=document.getElementById('mobile-start-btn');
+  let signature='';
   function refreshCountries() {
-    if (!activeScenario) {
-      picker.replaceChildren(new Option('Загрузка стран…', ''));
-      picker.disabled = true;
-      return;
-    }
-    const names = [...new Set(scenarioProvinces.map(p => p.owner).filter(Boolean))].sort((a,b) => a.localeCompare(b, 'ru'));
-    const signature = activeScenarioRef + '|' + names.join('|');
-    if (signature === countrySignature) return;
-    countrySignature = signature;
-    picker.replaceChildren(new Option('Новая игра — выберите страну', ''),
-      ...names.map(name => new Option(name, name)));
-    picker.disabled = names.length === 0;
+    if(!activeScenario)return;
+    const names=[...new Set(scenarioProvinces.map(p=>p.owner).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'ru'));
+    const next=activeScenarioRef+'|'+names.join('|');
+    if(next===signature)return;signature=next;
+    picker.replaceChildren(new Option('Выберите страну',''),...names.map(name=>new Option(name,name)));
+    start.disabled=true;
+    document.getElementById('menu-hint').textContent=activeScenario.name;
   }
-  picker.addEventListener('change', () => {
-    if (picker.value) { newGame(picker.value); picker.value = ''; setDossier(false); }
-  });
+  picker.addEventListener('change',()=>start.disabled=!picker.value);
+  window.mobileStartGame=()=>{
+    if(!picker.value)return;
+    newGame(picker.value);closeSheets();mark('map');updateHud();
+  };
+  const oldStart=startGame;
+  startGame=function(){oldStart();closeSheets();mark('map');updateHud();};
+  function updateHud() {
+    document.getElementById('mobile-country-name').textContent=
+      typeof playerCountryDisplayName==='undefined'?'Страна':playerCountryDisplayName;
+  }
+  const oldStats=renderPlayerStats;
+  renderPlayerStats=function(...args){const result=oldStats(...args);updateHud();return result;};
+  const oldTurnEnd=onTurnEnd;
+  onTurnEnd=async function(...args){
+    const result=await oldTurnEnd(...args);
+    document.getElementById('events-box').style.display='none';
+    document.getElementById('changes-box').style.display='none';
+    document.querySelector('[data-section="news"]').classList.add('has-news');
+    return result;
+  };
+  window.mobileFullscreen=async()=>{
+    try {if(!document.fullscreenElement)await document.documentElement.requestFullscreen?.();} catch {}
+    try {await screen.orientation?.lock?.('landscape');} catch {}
+  };
   refreshCountries();
-  // Scenario loading is asynchronous and may run again from the scenario menu.
-  window.setInterval(() => {
-    if (document.body.classList.contains('menu-mode')) refreshCountries();
-  }, 700);
-  document.getElementById('menu-hint').textContent =
-    'Выберите страну ниже или коснитесь её на карте. Двигайте карту пальцем, масштабируйте двумя.';
-
+  window.setInterval(()=>{if(document.body.classList.contains('menu-mode'))refreshCountries();},700);
   const map = document.getElementById('map-svg');
   const wrap = document.getElementById('map-wrap');
   const points = new Map();

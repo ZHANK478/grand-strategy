@@ -117,7 +117,7 @@ ${describePlayerSociety()}
 Страны (ID используй ТОЧНО): ${JSON.stringify(context)}.
 Войны: ${JSON.stringify({player:worldState.atWarWith,others:worldState.aiWars})}.
 Договоры: ${JSON.stringify(worldState.treaties||[])}.
-Переговоры этого хода: \${JSON.stringify(worldState.diploLog||[])}.
+Переговоры этого хода: ${JSON.stringify(worldState.diploLog||[])}.
 Известные события: ${JSON.stringify(worldState.pastEvents.slice(-8))}.
 Задания движка: ${JSON.stringify(pendingDirectives||[])}.
 Объекты: ${JSON.stringify(worldState.mapObjects||[])}.

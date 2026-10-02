@@ -173,7 +173,10 @@
  }
  async function request(kind,payload){
   if(!await initAuth())throw Error(connection.message);
-  if(connection.mode==='direct')return directRequest(payload);
+  if(connection.mode==='direct'){
+   const {cost,...providerPayload}=payload;
+   return directRequest(providerPayload);
+  }
   if(connection.mode==='guest'){
    if(kind==='image')throw Error(errorMessage('premium_required'));
    if(payload.model!==guestModel)throw Error('Гостевой сервер поддерживает только Gemini Flash Lite. Для '+payload.model+' подключите свой ключ или аккаунт в меню «Подключение ИИ».');

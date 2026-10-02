@@ -262,3 +262,46 @@ body.mobile-sheet-open #mobile-actions-button,body.mobile-sheet-open #mobile-act
 .mobile-country-fact strong{font-size:12px;font-weight:500;line-height:1.4}
 .mobile-foreign-portrait{display:block;width:min(110px,100%);height:110px;object-fit:cover;margin:12px auto 0;border:1px solid #ccb990;border-radius:5px}
 #mobile-card-primary{display:block;width:100%;margin-top:12px;min-height:44px;border:1px solid #ccb990;border-radius:7px;background:#eee5ce;color:#302b22;font-size:12px}
+
+/* Persistent compact cabinets leave the map available. */
+#actions-panel,#adv-pop,#diplo-pop,#economy-panel,#history-panel,#changes-box{
+ inset:0 auto 0 0!important;width:30vw!important;max-width:30vw!important;height:100%;max-height:var(--mobile-height)!important;border-radius:0!important;box-sizing:border-box;overflow:auto!important
+}
+#events-box{inset:0 0 0 auto!important;width:30vw!important;max-width:30vw!important;height:100%;border-radius:0!important;box-sizing:border-box;z-index:245!important}
+#diplo-countries,#relations-panel{display:none!important}
+body.mobile-sheet-open #topbar,body.mobile-sheet-open #actionbar,body.mobile-sheet-open #mobile-actions-button{display:flex!important}
+body.mobile-sheet-open #topbar{display:grid!important}
+#society-screen{inset:0 auto 0 0!important;width:30vw!important;padding:0!important;background:none!important;align-items:stretch!important;justify-content:stretch!important;overflow:hidden!important;z-index:240!important}
+#society-screen>div{width:100%!important;max-height:none!important;height:100%;border-radius:0!important}
+#breaking-news{inset:0 0 0 auto!important;width:30vw!important;padding:0!important;background:var(--panel)!important;align-items:stretch!important;justify-content:stretch!important}
+#breaking-news>div{width:100%!important;min-width:0!important;max-width:100%!important;max-height:100%!important;border-radius:0!important;padding:12px!important;box-sizing:border-box}
+#breaking-title{font-size:16px!important}
+#breaking-text{font-size:12px!important;line-height:1.5!important}
+#left-panel .portrait-hover{display:none!important}
+#left-panel .portrait-block{width:28vw!important;max-width:100%;height:auto!important;margin:10px auto;aspect-ratio:auto}
+#left-panel .portrait-img,#left-panel .portrait-emoji{width:100%!important;height:auto!important;aspect-ratio:3/4!important;object-fit:cover;min-height:0;font-size:48px}
+#left-panel #portrait-gen-btn,#left-panel #pm-portrait-gen-btn{display:block!important;font-size:10px!important;min-height:44px}
+#left-panel #pm{display:block}
+.mobile-person-portrait{width:28vw;max-width:100%;margin:10px auto}
+.mobile-person-portrait img,.mobile-portrait-placeholder{width:100%;aspect-ratio:3/4;object-fit:cover;border:1px solid var(--edge);border-radius:5px;box-sizing:border-box}
+.mobile-portrait-placeholder{display:flex;align-items:center;justify-content:center;background:#eee5ce;font-size:48px}
+.mobile-portrait-generate{display:block;width:100%;min-height:44px;padding:6px;margin-top:5px;border:1px solid var(--edge);border-radius:5px;background:#eee5ce;color:var(--ink);font-size:10px}
+#actions-panel,#adv-pop,#diplo-pop,#economy-panel,#history-panel,#changes-box,#events-box,#society-screen{font-size:11px;line-height:1.45}
+:is(#actions-panel,#adv-pop,#diplo-pop,#economy-panel,#history-panel,#changes-box,#events-box,#society-screen) :is(.adv-msg,.diplo-msg,.ev-item,.state-text,.chg-item,.chg-empty){font-size:11px!important;line-height:1.5!important;padding:8px}
+:is(#actions-panel,#adv-pop,#diplo-pop,#economy-panel,#history-panel,#changes-box,#events-box,#society-screen) :is(.pop-hdr,.events-hdr,.actions-hdr,.changes-hdr,.diplo-chat-hdr){font-size:12px!important;padding:4px 8px!important;letter-spacing:0}
+#economy-body,#history-body,#society-body{padding:8px!important;font-size:11px}
+#adv-messages,#diplo-messages{height:clamp(90px,42vh,230px);padding:8px}
+#action-input,.chat-input{width:100%;min-width:0;font-size:12px!important}
+.chat-input-row{padding:6px;gap:4px}
+.chat-send{flex-shrink:0;padding:6px;width:36px}
+#actions-panel .add-action-btn{font-size:11px;padding:6px}
+#society-screen .map-mode-btn{font-size:11px;padding:6px;white-space:normal}
+#events-list,#domestic-list,#changes-list{padding:8px}
+#events-box,#mobile-country-card,#left-panel,#actions-panel,#adv-pop,#diplo-pop,#economy-panel,#history-panel,#changes-box{overscroll-behavior:contain;touch-action:pan-y}
+
+:is(#economy-body,#history-body,#society-body) :is(div,p,span,td,th,li){font-size:11px!important;line-height:1.45!important}
+:is(#economy-body,#history-body,#society-body) :is(h2,h3,h4){font-size:13px!important}
+#economy-body button,#history-body button,#society-body button{font-size:11px!important;padding:6px!important}
+#left-panel #pm{display:block!important}
+#diplo-pop .diplo-chat-hdr{flex-wrap:wrap;gap:4px}
+#diplo-pop .back-btn{font-size:11px;min-height:44px;padding:5px}

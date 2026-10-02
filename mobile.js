@@ -81,10 +81,26 @@
     flag.onerror=()=>flag.hidden=true;
     const detail=document.getElementById('mobile-card-details');
     detail.replaceChildren();
-    function portrait(source,label){
-      if(!source)return;
-      const img=document.createElement('img');img.className='mobile-foreign-portrait';
-      img.src=source;img.alt=label;img.onerror=()=>img.remove();detail.append(img);
+    function portrait(source,label,role){
+      const block=document.createElement('div');block.className='mobile-person-portrait';
+      const img=document.createElement('img');img.alt=label;img.hidden=!source;
+      const placeholder=document.createElement('div');placeholder.className='mobile-portrait-placeholder';
+      placeholder.textContent=role==='pm'?'🎩':'👑';placeholder.hidden=!!source;
+      if(source)img.src=source;
+      img.onerror=()=>{img.hidden=true;placeholder.hidden=false;};
+      const button=document.createElement('button');button.className='mobile-portrait-generate';
+      button.textContent=portraitGenerating?'Генерация…':'Сгенерировать портрет';
+      button.disabled=portraitGenerating;
+      button.onclick=async()=>{
+        if(portraitGenerating)return;
+        button.disabled=true;button.textContent='Генерация…';
+        try {await generatePersonPortrait(name,role);}
+        catch {showNotif('Не удалось создать портрет. Попробуйте ещё раз.');}
+        finally {
+          if(inspectedCountry===name&&!document.getElementById('mobile-country-card').hidden)renderForeignCountry(name);
+        }
+      };
+      block.append(img,placeholder,button);detail.append(block);
     }
     function row(label,value){
       const block=document.createElement('div');block.className='mobile-country-fact';
@@ -93,10 +109,9 @@
       block.append(title,text);detail.append(block);
     }
     row('Форма правления',c.government);
-    portrait(c.portrait,'Правитель');
+    portrait(c.portrait,'Правитель','ruler');
     row(c.rulerTitle||'Правитель',c.ruler);
-    row('Возраст',typeof c.rulerAge==='number'?c.rulerAge+' лет':'—');
-    portrait(c.pmPortrait,'Глава правительства');
+    portrait(c.pmPortrait,'Глава правительства','pm');
     row(c.pmTitle||'Глава правительства',c.pm);
     const rel=worldState.relations[name]||0;
     row('Отношения',(rel>0?'+':'')+rel+(worldState.atWarWith.includes(name)?' · Война':worldState.alliedWith.includes(name)?' · Союз':''));
@@ -115,6 +130,20 @@
   };
   // Every map/details entry opens the same cabinet, without a second large screen.
   openCountryRelations=window.mobileCountryCard;
+  window.mobileBackFromDiplomacy=()=>{
+    const target=selectedCountry||inspectedCountry;
+    if(target&&countries[target])window.mobileCountryCard(target);
+    else closeSheets();
+  };
+  backToCountries=window.mobileBackFromDiplomacy;
+  openDiploPanel=()=>showNotif('Откройте страну на карте и нажмите «Дипломатия».');
+  const originalSelectCountry=selectCountry;
+  selectCountry=function(name){
+    inspectedCountry=name;
+    const result=originalSelectCountry(name);
+    document.getElementById('diplo-countries').style.display='none';
+    return result;
+  };
   const pauseOpen=openPauseMenu;
   openPauseMenu=function(){closeSheets();pauseOpen();};
   document.addEventListener('click',()=>{
@@ -177,12 +206,22 @@
     document.getElementById('mobile-flag-fallback').hidden=false;
     document.getElementById('mobile-flag-fallback').textContent=String(playerCountryDisplayName||playerCountry).slice(0,2).toUpperCase();
   });
+  const originalGeneratePortrait=generatePersonPortrait;
+  generatePersonPortrait=async function(country,role){
+    if(portraitGenerating)return null;
+    try {return await originalGeneratePortrait(country,role);}
+    finally {
+      portraitGenerating=false;
+      setPortraitLoading(false,role);
+      if(inspectedCountry&&!document.getElementById('mobile-country-card').hidden)renderForeignCountry(inspectedCountry);
+    }
+  };
   const oldStats=renderPlayerStats;
   renderPlayerStats=function(...args){const result=oldStats(...args);updateHud();if(inspectedCountry&&!document.getElementById('mobile-country-card').hidden)renderForeignCountry(inspectedCountry);return result;};
   const oldTurnEnd=onTurnEnd;
   onTurnEnd=async function(...args){
     const result=await oldTurnEnd(...args);
-    document.getElementById('events-box').style.display='none';
+    document.getElementById('events-box').style.display='block';
     document.getElementById('changes-box').style.display='none';
     document.getElementById('mobile-news-button').classList.add('has-news');
     return result;
@@ -290,7 +329,7 @@
     const old=pointers.get(e.pointerId);
     if(Math.hypot(e.clientX-old.startX,e.clientY-old.startY)>4)moved=true;
     pointers.set(e.pointerId,{...old,x:e.clientX,y:e.clientY});
-    if(baseline&&moved){mobileDismissCard();render(moveCamera(baseline,sample()));}
+    if(baseline&&moved){render(moveCamera(baseline,sample()));}
   },{passive:false});
   function finish(e) {
     if(!pointers.has(e.pointerId))return;
@@ -306,6 +345,7 @@
     if(!pointers.size){
       dragging=false;tapTarget=null;
       if(tap){
+        if(!document.getElementById('mobile-country-card').hidden)return;
         let hit=target;
         // Copies use the same rendered world; resolve a tap back to its real
         // province so all existing diplomacy/country handlers still work.

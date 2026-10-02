@@ -2,10 +2,40 @@
 /* Landscape navigation: one sheet at a time, with a persistent map. */
 (() => {
   'use strict';
-  const sheets=['mobile-country-card','left-panel','events-box','changes-box','actions-panel','adv-pop','diplo-pop','relations-panel','economy-panel','history-panel'];
+  const sheets=['mobile-country-card','left-panel','events-box','changes-box','actions-panel','adv-pop','diplo-pop','relations-panel','economy-panel','history-panel','society-screen'];
   const panel=document.getElementById('left-panel');
   const more=document.getElementById('mobile-more');
-  function closeSheets() {
+  const desktopQuery=window.matchMedia('(min-width: 1024px) and (hover: hover) and (pointer: fine)');
+  const isLaptop=()=>desktopQuery.matches;
+  function syncLaptop(){document.body.classList.toggle('laptop-mode',isLaptop());}
+  desktopQuery.addEventListener?.('change',syncLaptop);syncLaptop();
+  const workingPanels=['left-panel','mobile-country-card','actions-panel','adv-pop','diplo-pop','economy-panel','history-panel','changes-box','society-screen'];
+  let panelZ=260,slot=0;
+  function focusPanel(id){
+    if(!isLaptop())return;
+    const el=document.getElementById(id);
+    if(!el.style.getPropertyValue('--desktop-left')){
+      const n=slot++%3;
+      el.style.setProperty('--desktop-left',n===0?'10px':n===1?'calc(35vw - 5px)':'calc(70vw - 20px)');
+      el.style.setProperty('--desktop-top','90px');
+    }
+    el.style.setProperty('--desktop-z',String(++panelZ));
+  }
+  function closeCountry(){
+    panel.classList.add('hidden');panel.style.display='none';panelOpen=false;
+    document.getElementById('mobile-country-card').hidden=true;
+    document.getElementById('mobile-country-card').style.display='none';
+    document.body.classList.remove('mobile-country-open');
+    document.getElementById('mobile-flag-button').setAttribute('aria-expanded','false');
+  }
+  window.mobileCloseCountry=closeCountry;
+  function closeSheets(preserve=false) {
+    if(preserve&&isLaptop()){
+      document.getElementById('mobile-actions-menu').hidden=true;
+      document.getElementById('mobile-actions-button').setAttribute('aria-expanded','false');
+      document.getElementById('pause-menu').style.display='none';
+      return;
+    }
     sheets.forEach(id=>document.getElementById(id).style.display='none');
     panel.classList.add('hidden');panelOpen=false;more.hidden=true;
     document.getElementById('mobile-country-card').hidden=true;
@@ -17,7 +47,8 @@
   }
   function mark() {}
   window.mobileSection=name=>{
-    closeSheets();
+    closeSheets(!['map','pause','more','settings'].includes(name));
+    if(name==='country')closeCountry();
     mark(['map','actions','diplo','news','more'].includes(name)?name:'more');
     switch(name) {
       case 'country':panel.classList.remove('hidden');panel.style.display='block';panelOpen=true;
@@ -35,6 +66,8 @@
       case 'settings':openSettings();break;
 
     }
+    const target={country:'left-panel',actions:'actions-panel',advisor:'adv-pop',economy:'economy-panel',society:'society-screen',history:'history-panel',news:'events-box',changes:'changes-box'}[name];
+    if(target)focusPanel(target);
     document.body.classList.toggle('mobile-sheet-open',name!=='map'&&name!=='pause'&&name!=='more'&&name!=='country');
   };
   window.mobileCloseActions=()=>{
@@ -43,22 +76,28 @@
   };
   window.mobileOpenActions=()=>{
     const opened=!document.getElementById('mobile-actions-menu').hidden;
-    closeSheets();
+    closeSheets(true);
     if(!opened){
       document.getElementById('mobile-actions-menu').hidden=false;
       document.getElementById('mobile-actions-button').setAttribute('aria-expanded','true');
     }
   };
-  window.mobileToggleCountry=()=>window.mobileSection(panelOpen?'map':'country');
+  window.mobileToggleCountry=()=>{if(panelOpen)closeCountry();else window.mobileSection('country');};
   togglePanel=window.mobileToggleCountry;
   const close=document.createElement('div');
   close.className='mobile-country-close';
-  close.innerHTML='<span>Моя страна</span><button class="sheet-close" aria-label="Закрыть" onclick="mobileSection(\'map\')">✕</button>';
+  close.innerHTML='<span>Моя страна</span><button class="sheet-close" aria-label="Закрыть" onclick="mobileCloseCountry()">✕</button>';
   panel.prepend(close);
   const decorate=(name,nav)=>{
     const original=window[name];
     if(typeof original!=='function')return;
-    window[name]=function(...args){closeSheets();mark(nav);document.body.classList.add('mobile-sheet-open');return original.apply(this,args);};
+    window[name]=function(...args){
+      closeSheets(true);mark(nav);document.body.classList.add('mobile-sheet-open');
+      const result=original.apply(this,args);
+      const target={selectCountry:'diplo-pop',openEconomyPanel:'economy-panel',openActionsPanel:'actions-panel',openHistoryPanel:'history-panel',openSocietyScreen:'society-screen'}[name];
+      if(target)focusPanel(target);
+      return result;
+    };
   };
   [['openCountryRelations','diplo'],['selectCountry','diplo'],['openDiploPanel','diplo'],
    ['openEconomyPanel','more'],['openActionsPanel','actions'],['openHistoryPanel','more'],
@@ -68,7 +107,7 @@
     el.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();el.click();}});
   });
 
-  window.mobileDismissCard=()=>{document.getElementById('mobile-country-card').hidden=true;document.body.classList.remove('mobile-country-open');};
+  window.mobileDismissCard=closeCountry;
   let inspectedCountry=null;
   function renderForeignCountry(name) {
     const c=countries[name];
@@ -121,9 +160,9 @@
   }
   window.mobileCountryCard=name=>{
     if(name===playerCountry){mobileSection('country');return;}
-    closeSheets();
     if(!countries[name])return;
-    inspectedCountry=name;renderForeignCountry(name);
+    closeSheets(true);closeCountry();
+    inspectedCountry=name;renderForeignCountry(name);focusPanel('mobile-country-card');
     const card=document.getElementById('mobile-country-card');
     card.style.display='block';card.hidden=false;
     document.body.classList.add('mobile-country-open');
@@ -131,6 +170,7 @@
   // Every map/details entry opens the same cabinet, without a second large screen.
   openCountryRelations=window.mobileCountryCard;
   window.mobileBackFromDiplomacy=()=>{
+    document.getElementById('diplo-pop').style.display='none';
     const target=selectedCountry||inspectedCountry;
     if(target&&countries[target])window.mobileCountryCard(target);
     else closeSheets();
@@ -158,6 +198,27 @@
     });
   });
 
+  // Laptop panels can coexist, be brought to the front and be moved by their header.
+  workingPanels.forEach(id=>{
+    const el=document.getElementById(id);
+    el.addEventListener('pointerdown',()=>focusPanel(id));
+    const header=el.querySelector('.mobile-country-close,.country-card-heading,.actions-hdr,.pop-hdr,.changes-hdr');
+    if(!header)return;
+    let drag=null;
+    header.addEventListener('pointerdown',e=>{
+      if(!isLaptop()||e.pointerType!=='mouse'||e.button!==0||e.target.closest('button,.xbtn,input'))return;
+      const rect=el.getBoundingClientRect();
+      drag={x:e.clientX,y:e.clientY,left:rect.left,top:rect.top};
+      header.setPointerCapture(e.pointerId);e.preventDefault();
+    });
+    header.addEventListener('pointermove',e=>{
+      if(!drag)return;
+      const rect=el.getBoundingClientRect();
+      el.style.setProperty('--desktop-left',Math.max(0,Math.min(window.innerWidth-rect.width,drag.left+e.clientX-drag.x))+'px');
+      el.style.setProperty('--desktop-top',Math.max(78,Math.min(window.innerHeight-80,drag.top+e.clientY-drag.y))+'px');
+    });
+    ['pointerup','pointercancel','lostpointercapture'].forEach(type=>header.addEventListener(type,()=>drag=null));
+  });
   const picker=document.getElementById('mobile-country-picker');
   const start=document.getElementById('mobile-start-btn');
   let signature='';
@@ -364,7 +425,6 @@
     if(!pointers.size){
       dragging=false;tapTarget=null;
       if(tap){
-        if(!document.getElementById('mobile-country-card').hidden)return;
         let hit=target;
         // Copies use the same rendered world; resolve a tap back to its real
         // province so all existing diplomacy/country handlers still work.
@@ -381,7 +441,7 @@
         if(hit?.matches?.('path.scenario-province')&&typeof gameStarted!=='undefined'&&gameStarted){
           const p=hit.__data__;
           const owner=p&&provinceOwnerOf(p.id,p.owner);
-          if(owner){if(owner===playerCountry)mobileSection('country');else mobileCountryCard(owner);return;}
+          if(owner){window.mobileCountryCard(owner);return;}
         }
         if(hit?.isConnected)hit.dispatchEvent(new MouseEvent('click',{
           bubbles:true,cancelable:true,clientX:e.clientX,clientY:e.clientY,view:window

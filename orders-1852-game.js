@@ -177,6 +177,7 @@ function buildCountriesFromScenario() {
     const d = activeScenario?.countryProfiles?.[c] || (year===1852?COUNTRY_DEFAULTS[c]:null) || placeholderCountry(c);
     countries[c] = normalizeCountry({
       displayName: d.displayName || c,
+      societySeed:d.societySeed||null,lawSlots:d.lawSlots?JSON.parse(JSON.stringify(d.lawSlots)):null,
       succession: d.succession || null, economySeed: d.economySeed || null, militarySupport:d.militarySupport??60,
       ruler: d.ruler, rulerAge: d.rulerAge, rulerSince: d.rulerSince || year, rulerTitle: d.rulerTitle,
       government: d.government, pm: d.pm, pmTitle: d.pmTitle,
@@ -1299,6 +1300,7 @@ function stepOneMonth() {
   runInternalPoliticsEngine();
   const deaths = checkRulerDeaths();
   runDiplomacyEngine();
+  runWorldAutonomy();
   return { econ, deaths };
 }
 
@@ -1322,11 +1324,13 @@ async function nextTurn(kind) {
     territoryOwners,provinceOwners,provinceEcon,ALL_COUNTRIES,playerCountryDisplayName}));
   turnRunning=true;const btn=document.querySelector('.next-btn');btn.disabled=true;btn.textContent='Проверка приказов…';
   try{
+    const beforeFacts=captureWorldFacts(),periodStartDate=dateLabel();
+    const engineHistoryStart=worldState.pastEvents.length;
+    worldState.periodEvents=[];
     turn++;
     // Decisions take effect before the month's budget and social simulation.
     const results=await onTurnEnd();
     let changes=[],deaths=[],netSum=0,borrowedSum=0;
-    const engineHistoryStart=worldState.pastEvents.length;
     if(kind==='week'){
       week++;
       if(week>=4){week=0;const r=stepOneMonth();changes=r.econ;deaths=r.deaths;resolvePendingSuccessions();}
@@ -1341,11 +1345,12 @@ async function nextTurn(kind) {
     announceDeaths(deaths);
     if(opt.months>1){changes=[{label:'Бюджет за '+opt.months+' месяцев',value:(netSum>=0?'+':'')+netSum.toLocaleString('ru')+' расчётных единиц',sign:netSum}];
       if(borrowedSum)changes.push({label:'Займы за период',value:'+'+borrowedSum.toLocaleString('ru'),sign:-1});}
-    const eventsList=document.getElementById('events-list');
-    worldState.pastEvents.slice(engineHistoryStart).slice(-8).forEach(text=>{const row=document.createElement('div');row.className='ev-item';row.textContent='Движок: '+text;eventsList.appendChild(row);});
     reconcileOrderArmies();
     renderPlayerStats();renderDate();renderPlayerPowerPanel();renderActionsList();
     renderOrderReceipts(results,changes);
+    const engineEvents=worldState.pastEvents.slice(engineHistoryStart).filter(t=>!t.startsWith('Приказ '));
+    renderNewspaper(buildNewspaper(beforeFacts,results,engineEvents,periodStartDate));
+    worldState.pastEvents=worldState.pastEvents.slice(-120);
     if(typeof renderMapObjects==='function')renderMapObjects();
     if(!saveGame())throw Error('Не удалось сохранить результат хода');
     return true;
@@ -1652,7 +1657,7 @@ function resetGame(country) {
   playerCountryDisplayName=countries[playerCountry]?.displayName || playerCountry;
   initProvinceEconomy();
   recomputeIncomes();
-  ALL_COUNTRIES.forEach(name=>{const c=countries[name];econInitCountry(c,name);if(!c.society){initSociety(c);const seed=year===1852?SOCIETY_SEEDS[name]:null;if(seed)Object.assign(c.society,seed);}});
+  ALL_COUNTRIES.forEach(name=>{const c=countries[name];econInitCountry(c,name);if(!c.society){initSociety(c);const seed=c.societySeed||(year===1852?SOCIETY_SEEDS[name]:null);if(seed){['literacy','poverty','womensRights','religiousFreedom','urbanization'].forEach(k=>{if(typeof seed[k]==='number'&&Number.isFinite(seed[k]))c.society[k]=Math.max(0,Math.min(100,seed[k]));});if(seed.spending){Object.keys(c.society.spending).forEach(k=>{if(typeof seed.spending[k]==='number'&&Number.isFinite(seed.spending[k]))c.society.spending[k]=Math.max(0,Math.min(Math.round(c.income*.25),Math.round(seed.spending[k])));});}}}});
 
   if (typeof updateMapCountryLabel === 'function') {
     ALL_COUNTRIES.forEach(c => updateMapCountryLabel(c, countries[c]?.displayName||c));

@@ -607,58 +607,33 @@ function setSocietyTab(tab) {
 }
 
 function renderSocietyScreen() {
-  const box = document.getElementById('society-body');
-  if (!box || typeof countries === 'undefined' || !countries[playerCountry]) return;
-  const c = countries[playerCountry];
-  const fmt = v => v.toLocaleString('ru');
-
-  if (societyTab === 'laws') {
-    const laws = (c.laws || []);
-    const active = laws.filter(l => !l.repealed);
-    const repealed = laws.filter(l => l.repealed);
-    // Слоты законов (v2): фундаментальное устройство государства — движок помнит навсегда
-    const slots = (c.lawSlots && typeof LAW_SLOTS !== 'undefined')
-      ? `<div class="phdr">Устройство государства</div>` +
-        Object.entries(c.lawSlots).map(([slot, id]) => {
-          const o = (typeof lawOption === 'function') ? lawOption(slot, id) : null;
-          return `<div class="irow"><span class="k">⚖️ ${LAW_SLOTS[slot] ? LAW_SLOTS[slot].label : slot}</span><span><b>${o ? o.label : id}</b></span></div>`;
-        }).join('') +
-        `<div style="font-size:10px;opacity:.7;line-height:1.5;margin:4px 0 12px">Реформы проводятся действиями: «ввести всеобщее избирательное право», «отделить церковь от государства». Каждая реформа временно бьёт по стабильности.</div>`
-      : '';
-    box.innerHTML = slots +
-      `<div class="phdr">Действующие законы (${active.length})</div>` +
-      (active.length ? active.map(l => `<div style="border:1px solid #223050;border-radius:4px;padding:8px 10px;margin-bottom:7px;background:#121e38">
-          <div style="font-size:13px;font-weight:bold;color:#e4decd">📖 ${l.name} <span style="color:#8b94aa;font-weight:normal;font-size:10px">(${l.year} г.)</span></div>
-          ${l.description ? `<div style="font-size:11px;color:#a6aec4;margin-top:3px;line-height:1.5">${l.description}</div>` : ''}
-        </div>`).join('') : '<div class="chg-empty">Особых законов пока не принято. Принимайте законы через действия: «принять закон о всеобщем образовании».</div>') +
-      (repealed.length ? `<div class="phdr" style="margin-top:12px">Отменённые</div>` +
-        repealed.map(l => `<div style="font-size:11px;color:#8b94aa;padding:3px 0;text-decoration:line-through">📖 ${l.name} (${l.year}—${l.repealedYear})</div>`).join('') : '');
-    return;
-  }
-
-  const so = c.society;
-  if (!so) { box.innerHTML = '<div class="chg-empty">Сделайте первый ход — данные о社ме появятся.</div>'.replace('社ме','обществе'); return; }
-  const bar = (val, color) => `<div style="background:#0c1526;border-radius:3px;height:8px;overflow:hidden;margin-top:3px"><div style="width:${val}%;height:100%;background:${color}"></div></div>`;
-  const metric = (icon, name, val, suffix, color, hint) => `<div style="border:1px solid #223050;border-radius:4px;padding:8px 10px;background:#121e38">
-    <div style="display:flex;justify-content:space-between;font-size:12px"><span>${icon} ${name}</span><b>${val}${suffix}</b></div>
-    ${bar(val, color)}
-    <div style="font-size:9px;color:#8b94aa;margin-top:3px">${hint}</div>
-  </div>`;
-  const wealthPerCapita = c.economy ? Math.round(Object.values(c.economy.classes).reduce((s, k) => s + k.wealth, 0) / 10) : 0;
-  box.innerHTML =
-    `<div class="phdr">Демография и общество</div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">` +
-    metric('🎓', 'Грамотность', so.literacy, '%', '#7ba7e0', 'Растёт от расходов на образование; >60% ускоряет буржуазию') +
-    metric('🥀', 'Бедность', so.poverty, '%', '#e08072', 'Снижается призрением; >70% злит народ') +
-    metric('👩', 'Права женщин', so.womensRights, '/100', '#7a4a8a', 'Меняются законами') +
-    metric('🕊', 'Свобода веры', so.religiousFreedom, '/100', '#3a7a3a', 'Меняются законами; злит/радует церковь') +
-    metric('🏙', 'Урбанизация', so.urbanization, '%', '#d9b45c', 'Растёт при стабильности и низких налогах на буржуазию') +
-    metric('💰', 'Достаток на душу', Math.min(100, wealthPerCapita), ' у.е.', '#1a7a5a', 'Суммарное богатство сословий') +
-    `</div>
-    <div class="phdr" style="margin-top:12px">Социальные расходы (строки бюджета)</div>
-    <div class="irow"><span class="k">🎓 Образование</span><span>${fmt(so.spending.education)} фр./мес</span></div>
-    <div class="irow"><span class="k">🍞 Призрение бедных</span><span>${fmt(so.spending.welfare)} фр./мес</span></div>
-    <div style="font-size:10px;color:#8b94aa;line-height:1.5;margin-top:6px">Меняются действиями: «удвоить расходы на образование», «выделить 40 франков в месяц на призрение». Расходы >5% дохода дают заметный эффект (~2.4% в год).</div>`;
+ const box=document.getElementById('society-body'),c=countries[playerCountry];if(!box||!c)return;
+ const esc=v=>String(v??'').replace(/[&<>"']/g,x=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[x]));
+ const fmt=v=>Number(v||0).toLocaleString('ru',{maximumFractionDigits:1});
+ if(societyTab==='laws'){
+  const slots=Object.entries(c.lawSlots||{}).map(([slot,id])=>{
+   const o=lawOption(slot,id),label=LAW_SLOTS[slot]?.label||slot;
+   return '<div class="society-law-row"><small>'+esc(label)+'</small><strong>'+esc(o?.label||id)+'</strong></div>';
+  }).join('');
+  const active=(c.laws||[]).filter(l=>!l.repealed),repealed=(c.laws||[]).filter(l=>l.repealed);
+  box.innerHTML='<h3 class="society-heading">Устройство государства</h3><p class="society-hint">Эти нормы влияют на бюджет, рост и сопротивление реформам. Меняйте их приказами главы государства.</p>'+slots+
+   '<h3 class="society-heading">Особые законы</h3>'+
+   (active.length?active.map(l=>'<article class="society-law-card"><strong>'+esc(l.name)+'</strong><small>'+esc(l.year)+' г.</small><p>'+esc(l.description)+'</p></article>').join(''):
+    '<p class="society-hint">Особых законов нет. Уже действуют нормы устройства государства выше. Для новой реформы нужен поддерживаемый эффект, одного названия недостаточно.</p>')+
+   (repealed.length?'<h3 class="society-heading">Отменённые</h3>'+repealed.map(l=>'<p class="society-hint"><s>'+esc(l.name)+'</s></p>').join(''):'');
+  return;
+ }
+ const s=c.society;if(!s){box.textContent='Данные общества пока недоступны.';return;}
+ const metric=(name,value,suffix,hint)=>'<article class="society-metric"><div><span>'+name+'</span><strong>'+fmt(value)+suffix+'</strong></div><div class="society-meter"><span style="width:'+Math.max(0,Math.min(100,value))+'%"></span></div><p>'+hint+'</p></article>';
+ box.innerHTML='<h3 class="society-heading">Общество</h3><p class="society-hint">Образование и помощь населению меняют показатели постепенно. Недовольство отражается на поддержке власти.</p><div class="society-metrics">'+
+  metric('Грамотность',s.literacy,'%','Расходы на образование ускоряют её рост.')+
+  metric('Бедность',s.poverty,'%','Помощь населению снижает её; инфляция и нестабильность повышают.')+
+  metric('Права женщин',s.womensRights,' / 100','Зависят от действующих законов.')+
+  metric('Свобода веры',s.religiousFreedom,' / 100','Зависит от религиозной политики.')+
+  metric('Урбанизация',s.urbanization,'%','Связана со стабильностью и налогами на предпринимателей.')+'</div>'+
+  '<h3 class="society-heading">Расходы в месяц</h3>'+
+  Object.entries({education:'Образование',welfare:'Помощь населению',infrastructure:'Инфраструктура'}).map(([k,label])=>'<div class="society-law-row"><small>'+label+'</small><strong>'+fmt(s.spending[k])+' расч. ед.</strong></div>').join('')+
+  '<p class="society-hint">Например: «Установить расходы на образование 40 в месяц». Допустимый предел каждой статьи — 25% текущего дохода.</p>';
 }
 
 async function sendSocietyMessage() {
@@ -667,7 +642,7 @@ async function sendSocietyMessage() {
   if (!msg) return;
   input.value = '';
   appendSocietyMsg('player', msg);
-  appendSocietyMsg('minister', '⏳ Министр сверяется с отчётами...');
+  appendSocietyMsg('minister', 'Министр сверяется с отчётами…');
   const response = await askSocietyAdvisor(msg);
   const msgs = document.querySelectorAll('#society-messages .adv-msg');
   msgs[msgs.length - 1].remove();
@@ -677,7 +652,7 @@ function appendSocietyMsg(role, text) {
   const box = document.getElementById('society-messages');
   const div = document.createElement('div');
   div.className = 'adv-msg ' + (role === 'player' ? 'player' : 'advisor');
-  div.textContent = (role === 'player' ? '👤 ' : '🏛 ') + text;
+  div.textContent = newspaperText(text);
   box.appendChild(div);
   box.scrollTop = box.scrollHeight;
 }

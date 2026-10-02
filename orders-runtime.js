@@ -126,7 +126,7 @@ ${describePlayerSociety()}
 Готовые карточки уже заданы кодом, НЕ включай их в orders: ${JSON.stringify(pending.filter(o=>o.fixedEffects).map(o=>({text:o.text,kind:o.kind,effects:o.fixedEffects})))}.
 
 Верни ТОЛЬКО JSON без Markdown:
-{"news":["до 3 коротких наблюдений о подтверждённом состоянии мира"],"domestic":["до 2 замечаний о ПОДТВЕРЖДЁННОМ состоянии"],"orders":[{"id":"точный ID свободного приказа","kind":"tax|spending|law|power|army|map|finance|diplomacy|identity|unsupported","status":"execute|reject|defer","reason":"краткая причина","effects":{}}],"world_effects":{}}
+{"news":[],"domestic":[],"orders":[{"id":"точный ID свободного приказа","kind":"tax|spending|law|power|army|map|finance|diplomacy|identity|unsupported","status":"execute|reject|defer","reason":"краткая причина","effects":{}}],"world_effects":{}}
 На КАЖДЫЙ свободный приказ нужен ровно один результат. reject/defer имеют effects:{}.
 Неподдерживаемое действие = unsupported/reject с честным объяснением; пожелание/придуманное событие не устанавливает факт.
 execute — только предложение: код может заблокировать его или сорвать политическую попытку. НЕ описывай новые приказы как уже исполненные в news/domestic.
@@ -147,7 +147,7 @@ wars_between:[{a,b,status:"start|end"}], battles:[{a,b,scale:"skirmish|battle|de
 war_declared (чужая страна объявляет войну игроку; мир за игрока не подписывай), foreign_leader_change:[{country,ruler_name,ruler_age,ruler_title,government,pm_name,pm_title}] ТОЛЬКО при pendingSuccession/pendingCoup этой страны.
 Свои ruler_name/ruler_age/ruler_title/government/pm_name/pm_title в world_effects — ТОЛЬКО если код отметил pendingSuccession/pendingCoup. Никаких налогов, законов, произвольных сумм или бесплатных армий в world_effects.
 parliament:{support_delta:-10..10,factions:[{name,pct}]} в world_effects: factions только если electionPending; иначе не включай.
-В news/domestic не объявляй новые конституции, законы, смерти или договоры, если они не подтверждены состоянием движка. Не пересказывай обязательную историческую хронологию как уже случившуюся альтернативную историю.
+news/domestic оставь пустыми: газету после расчёта периода сформирует код из подтверждённых изменений. Не создавай текстовый отчёт. Причина каждого приказа — максимум 120 символов; не повторяй текст приказа. Возвращай только нужные поля эффектов.
 Пиши кратко, не заполняй нулевые поля. Суммы — расчётные единицы движка, не независимая историческая статистика.`;
  const raw=await askGemini(prompt,4000);
  const plan=parseOrderReply(raw);
@@ -279,12 +279,10 @@ function renderOrderReceipts(results,econChanges){
 }
 onTurnEnd=async function(){
  const eventsBox=document.getElementById('events-box'),list=document.getElementById('events-list');
- eventsBox.style.display='block';list.textContent='Проверяем приказы и готовим сводку…';
+ eventsBox.style.display='block';list.textContent='Проверяем приказы и готовим газету…';
  const plan=await generateOrderPlan(),results=applyOrderPlan(plan);
- list.replaceChildren();
- plan.news.concat(plan.domestic).forEach(text=>{const div=document.createElement('div');div.className='ev-item';div.textContent=text;list.appendChild(div);worldState.pastEvents.push(text);});
+ reactToPlayerOrders(results);
  results.forEach(o=>worldState.pastEvents.push('Приказ '+o.id+': '+ORDER_STATUS[o.status]+' — '+o.text+'. '+o.reason));
- worldState.pastEvents=worldState.pastEvents.slice(-120);
  worldState.diploLog=[];renderActionsList();
  return results;
 };
@@ -292,7 +290,7 @@ onTurnEnd=async function(){
 const originalResetForOrders=resetGame;
 resetGame=function(...args){originalResetForOrders(...args);worldState.orders=[];renderActionsList();};
 const originalLoadForOrders=loadGameSlot;
-loadGameSlot=async function(...args){const result=await originalLoadForOrders(...args);ensureOrders();renderActionsList();return result;};
+loadGameSlot=async function(...args){const result=await originalLoadForOrders(...args);ensureOrders();renderActionsList();renderNewspaper(worldState.newspaperHistory?.at(-1));return result;};
 window.addEventListener('gs:scenario-status',()=>{
  if(gameStarted)return;
  const picker=document.getElementById('mobile-country-picker');

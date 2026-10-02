@@ -87,12 +87,20 @@ function buildNewspaper(before,results,engineEvents,startDate){
     if(a[k]!==b[k])add('domestic','Правительство меняет расходы на '+label,
      'Кабинет '+(b[k]>a[k]?'увеличивает':'сокращает')+' финансирование этого направления. Решение входит в бюджет, а общественный эффект будет накапливаться постепенно.',a[k]+' → '+b[k]+' расчётных единиц в месяц.');
    });
-   if(o.before.government!==o.after.government)add('domestic','Новая форма правления',o.before.government+' → '+o.after.government+'.');
+   if(o.before.government!==o.after.government)add('domestic','Объявлено новое устройство власти','Глава государства установил форму правления «'+o.after.government+'». Перемена отражается на политическом устройстве и отношениях с другими державами.',o.before.government+' → '+o.after.government+'.');
    if(o.before.laws!==o.after.laws)add('domestic','Реформа меняет устройство государства',o.reason);
-   if(o.before.ruler!==o.after.ruler||o.before.pm!==o.after.pm)add('domestic','Перемены в руководстве страны',o.reason);
-   if(o.before.army!==o.after.army)add('domestic',o.after.army>o.before.army?'Армия пополняется':'Армия сокращается',o.reason);
-   if(o.before.debt!==o.after.debt)add('domestic',o.after.debt>o.before.debt?'Правительство привлекает заём':'Государство погашает долг',o.reason);
-   if(o.before.taxes===o.after.taxes&&o.before.spending===o.after.spending&&o.before.laws===o.after.laws&&o.before.government===o.after.government&&o.before.ruler===o.after.ruler&&o.before.pm===o.after.pm&&o.before.army===o.after.army&&o.before.debt===o.after.debt)
+   if(o.before.pm!==o.after.pm)add('domestic','Объявлено назначение главы правительства','По решению главы государства пост главы правительства получил '+o.after.pm+'.',o.reason);
+   else if(o.before.ruler!==o.after.ruler)add('domestic','Перемены в руководстве страны',o.reason);
+   if(o.before.army!==o.after.army)add('domestic',o.after.army>o.before.army?'Армия пополняется':'Армия сокращается',o.after.army>o.before.army?'Правительство пополнило вооружённые силы. Казна оплачивает набор и принимает на себя содержание новых солдат.':'Правительство сократило численность вооружённых сил. Это меняет военные возможности государства.',o.reason);
+   if(o.before.debt!==o.after.debt)add('domestic',o.after.debt>o.before.debt?'Правительство привлекает заём':'Государство погашает долг',o.after.debt>o.before.debt?'Кабинет привлёк заём для пополнения казны. Полученные средства увеличили долговые обязательства государства.':'Кабинет направил средства казны на погашение долговых обязательств.',o.reason);
+   Object.keys(o.relationsBefore||{}).forEach(n=>{
+    const before=o.relationsBefore[n],after=o.relationsAfter[n];if(before===after)return;
+    add('foreign',after<before?'Дипломатическая провокация обостряет отношения':'Дипломатическое решение укрепляет отношения',
+     'Отношения с державой «'+(countries[n]?.displayName||n)+(after<before?'» ухудшились после решения главы государства.':'» стали теплее после решения главы государства.'),'Отношения '+before+' → '+after+'.');
+   });
+   if(o.effects?.map_objects?.length)add('domestic','Перемены в размещении на карте',
+    o.effects.map_objects.some(x=>x.type==='army')?'Правительство изменило размещение воинских частей. Солдаты распределяются из существующей армии.':'Исполнено распоряжение о размещении или перемещении объекта. Подробности доступны на карте.',o.reason);
+   if(!o.effects?.relations&&!o.effects?.map_objects&&o.before.taxes===o.after.taxes&&o.before.spending===o.after.spending&&o.before.laws===o.after.laws&&o.before.government===o.after.government&&o.before.ruler===o.after.ruler&&o.before.pm===o.after.pm&&o.before.army===o.after.army&&o.before.debt===o.after.debt)
     add('domestic','Решение главы государства вступило в силу',o.reason);
   }else add('domestic',o.status==='failed'?'Политическая попытка не удалась':o.status==='blocked'?'Решение встретило препятствие':'Предложение не исполнено',o.text.replace(/[.!?]+$/,'')+'. '+o.reason);
  });

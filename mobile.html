@@ -248,45 +248,26 @@ select{background:var(--raise);color:var(--ink);border:1px solid var(--edge);bor
 input[type=checkbox]{accent-color:var(--gold);}
 
 </style>
-<link rel="stylesheet" href="mobile.css?v=3">
+<link rel="stylesheet" href="mobile.css?v=4">
 <script>window.GS_MOBILE = true;</script>
 </head>
 <body class="menu-mode">
 
 
 <div id="rotate-screen"><div class="rotate-symbol">↻</div><h1>Поверните телефон</h1><p>Grand Strategy играется горизонтально.</p><button onclick="mobileFullscreen()">На весь экран</button></div>
+
 <header id="topbar" class="game-ui">
-  <button class="mobile-country" onclick="mobileSection('country')" aria-label="Открыть досье"><span id="mobile-country-name">Страна</span><span id="date-disp">1852</span></button>
-  <button class="mobile-treasury" onclick="mobileSection('economy')"><small>Казна</small><strong id="treasury">—</strong></button>
-  <span id="mobile-turn-balance" aria-live="polite">Гость · 10 ходов</span>
-  <button class="icon-button" onclick="mobileFullscreen()" aria-label="На весь экран">⛶</button>
+  <button id="menu-btn" class="mobile-menu-button" onclick="openPauseMenu()" aria-label="Открыть меню" title="Меню">☰</button>
+  <div class="mobile-date"><span id="mobile-country-name">Страна</span><span id="date-disp">1852</span></div>
 </header>
-<!-- Existing statistics remain available to the simulation; shown in the dossier. -->
-<div id="mobile-engine-stats" hidden><span id="income"></span><span id="army"></span><span id="stab"></span><span id="debt"></span><span id="infl"></span><span id="turn-info"></span></div>
-<nav id="mobile-nav" class="game-ui" aria-label="Разделы игры">
-  <button data-section="map" onclick="mobileSection('map')" class="selected"><span>◎</span>Карта</button>
-  <button data-section="actions" onclick="mobileSection('actions')"><span>✎</span>Действия</button>
-  <button data-section="diplo" onclick="mobileSection('diplo')"><span>⚑</span>Дипломатия</button>
-  <button data-section="news" onclick="mobileSection('news')"><span>▤</span>Новости</button>
-  <button data-section="more" onclick="mobileSection('more')"><span>•••</span>Ещё</button>
-</nav>
-<div id="actionbar" class="game-ui">
-  <select id="skip-select" onchange="onSkipChange()" aria-label="Длительность хода"><option value="week">Неделя</option><option value="m1" selected>Месяц</option><option value="m3">3 месяца</option><option value="m6">6 месяцев</option><option value="m12">Год</option><option value="m60">5 лет</option></select>
-  <button class="next-btn" onclick="nextTurn()">Следующий ход ▶</button>
-</div>
+<div id="mobile-engine-stats" hidden><span id="treasury"></span><span id="income"></span><span id="army"></span><span id="stab"></span><span id="debt"></span><span id="infl"></span><span id="turn-info"></span></div>
+<div id="actionbar" class="game-ui"><button class="next-btn" onclick="nextTurn()">Следующий ход ▶</button></div>
 <button id="toggle-btn" hidden onclick="togglePanel()">◀</button>
-<div id="mobile-more" class="mobile-sheet game-ui" hidden>
-  <div class="pop-hdr"><span>Управление страной</span><button class="sheet-close" onclick="mobileSection('map')" aria-label="Закрыть">✕</button></div>
-  <div class="more-grid">
-    <button onclick="mobileSection('country')">Досье страны</button>
-    <button onclick="mobileSection('economy')">Экономика</button>
-    <button onclick="mobileSection('society')">Общество</button>
-    <button onclick="mobileSection('advisor')">Советник</button>
-    <button onclick="mobileSection('history')">История</button>
-    <button onclick="mobileSection('changes')">Итоги хода</button>
-    <button onclick="saveGame({announce:true})">Сохранить</button>
-    <button onclick="mobileSection('pause')">Меню игры</button>
-  </div>
+<div id="mobile-more" hidden></div>
+<div id="mobile-country-card" class="game-ui" hidden>
+  <div class="country-card-heading"><strong id="mobile-card-name"></strong><button class="sheet-close" onclick="mobileDismissCard()" aria-label="Закрыть карточку">✕</button></div>
+  <p id="mobile-card-description"></p>
+  <div class="country-card-actions"><button id="mobile-card-primary"></button><button id="mobile-card-secondary"></button></div>
 </div>
 <div id="main-menu">
   <section class="mobile-start">
@@ -512,14 +493,29 @@ input[type=checkbox]{accent-color:var(--gold);}
 </div>
 
 <!-- МЕНЮ ПАУЗЫ -->
+
 <div id="pause-menu">
-  <div class="pause-box">
-    <h3>⏸ Меню</h3>
-    <button onclick="closePauseMenu()">▶ Продолжить</button>
-    <button onclick="pauseSaveGame()">💾 Сохранить игру</button>
-    <button onclick="openSettings()">⚙ Настройки</button>
-    <button class="danger" onclick="pauseRestart()">🔄 Начать заново</button>
-    <button onclick="pauseExitToMenu()">🚪 Выйти в меню</button>
+  <div class="pause-box mobile-menu-box">
+    <div class="menu-heading"><h3>Меню</h3><button class="sheet-close" onclick="closePauseMenu()" aria-label="Закрыть меню">✕</button></div>
+    <div id="mobile-turn-balance" class="menu-balance" aria-live="polite">Гость · 10 ходов</div>
+    <div class="mobile-menu-grid">
+      <button onclick="mobileSection('actions')">Действия</button>
+      <button onclick="mobileSection('news')" id="mobile-news-button">Новости</button>
+      <button onclick="mobileSection('country')">Моя страна</button>
+      <button onclick="mobileSection('economy')">Экономика</button>
+      <button onclick="mobileSection('diplo')">Дипломатия</button>
+      <button onclick="mobileSection('advisor')">Советник</button>
+      <button onclick="mobileSection('society')">Общество</button>
+      <button onclick="mobileSection('history')">История</button>
+    </div>
+    <label class="menu-period" for="skip-select">Длительность хода
+      <select id="skip-select" onchange="onSkipChange()"><option value="week">Неделя</option><option value="m1" selected>Месяц</option><option value="m3">3 месяца</option><option value="m6">6 месяцев</option><option value="m12">Год</option><option value="m60">5 лет</option></select>
+    </label>
+    <div class="mobile-menu-footer">
+      <button onclick="pauseSaveGame()">Сохранить</button>
+      <button onclick="mobileSection('settings')">Настройки</button>
+      <button onclick="pauseExitToMenu()">Главное меню</button>
+    </div>
   </div>
 </div>
 
@@ -554,7 +550,17 @@ input[type=checkbox]{accent-color:var(--gold);}
       </label>
       <div style="font-size:10px;color:#707c98;margin-top:2px">Портрет рисуется ИИ при новой игре и каждой смене правителя</div>
     </div>
-    <button class="load-close-btn" onclick="closeSettings()">Закрыть</button>
+    
+<div class="setting-row"><label>Режим карты</label><div id="map-mode-tabs" >
+    <button id="map-mode-political" class="map-mode-btn active" onclick="setMapMode('political')">🗺 Политическая карта</button>
+    <button id="map-mode-alliance" class="map-mode-btn" onclick="setMapMode('alliance')">🤝 Карта альянсов</button>
+  </div></div>
+<div class="settings-extra">
+ <button onclick="closeSettings();mobileSection('map');mobileMapOverview()">Обзор мира</button>
+ <button onclick="mobileFullscreen()">На весь экран</button>
+ <button class="danger" onclick="pauseRestart()">Начать заново</button>
+</div>
+<button class="load-close-btn" onclick="closeSettings()">Закрыть</button>
   </div>
 </div>
 
@@ -632,10 +638,7 @@ input[type=checkbox]{accent-color:var(--gold);}
 </div>
 
 <div id="map-wrap">
-  <div id="map-mode-tabs" class="game-ui">
-    <button id="map-mode-political" class="map-mode-btn active" onclick="setMapMode('political')">🗺 Политическая карта</button>
-    <button id="map-mode-alliance" class="map-mode-btn" onclick="setMapMode('alliance')">🤝 Карта альянсов</button>
-  </div>
+  
   <svg id="map-svg" viewBox="0 0 960 560" xmlns="http://www.w3.org/2000/svg">
 <g id="mobile-world-content">
     <rect width="960" height="560" fill="#050f2a"/>
@@ -840,7 +843,7 @@ input[type=checkbox]{accent-color:var(--gold);}
 <script src="ui.js?v=44"></script>
 <script src="editor.js?v=44"></script>
 
-<script src="mobile.js?v=3"></script>
+<script src="mobile.js?v=4"></script>
 <script src="mobile-session.js?v=2"></script>
 </body>
 </html>

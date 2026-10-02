@@ -2,17 +2,17 @@
 /* Landscape navigation: one sheet at a time, with a persistent map. */
 (() => {
   'use strict';
-  const sheets=['left-panel','events-box','changes-box','actions-panel','adv-pop','diplo-pop','relations-panel','economy-panel','history-panel'];
+  const sheets=['mobile-country-card','left-panel','events-box','changes-box','actions-panel','adv-pop','diplo-pop','relations-panel','economy-panel','history-panel'];
   const panel=document.getElementById('left-panel');
   const more=document.getElementById('mobile-more');
   function closeSheets() {
     sheets.forEach(id=>document.getElementById(id).style.display='none');
     panel.classList.add('hidden');panelOpen=false;more.hidden=true;
-    document.querySelectorAll('#mobile-nav button').forEach(b=>b.classList.remove('selected'));
+    document.getElementById('mobile-country-card').hidden=true;
+    document.getElementById('pause-menu').style.display='none';
+    document.body.classList.remove('mobile-sheet-open');
   }
-  function mark(name) {
-    document.querySelector('#mobile-nav [data-section="'+name+'"]')?.classList.add('selected');
-  }
+  function mark() {}
   window.mobileSection=name=>{
     closeSheets();
     mark(['map','actions','diplo','news','more'].includes(name)?name:'more');
@@ -24,11 +24,13 @@
       case 'economy':openEconomyPanel();break;
       case 'society':openSocietyScreen();break;
       case 'history':openHistoryPanel();break;
-      case 'news':document.getElementById('events-box').style.display='block';document.querySelector('[data-section="news"]').classList.remove('has-news');break;
+      case 'news':document.getElementById('events-box').style.display='block';document.getElementById('mobile-news-button').classList.remove('has-news');break;
       case 'changes':document.getElementById('changes-box').style.display='block';break;
-      case 'more':more.hidden=false;break;
-      case 'pause':openPauseMenu();break;
+      case 'more':case 'pause':openPauseMenu();break;
+      case 'settings':openSettings();break;
+
     }
+    document.body.classList.toggle('mobile-sheet-open',name!=='map'&&name!=='pause'&&name!=='more');
   };
   togglePanel=()=>window.mobileSection(panelOpen?'map':'country');
   const close=document.createElement('div');
@@ -38,7 +40,7 @@
   const decorate=(name,nav)=>{
     const original=window[name];
     if(typeof original!=='function')return;
-    window[name]=function(...args){closeSheets();mark(nav);return original.apply(this,args);};
+    window[name]=function(...args){closeSheets();mark(nav);document.body.classList.add('mobile-sheet-open');return original.apply(this,args);};
   };
   [['openCountryRelations','diplo'],['selectCountry','diplo'],['openDiploPanel','diplo'],
    ['openEconomyPanel','more'],['openActionsPanel','actions'],['openHistoryPanel','more'],
@@ -47,6 +49,41 @@
     el.role='button';el.tabIndex=0;el.setAttribute('aria-label','Закрыть');
     el.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();el.click();}});
   });
+
+  window.mobileDismissCard=()=>document.getElementById('mobile-country-card').hidden=true;
+  window.mobileCountryCard=name=>{
+    closeSheets();
+    const c=countries[name];
+    if(!c)return;
+    const own=name===playerCountry;
+    const card=document.getElementById('mobile-country-card');
+    document.getElementById('mobile-card-name').textContent=c.displayName||name;
+    document.getElementById('mobile-card-description').textContent=own?
+      'Казна: '+Math.round(c.treasury).toLocaleString('ru')+' · Стабильность: '+Math.round(c.stability):
+      (worldState.atWarWith.includes(name)?'Война с вашей страной':
+       'Отношения: '+((worldState.relations[name]||0)>0?'+':'')+(worldState.relations[name]||0));
+    const primary=document.getElementById('mobile-card-primary');
+    const secondary=document.getElementById('mobile-card-secondary');
+    primary.textContent=own?'Действия':'Дипломатия';
+    primary.onclick=()=>own?mobileSection('actions'):selectCountry(name);
+    secondary.textContent=own?'Экономика':'Подробнее';
+    secondary.onclick=()=>own?mobileSection('economy'):openCountryRelations(name);
+    card.style.display='block';card.hidden=false;
+  };
+  const pauseOpen=openPauseMenu;
+  openPauseMenu=function(){closeSheets();pauseOpen();};
+  document.addEventListener('click',()=>{
+    queueMicrotask(()=>{
+      const visible=sheets.some(id=>{
+        const el=document.getElementById(id);
+        return id!=='mobile-country-card'&&!el.hidden&&!el.classList.contains('hidden')&&
+          (el.style.display==='block'||el.style.display==='flex');
+      })||document.getElementById('society-screen').style.display==='flex'||
+         document.getElementById('settings-panel').style.display==='flex';
+      document.body.classList.toggle('mobile-sheet-open',visible);
+    });
+  });
+
   const picker=document.getElementById('mobile-country-picker');
   const start=document.getElementById('mobile-start-btn');
   let signature='';
@@ -77,7 +114,7 @@
     const result=await oldTurnEnd(...args);
     document.getElementById('events-box').style.display='none';
     document.getElementById('changes-box').style.display='none';
-    document.querySelector('[data-section="news"]').classList.add('has-news');
+    document.getElementById('mobile-news-button').classList.add('has-news');
     return result;
   };
   window.mobileFullscreen=async()=>{
@@ -183,7 +220,7 @@
     const old=pointers.get(e.pointerId);
     if(Math.hypot(e.clientX-old.startX,e.clientY-old.startY)>4)moved=true;
     pointers.set(e.pointerId,{...old,x:e.clientX,y:e.clientY});
-    if(baseline&&moved)render(moveCamera(baseline,sample()));
+    if(baseline&&moved){mobileDismissCard();render(moveCamera(baseline,sample()));}
   },{passive:false});
   function finish(e) {
     if(!pointers.has(e.pointerId))return;
@@ -212,6 +249,11 @@
             catch {return false;}
           })||target;
         }
+        if(hit?.matches?.('path.scenario-province')&&typeof gameStarted!=='undefined'&&gameStarted){
+          const p=hit.__data__;
+          const owner=p&&provinceOwnerOf(p.id,p.owner);
+          if(owner){mobileCountryCard(owner);return;}
+        }
         if(hit?.isConnected)hit.dispatchEvent(new MouseEvent('click',{
           bubbles:true,cancelable:true,clientX:e.clientX,clientY:e.clientY,view:window
         }));
@@ -238,19 +280,7 @@
     zoomAt(Math.exp(Math.max(-0.5,Math.min(0.5,delta*0.002))),
       {x:e.clientX,y:e.clientY});
   },{capture:true,passive:false});
-  const zoom=document.createElement('div');
-  zoom.id='mobile-zoom';
-  [['+','Приблизить карту',0.8],['−','Отдалить карту',1.25],['⌂','Обзор мира',null]].forEach(([label,title,factor])=>{
-    const button=document.createElement('button');
-    button.type='button';button.textContent=label;button.title=title;button.setAttribute('aria-label',title);
-    button.addEventListener('click',()=>{
-      if(factor===null){fitWorld();return;}
-      const rect=map.getBoundingClientRect();
-      zoomAt(factor,{x:rect.left+rect.width/2,y:rect.top+rect.height/2});
-    });
-    zoom.append(button);
-  });
-  wrap.append(zoom);
+  window.mobileMapOverview=fitWorld;
   fitWorld();
   if(typeof ResizeObserver!=='undefined')new ResizeObserver(resizeCamera).observe(map);
   window.addEventListener('resize',resizeCamera);
@@ -378,13 +408,6 @@
     panMode=!panMode;el.setAttribute('aria-pressed',String(panMode));
     el.style.background=panMode?'#d8b66a':'';
   }).setAttribute('aria-pressed','false');
-  [0.8,1.25].forEach(factor=>button(factor<1?'+':'−',factor<1?'Приблизить карту редактора':'Отдалить карту редактора',()=>{
-    const x=edVb.x+edVb.w/2,y=edVb.y+edVb.h/2;
-    const width=Math.max(25,Math.min(1800,edVb.w*factor));
-    const ratio=width/edVb.w;edVb.w=width;edVb.h*=ratio;
-    edVb.x=x-edVb.w/2;edVb.y=y-edVb.h/2;
-    applyEditorViewBox();buildSnapIndex();
-  }));
   button('Готово','Завершить рисование провинции',()=>{
     if (editorDrawing) finishDrawingProvince();
     else showNotif('Сначала начните рисовать новую провинцию');

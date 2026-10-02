@@ -114,3 +114,53 @@ body.menu-mode #map-wrap{inset:0!important}
 }
 
 #mobile-nav .has-news{position:relative}#mobile-nav .has-news::after{content:"";width:7px;height:7px;background:#d7b763;border-radius:50%;position:absolute;right:8px;top:8px}
+
+/* Minimal map screen: two controls, all sections behind the classic menu. */
+:root{--rail:0px;--hud:0px}
+#map-wrap{inset:0!important}
+#topbar{inset:8px auto auto 8px;height:auto;padding:0;gap:8px;background:none;border:0;pointer-events:none}
+#topbar .mobile-menu-button{
+ pointer-events:auto;display:flex;align-items:center;justify-content:center;
+ width:44px;height:44px;padding:0;border-radius:9px;font:24px/1 Arial,sans-serif;
+ background:#fbf5e7ee!important;border:1px solid #b7a786!important;color:#302b22!important;
+ box-shadow:0 2px 8px #0003
+}
+.mobile-date{display:flex;flex-direction:column;color:#f5efdb;text-shadow:0 1px 3px #000,0 0 7px #000;
+ max-width:180px;font-size:11px;line-height:1.5;pointer-events:none}
+.mobile-date #mobile-country-name{font-size:12px}
+.mobile-date #date-disp{font-size:10px;color:inherit}
+#actionbar{right:max(10px,env(safe-area-inset-right));bottom:max(10px,env(safe-area-inset-bottom));background:none}
+.next-btn{min-height:44px;padding:9px 14px;font-size:12px}
+#mobile-nav,#mobile-zoom{display:none!important}
+#mobile-country-card{
+ position:absolute;left:12px;bottom:12px;width:280px;max-width:calc(100vw - 190px);
+ padding:8px 12px 12px;background:#fbf5e7f5;border:1px solid #b7a786;
+ border-radius:12px;box-shadow:0 4px 20px #0005;z-index:190
+}
+.country-card-heading{display:flex;align-items:center;justify-content:space-between;gap:6px}
+.country-card-heading strong{font-size:15px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#mobile-card-description{font-size:11px;color:#6f6249;margin:0 0 8px;line-height:1.4}
+.country-card-actions{display:flex;gap:6px}
+.country-card-actions button{flex:1;min-height:44px;padding:6px;background:#eee5ce;border:1px solid #ccb990;border-radius:7px;font-size:12px}
+#left-panel,#events-box,#changes-box,#actions-panel,#adv-pop,#diplo-pop,#relations-panel,#economy-panel,#history-panel{
+ inset:10px!important;width:auto!important;max-width:none!important;max-height:none!important;border-radius:12px!important
+}
+body.mobile-sheet-open #actionbar,body.mobile-sheet-open #topbar{display:none!important}
+#mobile-more{display:none!important}
+.mobile-menu-box{width:min(440px,calc(100vw - 24px))!important;text-align:left;padding:12px!important}
+.menu-heading{display:flex;align-items:center;justify-content:space-between}
+.pause-box .menu-heading h3{margin:0;font-size:18px}
+.pause-box .menu-heading .sheet-close{width:44px;margin:0;background:none;border:0;padding:0}
+.menu-balance{font-size:11px;color:#786945;margin-bottom:8px}
+.mobile-menu-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.pause-box .mobile-menu-grid button{width:auto;margin:0;min-height:44px;padding:8px;font-size:13px;border-radius:8px}
+.mobile-menu-grid .has-news::after{content:" •";color:#9c7c22}
+.menu-period{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:10px 0;font-size:12px}
+.menu-period #skip-select{width:130px}
+.mobile-menu-footer{display:flex;gap:6px;border-top:1px solid #ccb990;padding-top:8px}
+.pause-box .mobile-menu-footer button{width:auto;flex:1;margin:0;padding:6px;font-size:11px;border-radius:8px}
+#settings-panel #map-mode-tabs{position:static;display:flex;max-width:none;width:100%;margin-top:6px;box-shadow:none}
+#settings-panel .settings-extra{display:flex;flex-wrap:wrap;gap:6px;margin:10px 0}
+.settings-extra button{flex:1;min-height:44px;padding:8px;border:1px solid #ccb990;border-radius:8px;background:#eee5ce;color:#302b22;font-size:12px}
+.settings-extra button.danger{color:#7c2417}
+.notif{left:12px;max-width:calc(100vw - 24px)}

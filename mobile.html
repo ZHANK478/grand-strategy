@@ -252,7 +252,7 @@ select{background:var(--raise);color:var(--ink);border:1px solid var(--edge);bor
 input[type=checkbox]{accent-color:var(--gold);}
 
 </style>
-<link rel="stylesheet" href="mobile.css?v=13">
+<link rel="stylesheet" href="mobile.css?v=14">
 <script>window.GS_MOBILE = true;</script>
 </head>
 <body class="menu-mode">
@@ -315,7 +315,7 @@ input[type=checkbox]{accent-color:var(--gold);}
     <select id="mobile-country-picker"><option value="">Загрузка карты…</option></select>
     <button id="mobile-start-btn" class="primary" onclick="mobileStartGame()" disabled>Начать игру</button>
     <button id="continue-btn" onclick="continueGame()" style="display:none">Продолжить партию</button>
-    <div class="start-secondary start-vertical"><button onclick="openScenarioMenu()">Сценарий</button><button onclick="openLoadMenu()">Сохранения</button><button onclick="openScenarioEditor()">Редактор</button></div>
+    <div class="start-secondary start-vertical"><button onclick="openScenarioMenu()">Сценарий</button><button onclick="openLoadMenu()">Сохранения</button><button onclick="openScenarioEditor()">Редактор</button><button onclick="openModelMenu()">Модель ИИ</button></div>
     <small id="mobile-guest-note">10 гостевых ходов. Регистрация не нужна.</small>
     <button id="menu-login-btn" hidden onclick="openLogin()"></button>
   </section>
@@ -541,6 +541,7 @@ input[type=checkbox]{accent-color:var(--gold);}
    <button onclick="pauseSaveGame()">Сохранить игру</button>
    <button onclick="closePauseMenu();openLoadMenu()">Загрузить игру</button>
    <button onclick="mobileSection('settings')">Настройки</button>
+   <button onclick="openModelMenu()">Модель ИИ</button>
    <button onclick="pauseExitToMenu()">Главное меню</button>
   </div>
  </div>
@@ -834,25 +835,22 @@ input[type=checkbox]{accent-color:var(--gold);}
 </div>
 
 <!-- ВЫБОР ТЕКСТОВОЙ МОДЕЛИ ИИ -->
-<div id="model-menu" style="position:absolute;inset:0;z-index:500;background:rgba(10,10,15,0.65);display:none;align-items:center;justify-content:center;">
-  <div class="load-box" style="min-width:420px">
-    <h3><span>🧠 Текстовая модель ИИ (OpenRouter)</span><span class="xbtn" onclick="closeModelMenu()">✕</span></h3>
-    <div style="font-size:11px;color:#95a0b8;margin-bottom:10px;line-height:1.5">Все текстовые вызовы (события, дипломатия, советники, профили стран, летопись) пойдут через выбранную модель с вашим ключом. Портреты — отдельная модель, не меняется здесь.</div>
-    <select id="model-select" style="width:100%;padding:8px;font-family:Georgia,serif;font-size:12px;margin-bottom:8px">
-      <option value="google/gemini-3.1-flash-lite">Gemini 3.1 Flash Lite — дефолт, очень дёшево</option>
-      <option value="google/gemini-3.1-flash">Gemini 3.1 Flash — умнее, дороже</option>
-      <option value="deepseek/deepseek-v3.2">DeepSeek V3.2 — дёшево, хорош в русском</option>
-      <option value="deepseek/deepseek-chat-v3.1">DeepSeek V3.1 — проверенный, дёшево</option>
-      <option value="x-ai/grok-4.1-fast">Grok 4.1 Fast — быстрый, дёшево</option>
-      <option value="openai/gpt-5-mini">GPT-5 mini — качественный, средняя цена</option>
-      <option value="z-ai/glm-4.6">GLM 4.6 — дёшево, длинный контекст</option>
-      <option value="meta-llama/llama-4-maverick">Llama 4 Maverick — дёшево</option>
-      <option value="__custom__">Свой слаг модели…</option>
-    </select>
-    <input type="text" id="model-custom" placeholder="Например: mistralai/mistral-small-3.2-24b-instruct" style="width:100%;padding:8px;font-family:Georgia,serif;font-size:12px;border:1px solid #2b3b5e;border-radius:3px;margin-bottom:10px">
-    <button class="load-close-btn" style="background:#1a2a4a;margin-bottom:8px" onclick="applyModelChoice()">✅ Применить</button>
-    <button class="load-close-btn" onclick="closeModelMenu()">Закрыть</button>
-  </div>
+<div id="model-menu" role="dialog" aria-modal="true" aria-labelledby="model-heading">
+ <div class="load-box model-picker-box">
+  <div class="menu-heading"><h3 id="model-heading">Модель ИИ · OpenRouter</h3><button class="sheet-close" onclick="closeModelMenu()" aria-label="Закрыть">✕</button></div>
+  <p>Модель для приказов, дипломатии, советников и новостей. Портреты используют отдельную модель.</p>
+  <p>Гостевой сервер использует Gemini Flash Lite независимо от выбора. Переключение действует в прямом режиме или через сервер аккаунта.</p>
+  <label for="model-select">Текстовая модель</label>
+  <select id="model-select"><option value="__custom__">Загрузка списка…</option></select>
+  <label for="model-custom" class="model-manual-label">Точный ID для ручного выбора</label>
+  <input id="model-custom" type="text" placeholder="provider/model" autocomplete="off" spellcheck="false">
+  <p id="model-selected-id"></p>
+  <p id="model-catalog-status" role="status">Каталог проверяется при открытии меню.</p>
+  <p>Тарифы: вход / выход. Рассуждения, изображения и дополнительные сборы могут оплачиваться отдельно.</p>
+  <button class="load-close-btn" onclick="refreshModelCatalog()">Обновить каталог</button>
+  <button class="load-close-btn" onclick="applyModelChoice()">Применить</button>
+  <button class="load-close-btn" onclick="closeModelMenu()">Закрыть</button>
+ </div>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -870,5 +868,6 @@ input[type=checkbox]{accent-color:var(--gold);}
 <script src="mobile-flags.js?v=13"></script>
 <script src="mobile.js?v=13"></script>
 <script src="mobile-session.js?v=2"></script>
+<script src="model-selector.js?v=1"></script>
 </body>
 </html>

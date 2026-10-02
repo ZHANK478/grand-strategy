@@ -390,3 +390,13 @@ body.laptop-mode :is(.mobile-country-close,.country-card-heading){cursor:default
  #mobile-card-primary{width:20vw;max-width:100%;margin-left:auto;margin-right:auto;min-height:36px;font-size:12px}
  .mobile-portrait-generate{min-height:36px!important;padding:6px 8px;font-size:12px!important}
 }
+
+/* Text model selection in the experimental edition. */
+#model-menu{display:none;align-items:center;justify-content:center}
+.model-picker-box{color:var(--ink);background:var(--panel)}
+.model-picker-box p{font-size:12px;line-height:1.45;margin:8px 0}
+.model-picker-box label{display:block;font-size:12px;margin:8px 0 4px}
+.model-picker-box select,.model-picker-box input{box-sizing:border-box;width:100%;min-height:44px;padding:8px;border:1px solid var(--edge);border-radius:5px;color:var(--ink);background:var(--panel);font:inherit;font-size:13px}
+.model-picker-box input[hidden]{display:none}
+.model-picker-box .load-close-btn{min-height:44px;margin-top:8px}
+#model-selected-id{overflow-wrap:anywhere}

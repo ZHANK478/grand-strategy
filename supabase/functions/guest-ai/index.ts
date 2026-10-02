@@ -2,15 +2,43 @@
 // Disable gateway Verify JWT: this function validates the user itself.
 // Uses the existing OPENROUTER_KEY secret. Never expose that key to the browser.
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
-const GUEST_MODELS=['google/gemini-3.1-flash-lite','openai/gpt-6-luna','z-ai/glm-5.3-flashx','z-ai/glm-5.3'];
+const GUEST_MODELS=['google/gemini-3.1-flash-lite','openai/gpt-6-luna','z-ai/glm-5.3-flashx','z-ai/glm-5.3','anthropic/claude-sonnet-5.5'];
 // Configure the exact catalogue-confirmed Sonnet ID during deployment; do not guess it.
 const sonnetModel=Deno.env.get('GS_SONNET_MODEL');
 if(sonnetModel&&sonnetModel.startsWith('anthropic/')&&/^[a-z0-9._:-]+$/.test(sonnetModel.slice(10)))GUEST_MODELS.push(sonnetModel);
 const cors={'Access-Control-Allow-Origin':'*','Access-Control-Allow-Headers':'authorization, content-type, apikey',
  'Access-Control-Allow-Methods':'POST, OPTIONS'};
 function json(data:unknown,status=200){return new Response(JSON.stringify(data),{status,headers:{...cors,'Content-Type':'application/json'}});}
+async function diagnostics(){
+ const key=Deno.env.get('OPENROUTER_KEY');
+ let keyValid=false,keyStatus:number|null=null,anonymousEnabled:boolean|null=null;
+ let available:string[]=[];
+ try{
+  const settings=await fetch(Deno.env.get('SUPABASE_URL')+'/auth/v1/settings',{headers:{apikey:Deno.env.get('SUPABASE_ANON_KEY')!}});
+  if(settings.ok){const data=await settings.json();anonymousEnabled=!!data.external?.anonymous_users;}
+ }catch{}
+ if(key)try{
+  const check=await fetch('https://openrouter.ai/api/v1/auth/key',{headers:{Authorization:'Bearer '+key}});
+  keyStatus=check.status;keyValid=check.ok;
+ }catch{}
+ try{
+  const catalog=await fetch('https://openrouter.ai/api/v1/models');
+  if(catalog.ok){
+   const data=await catalog.json();const rows=Array.isArray(data.data)?data.data:[];
+   const ids=new Set(rows.map((m:{id:string})=>m.id));
+   available=GUEST_MODELS.filter(id=>ids.has(id));
+  }
+ }catch{}
+ return {key_configured:!!key,openrouter_key_valid:keyValid,openrouter_key_status:keyStatus,
+  anonymous_signins_enabled:anonymousEnabled,guest_models:GUEST_MODELS,
+  catalogue_available_models:available};
+}
+
 Deno.serve(async(req:Request)=>{
  if(req.method==='OPTIONS')return new Response('ok',{headers:cors});
+ if(req.method==='GET'){
+  return json(await diagnostics());
+ }
  if(req.method!=='POST')return json({error:'method'},405);
  try {
   const token=(req.headers.get('Authorization')||'').replace(/^Bearer /,'').trim();

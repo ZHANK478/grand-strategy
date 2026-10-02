@@ -314,6 +314,16 @@
     document.getElementById('mobile-news-button').classList.add('has-news');
     return result;
   };
+  // Finish rendering before choosing the visible cabinet on a phone.
+  const advanceBeforeNewspaper=nextTurn;
+  nextTurn=async function(...args){
+    const result=await advanceBeforeNewspaper(...args);
+    if(result===true){
+      if(!isLaptop())window.mobileSection('news');
+      else document.getElementById('events-box').style.display='block';
+    }
+    return result;
+  };
   function syncFullscreenButton(){
     const standalone=window.matchMedia('(display-mode: standalone)').matches||navigator.standalone===true;
     document.getElementById('mobile-fullscreen-button').hidden=!!(document.fullscreenElement||document.webkitFullscreenElement||standalone);

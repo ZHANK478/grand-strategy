@@ -216,6 +216,7 @@ function applyOrderPlan(plan){
  plan.orders.forEach(proposal=>{
   const order=worldState.orders.find(o=>o.id===proposal.id);if(!order)throw Error('Приказ потерян');
   const c=countries[playerCountry],before=orderStatSnapshot(c),verdict=OrderRules.authority(proposal,c);
+  const relationsBefore=Object.fromEntries(Object.keys(proposal.effects.relations||{}).map(n=>[n,getRelation(playerCountry,n)]));
   if(verdict.status==='executed'){
    // Known resource failures reject this order; malformed state still aborts the whole turn.
    const e=proposal.effects;
@@ -231,7 +232,9 @@ function applyOrderPlan(plan){
    else executeOrderEffects(e);
   }
   if(verdict.penalty)changeCountryStat(playerCountry,'stability',-verdict.penalty);
-  order.status=verdict.status;order.reason=verdict.status==='executed'?executedOrderDescription(proposal.effects):verdict.reason;order.resolvedTurn=turn;order.before=before;order.after=orderStatSnapshot(c);
+  order.status=verdict.status;order.kind=proposal.kind;order.effects=verdict.status==='executed'?JSON.parse(JSON.stringify(proposal.effects)):{};
+  order.relationsBefore=relationsBefore;order.relationsAfter=Object.fromEntries(Object.keys(relationsBefore).map(n=>[n,getRelation(playerCountry,n)]));
+  order.reason=verdict.status==='executed'?executedOrderDescription(proposal.effects):verdict.reason;order.resolvedTurn=turn;order.before=before;order.after=orderStatSnapshot(c);
   if(verdict.chance!=null)order.chance=verdict.chance;
   results.push(order);
  });

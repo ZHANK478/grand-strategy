@@ -70,12 +70,16 @@ if(!localStorage.getItem('gs1852_label_defaults_v2')){
   localStorage.setItem('gs1852_label_defaults_v2','1');
 }
 let countryLabelScale = parseFloat(localStorage.getItem('gs1852_label_scale')) || 1;
+if(!localStorage.getItem('gs1852_label_defaults_v3')){
+  if(localStorage.getItem('gs1852_label_opacity')==='0.7')localStorage.removeItem('gs1852_label_opacity');
+  localStorage.setItem('gs1852_label_defaults_v3','1');
+}
 let countryLabelOpacity = parseFloat(localStorage.getItem('gs1852_label_opacity'));
-if(!Number.isFinite(countryLabelOpacity))countryLabelOpacity=0.7;
+if(!Number.isFinite(countryLabelOpacity))countryLabelOpacity=1;
 countryLabelOpacity=Math.max(0,Math.min(1,countryLabelOpacity));
 function setCountryLabelOpacity(v){
   const n=Number(v);
-  countryLabelOpacity=Number.isFinite(n)?Math.max(0,Math.min(1,n)):0.7;
+  countryLabelOpacity=Number.isFinite(n)?Math.max(0,Math.min(1,n)):1;
   localStorage.setItem('gs1852_label_opacity',countryLabelOpacity);
   labelsG.selectAll('.country-label').attr('opacity',countryLabelOpacity);
 }
@@ -128,7 +132,7 @@ function addCountryLabel(name, coordsOrFeature, isFeature, szMul, region) {
     .attr('x', xy[0]).attr('y', xy[1])
     .attr('text-anchor', 'middle').attr('dominant-baseline', 'middle')
     .attr('fill', '#f5f2e8').attr('font-family', 'Georgia,serif')
-    .attr('letter-spacing', '0.12em')
+    .attr('letter-spacing', '0.06em')
     .attr('pointer-events', 'none')
     .attr('paint-order', 'stroke')
     .attr('stroke', 'rgba(12,16,26,0.82)').attr('stroke-width', 2.2)
@@ -146,33 +150,86 @@ function updateMapCountryLabel(canonicalName, displayName) {
   updateCountryLabels();
 }
 
+// The same typography rules apply to every country, including custom scenarios.
+function countryLabelMultiplier(area){
+  return Math.max(1,Math.min(1.8,Math.sqrt(Math.max(0,area))/45));
+}
+function countryLabelLines(text,count){
+  let rest=Array.from(text.replace(/\(/g,' (').replace(/\s+/g,' ').trim()),lines=[];
+  for(let n=count;n>1&&rest.length>1;n--){
+    const target=Math.ceil(rest.length/n);
+    const spaces=rest.map((c,i)=>c===' '?i:-1).filter(i=>i>0&&i>=target*0.65&&i<=target*1.35);
+    let split=spaces.length?spaces.reduce((a,b)=>Math.abs(a-target)<Math.abs(b-target)?a:b):target;
+    if(!spaces.length){
+      const vowels=/[AEIOUYАЕЁИОУЫЭЮЯ]/i;
+      const breaks=rest.map((_,i)=>i>0&&i>=target*0.75&&i<=target*1.25&&vowels.test(rest[i-1])&&!vowels.test(rest[i])?i:-1).filter(i=>i>0);
+      if(breaks.length)split=breaks.reduce((a,b)=>Math.abs(a-target)<Math.abs(b-target)?a:b);
+    }
+    const atSpace=rest[split]===' ';
+    const line=rest.slice(0,split).join('').trim();
+    lines.push(line+(!atSpace&&rest[split-1]!==' '?'‐':''));
+    rest=rest.slice(split+(atSpace?1:0));
+  }
+  if(rest.length)lines.push(rest.join('').trim());
+  return lines.filter(Boolean);
+}
 function measureCountryLabel(node){
   const label=d3.select(node);
-  // Measure once per text change, never on every pan/pinch frame.
-  label.attr('font-size',10);
-  let units=0;
-  try {units=node.getComputedTextLength()/10;}catch {}
-  if(!Number.isFinite(units)||units<=0)units=Math.max(1,Array.from(node.textContent).length*0.8);
-  label.attr('data-text-units',units);
+  const text=node.textContent.trim();
+  label.attr('data-label-text',text).attr('font-size',10);
+  node.__labelLayouts=[];
+  const words=text.replace(/\(/g,' (').trim().split(/\s+/).length;
+  const maxRows=words===1?(Array.from(text).length>10?2:1):Math.min(3,words);
+  for(let rows=1;rows<=maxRows;rows++){
+    const lines=countryLabelLines(text,rows);
+    label.text('');
+    let units=0;
+    lines.forEach(line=>{
+      const span=label.append('tspan').text(line);
+      let measured=0;
+      try {measured=span.node().getComputedTextLength()/10;}catch {}
+      if(!Number.isFinite(measured)||measured<=0)measured=Math.max(1,Array.from(line).length*0.72);
+      units=Math.max(units,measured);
+    });
+    node.__labelLayouts.push({lines,units});
+  }
+  node.__activeLabelLayout=null;
 }
-function countryLabelFontSize(multiplier,width,height,textUnits,zoom,scale){
-  const preferred=6.5*Math.max(0.5,multiplier)*scale/zoom;
-  const fitWidth=width>0?width*0.85/Math.max(1,textUnits):Infinity;
-  const fitHeight=height>0?height*0.5:Infinity;
+function countryLabelFontSize(multiplier,width,height,textUnits,zoom,scale,rows=1){
+  const preferred=6.5*Math.max(1,multiplier)*scale/zoom;
+  // A short multi-line label may use a modest margin beyond the land's box.
+  const fitWidth=width>0?width*(rows>1?1.35:1.05)/Math.max(1,textUnits):Infinity;
+  const fitHeight=height>0?height*0.85/(rows*1.12):Infinity;
   return Math.max(0.05,Math.min(preferred,fitWidth,fitHeight));
 }
+function chooseCountryLabelLayout(layouts,multiplier,width,height,zoom,scale){
+  let best=null;
+  layouts.forEach(layout=>{
+    const font=countryLabelFontSize(multiplier,width,height,layout.units,zoom,scale,layout.lines.length);
+    const score=font/(1+0.12*(layout.lines.length-1));
+    if(!best||score>best.score)best={layout,font,score};
+  });
+  return best;
+}
 function updateCountryLabels() {
-  const zoom = W / vb.w;
-  labelsG.selectAll('.country-label')
-    .attr('font-size',function(){
-      return countryLabelFontSize(+this.getAttribute('data-szmul')||1,
-        +this.getAttribute('data-region-width'),+this.getAttribute('data-region-height'),
-        +this.getAttribute('data-text-units')||1,zoom,countryLabelScale);
-    })
-    .attr('opacity',countryLabelOpacity)
-    .attr('stroke-width',function(){
-      return Math.min(1.2/zoom,(+this.getAttribute('font-size')||1)*0.16);
-    });
+  const zoom=W/vb.w;
+  labelsG.selectAll('.country-label').each(function(){
+    const label=d3.select(this);
+    if(!this.__labelLayouts)measureCountryLabel(this);
+    const best=chooseCountryLabelLayout(this.__labelLayouts,+this.getAttribute('data-szmul')||1,
+      +this.getAttribute('data-region-width'),+this.getAttribute('data-region-height'),zoom,countryLabelScale);
+    if(!best)return;
+    if(this.__activeLabelLayout!==best.layout){
+      label.text('');
+      best.layout.lines.forEach(line=>label.append('tspan').text(line));
+      this.__activeLabelLayout=best.layout;
+    }
+    const cx=+this.getAttribute('data-cx'),cy=+this.getAttribute('data-cy');
+    label.attr('font-size',best.font).attr('opacity',countryLabelOpacity)
+      .attr('data-text-units',best.layout.units).attr('data-label-lines',best.layout.lines.length)
+      .attr('stroke-width',Math.min(1.2/zoom,best.font*0.16));
+    label.selectAll('tspan').attr('x',cx).attr('y',(_,i)=>cy+(i-(best.layout.lines.length-1)/2)*best.font*1.12);
+  });
 }
 
 // Известные города — координаты [lon, lat] для размещения объектов на карте.
@@ -456,7 +513,7 @@ function addCountryLabelsFromProvinces() {
     regions.forEach((region,i)=>{
       // Tiny offshore rocks do not need another overlapping copy of the name.
       if(i>0&&region.area<0.5)return;
-      const multiplier=Math.max(0.6,Math.min(2.5,Math.sqrt(region.area)/45));
+      const multiplier=countryLabelMultiplier(region.area);
       addCountryLabel(c,[region.x,region.y],'xy',multiplier,region);
     });
     if(display!==c)updateMapCountryLabel(c,display);

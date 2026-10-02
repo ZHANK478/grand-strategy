@@ -1108,27 +1108,40 @@ function runDiplomacyEngine() {
 // ============================================================
 const BATTLE_SCALES = { skirmish: 0.06, battle: 0.22, decisive: 0.55 };
 
-function resolveBattle(aName, bName, scale, location) {
-  const A = countries[aName], B = countries[bName];
-  if (!A || !B || A.annexed || B.annexed) return null;
-  const f = BATTLE_SCALES[scale] || BATTLE_SCALES.battle;
-  const engA = Math.max(500, Math.round(A.army * f));
-  const engB = Math.max(500, Math.round(B.army * f));
-  const strA = engA * (0.8 + Math.random() * 0.4) * (0.85 + A.stability / 500);
-  const strB = engB * (0.8 + Math.random() * 0.4) * (0.85 + B.stability / 500);
-  const aWins = strA >= strB;
-  const winner = aWins ? aName : bName, loser = aWins ? bName : aName;
-  const engW = aWins ? engA : engB, engL = aWins ? engB : engA;
-  const loserLosses = Math.min(countries[loser].army, Math.round(engL * (0.45 + Math.random() * 0.45)));
-  const winnerLosses = Math.min(countries[winner].army, Math.round(engW * (0.15 + Math.random() * 0.25)));
-  changeCountryStat(loser, 'army', -loserLosses);
-  changeCountryStat(winner, 'army', -winnerLosses);
-  const stabHit = scale === 'decisive' ? 8 : scale === 'battle' ? 4 : 1;
-  changeCountryStat(loser, 'stability', -stabHit);
-  changeCountryStat(winner, 'stability', Math.ceil(stabHit / 3));
-  const summary = `Сражение${location ? ' при ' + location : ''}: ${winner} одержала верх над ${loser}. Потери: ${loser} −${loserLosses.toLocaleString('ru')}, ${winner} −${winnerLosses.toLocaleString('ru')}.`;
-  worldState.pastEvents.push('⚔️ ' + summary);
-  return { winner, loser, loserLosses, winnerLosses, summary };
+function resolveBattle(aName,bName,scale,location) {
+  const A=countries[aName],B=countries[bName];
+  if(!A||!B||A.annexed||B.annexed||!isAtWar(aName,bName))throw Error('Бой возможен только между воюющими странами');
+  const nearby=(o)=>{
+    if(!location)return true;
+    const p=resolveLocationLonLat(o.location),q=resolveLocationLonLat(location);if(!p||!q)return false;
+    const rad=Math.PI/180,lat1=p[1]*rad,lat2=q[1]*rad,dl=((p[0]-q[0]+540)%360-180)*rad;
+    const h=Math.sin((lat1-lat2)/2)**2+Math.cos(lat1)*Math.cos(lat2)*Math.sin(dl/2)**2;
+    return 6371*2*Math.asin(Math.sqrt(Math.min(1,h)))<=250;
+  };
+  const pool=name=>{
+    const all=(worldState.mapObjects||[]).filter(o=>o.type==='army'&&o.owner===name&&o.troops>0);
+    const units=all.filter(nearby);
+    return {units,available:all.length?units.reduce((n,o)=>n+o.troops,0):countries[name].army};
+  };
+  const pa=pool(aName),pb=pool(bName),fraction=BATTLE_SCALES[scale]||BATTLE_SCALES.battle;
+  if(pa.available<=0||pb.available<=0)throw Error('В месте боя нет войск одной из сторон');
+  const ea=Math.max(1,Math.round(pa.available*fraction)),eb=Math.max(1,Math.round(pb.available*fraction));
+  const aWins=ea*(.8+Math.random()*.4)*(.85+A.stability/500)>=eb*(.8+Math.random()*.4)*(.85+B.stability/500);
+  const winner=aWins?aName:bName,loser=aWins?bName:aName;
+  const winnerPool=aWins?pa:pb,loserPool=aWins?pb:pa;
+  const loserLosses=Math.min(countries[loser].army,loserPool.available,Math.round((aWins?eb:ea)*(.45+Math.random()*.45)));
+  const winnerLosses=Math.min(countries[winner].army,winnerPool.available,Math.round((aWins?ea:eb)*(.15+Math.random()*.25)));
+  const lose=(name,loss,p)=>{
+    changeCountryStat(name,'army',-loss);let remaining=loss,total=p.units.reduce((n,o)=>n+o.troops,0);
+    p.units.forEach((o,i)=>{const share=i===p.units.length-1?remaining:Math.min(remaining,Math.floor(loss*o.troops/(total||1)));o.troops=Math.max(0,o.troops-share);remaining-=share;});
+  };
+  lose(loser,loserLosses,loserPool);lose(winner,winnerLosses,winnerPool);
+  reconcileOrderArmies();
+  const hit=scale==='decisive'?8:scale==='battle'?4:1;
+  changeCountryStat(loser,'stability',-hit);changeCountryStat(winner,'stability',Math.ceil(hit/3));
+  const summary='Сражение'+(location?' при '+location:'')+': '+winner+' одержала верх над '+loser+'. Потери: '+loser+' −'+loserLosses+', '+winner+' −'+winnerLosses+'.';
+  worldState.pastEvents.push(summary);
+  return {winner,loser,loserLosses,winnerLosses,summary};
 }
 
 // ============================================================
@@ -1324,61 +1337,35 @@ function announceDeaths(deaths) {
 
 let turnRunning = false;
 async function nextTurn(kind) {
-  if (turnRunning) return;
-  kind = kind || (typeof getSelectedSkip === 'function' ? getSelectedSkip() : 'm1');
-  const opt = SKIP_OPTIONS[kind] || SKIP_OPTIONS.m1;
-  // Snapshot before the calendar/economy advances; no save is written until success.
-  const snapshot=JSON.parse(JSON.stringify({
-    turn,month,year,week,countries,worldState,playerActions,pendingDirectives,
-    territoryOwners,provinceOwners,provinceEcon,ALL_COUNTRIES,playerCountryDisplayName
-  }));
-  turnRunning = true;
-  const btn = document.querySelector('.next-btn');
-  btn.disabled = true;
-  btn.textContent = '⏳ Симуляция...';
-
-  try {
+  if(turnRunning)return;
+  kind=kind||(typeof getSelectedSkip==='function'?getSelectedSkip():'m1');
+  const opt=SKIP_OPTIONS[kind]||SKIP_OPTIONS.m1;
+  const snapshot=JSON.parse(JSON.stringify({turn,month,year,week,countries,worldState,playerActions,pendingDirectives,
+    territoryOwners,provinceOwners,provinceEcon,ALL_COUNTRIES,playerCountryDisplayName}));
+  turnRunning=true;const btn=document.querySelector('.next-btn');btn.disabled=true;btn.textContent='Проверка приказов…';
+  try{
     turn++;
-    let econChanges = [], deaths = [], periodLabel = null;
-
-    if (kind === 'week') {
-      // Неделя: календарь двигается на неделю, экономика/смерти — только на границе месяца
+    // Decisions take effect before the month's budget and social simulation.
+    const results=await onTurnEnd();
+    let changes=[],deaths=[];
+    if(kind==='week'){
       week++;
-      if (week >= 4) { week = 0; const r = stepOneMonth(); econChanges = r.econ; deaths = r.deaths; }
-    } else if (opt.months === 1) {
-      week = 0;
-      const r = stepOneMonth(); econChanges = r.econ; deaths = r.deaths;
-    } else {
-      // Период: помесячная симуляция движка, один дайджест ИИ за весь срок
-      week = 0;
-      const startLabel = months[month] + ' ' + year;
-      let netSum = 0, borrowedSum = 0;
-      for (let i = 0; i < opt.months; i++) {
-        const r = stepOneMonth();
-        deaths.push(...r.deaths);
-        const b = countries[playerCountry].lastBudget;
-        if (b) { netSum += b.net; borrowedSum += b.borrowed || 0; }
+      if(week>=4){week=0;const r=stepOneMonth();changes=r.econ;deaths=r.deaths;resolvePendingSuccessions();}
+    }else{
+      week=0;
+      for(let i=0;i<opt.months;i++){
+        const r=stepOneMonth();changes=r.econ;deaths.push(...r.deaths);
+        resolvePendingSuccessions();
       }
-      periodLabel = `${startLabel} — ${months[month]} ${year}`;
-      econChanges = [{ label: '💰 Бюджет за период', value: (netSum >= 0 ? '+' : '') + netSum.toLocaleString('ru') + ' фр.', sign: netSum }];
-      if (borrowedSum) econChanges.push({ label: '🏦 Займы за период', value: '+' + borrowedSum.toLocaleString('ru') + ' фр. долга', sign: -1 });
     }
-
-    renderPlayerStats();
-    renderDate();
     announceDeaths(deaths);
-
-    // ИИ-события: неделя — лёгкий выпуск, период — дайджест, месяц — стандарт
-    await onTurnEnd(econChanges, deaths, {
-      newsCount: kind === 'week' ? 5 : 10,
-      domesticCount: kind === 'week' ? 2 : 3,
-      periodLabel
-    });
-
-    resolvePendingSuccessions();
-    renderPlayerStats();
+    reconcileOrderArmies();
+    renderPlayerStats();renderDate();renderPlayerPowerPanel();renderActionsList();
+    renderOrderReceipts(results,changes);
+    if(typeof renderMapObjects==='function')renderMapObjects();
     saveGame();
-  } catch(error) {
+    return true;
+  }catch(error){
     ({turn,month,year,week,countries,worldState,playerActions,pendingDirectives,
       territoryOwners,provinceOwners,provinceEcon,ALL_COUNTRIES,playerCountryDisplayName}=snapshot);
     countryCentroids=null;
@@ -1386,14 +1373,13 @@ async function nextTurn(kind) {
     if(typeof renderTerritoryColors==='function')renderTerritoryColors();
     if(typeof renderMapObjects==='function')renderMapObjects();
     const events=document.getElementById('events-list');
-    if(events)events.textContent='Ход не выполнен. Дата, экономика и приказы сохранены. '+error.message;
+    if(events)events.textContent='Ход не выполнен: '+error.message+' Дата, состояние страны и приказы восстановлены.';
     if(typeof closeBreakingNews==='function')closeBreakingNews();
     showNotif('Ход не выполнен: '+error.message);
-  } finally {
-    turnRunning = false;
-    btn.disabled = false;
-    btn.textContent = 'Следующий ход ▶';
-    if (typeof onTurnFinished === 'function') onTurnFinished(); // авторежим (ui.js)
+    return false;
+  }finally{
+    turnRunning=false;btn.disabled=false;btn.textContent='Следующий ход ▶';
+    if(typeof renderActionsList==='function')renderActionsList();
   }
 }
 

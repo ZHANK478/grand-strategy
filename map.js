@@ -168,24 +168,6 @@ function positionTooltip(e) {
   tooltip.style.top  = (e.clientY - r.top  - 58)+'px';
 }
 
-// Парижский маркер — масштабируется с зумом
-let parisXY = null;
-function updateParis() {
-  if (!parisXY) return;
-  const zoom = W / vb.w;
-  const r  = 2 / zoom;
-  const fs = 7 / zoom;
-  const show = zoom > 3;
-
-  svg.select('#paris-dot')
-    .attr('r', r)
-    .attr('visibility', show ? 'visible' : 'hidden');
-  svg.select('#paris-label')
-    .attr('font-size', fs)
-    .attr('x', parisXY[0] + r + 0.5/zoom)
-    .attr('y', parisXY[1] + 0.5/zoom)
-    .attr('visibility', show ? 'visible' : 'hidden');
-}
 // ============================================================
 // РЕЕСТР СЦЕНАРИЕВ. Карта целиком строится из активного сценария: встроенного
 // (scenario_1852.json) или любого созданного в редакторе и сохранённого в браузере.
@@ -295,31 +277,12 @@ function switchActiveScenario(ref) {
 }
 
 function drawMap() {
-  // Маркер Парижа — масштабируемый (остаётся как декоративная метка столицы игрока по умолчанию)
-  parisXY = proj([2.3488, 48.8534]);
-  franceG.append('circle')
-    .attr('id','paris-dot')
-    .attr('cx', parisXY[0]).attr('cy', parisXY[1])
-    .attr('r', 2.5)
-    .attr('fill','#f0c040').attr('stroke','#805000').attr('stroke-width','0.8')
-    .attr('pointer-events','none')
-    .attr('visibility','hidden');
-  franceG.append('text')
-    .attr('id','paris-label')
-    .attr('x', parisXY[0]+4).attr('y', parisXY[1]-2)
-    .attr('font-size','8').attr('fill','#f0c040')
-    .attr('font-family','Georgia,serif')
-    .attr('pointer-events','none')
-    .attr('visibility','hidden')
-    .text('★ Париж');
-
   labelsG.style('display', showCountryLabels ? null : 'none');
   updateLabels();
   renderMapObjects();
 }
 
 function updateLabels() {
-  updateParis();
   updateCountryLabels();
   updateObjectScale();
 }

@@ -248,7 +248,7 @@ select{background:var(--raise);color:var(--ink);border:1px solid var(--edge);bor
 input[type=checkbox]{accent-color:var(--gold);}
 
 </style>
-<link rel="stylesheet" href="mobile.css?v=6">
+<link rel="stylesheet" href="mobile.css?v=7">
 <script>window.GS_MOBILE = true;</script>
 </head>
 <body class="menu-mode">
@@ -292,11 +292,12 @@ input[type=checkbox]{accent-color:var(--gold);}
 </div>
 <button id="toggle-btn" hidden onclick="togglePanel()">◀</button>
 <div id="mobile-more" hidden></div>
-<div id="mobile-country-card" class="game-ui" hidden>
-  <div class="country-card-heading"><strong id="mobile-card-name"></strong><button class="sheet-close" onclick="mobileDismissCard()" aria-label="Закрыть карточку">✕</button></div>
-  <p id="mobile-card-description"></p>
-  <div class="country-card-actions"><button id="mobile-card-primary"></button><button id="mobile-card-secondary"></button></div>
-</div>
+<aside id="mobile-country-card" class="game-ui" hidden aria-label="Сведения о стране">
+ <div class="country-card-heading"><span>Страна</span><button class="sheet-close" onclick="mobileDismissCard()" aria-label="Закрыть">✕</button></div>
+ <img id="mobile-card-flag" alt=""><h2 id="mobile-card-name"></h2>
+ <div id="mobile-card-details"></div>
+ <button id="mobile-card-primary">Дипломатия</button>
+</aside>
 <div id="main-menu">
   <section class="mobile-start">
     <small class="mobile-eyebrow">ИСТОРИЯ В ВАШИХ РУКАХ</small>
@@ -563,7 +564,7 @@ input[type=checkbox]{accent-color:var(--gold);}
     </div>
     <div class="setting-row">
       <label>
-        <input type="checkbox" id="setting-auto-portraits" checked onchange="onToggleAutoPortraits(this.checked)">
+        <input type="checkbox" id="setting-auto-portraits" onchange="onToggleAutoPortraits(this.checked)">
         Автогенерация портрета правителя (ИИ)
       </label>
       <div style="font-size:10px;color:#707c98;margin-top:2px">Портрет рисуется ИИ при новой игре и каждой смене правителя</div>
@@ -852,16 +853,16 @@ input[type=checkbox]{accent-color:var(--gold);}
 <script src="config.js?v=44"></script>
 <script src="shop.js?v=44"></script>
 <script src="auth.js?v=44"></script>
-<script src="map.js?v=44"></script>
+<script src="map.js?v=45"></script>
 <script src="econ_data.js?v=44"></script>
 <script src="econ.js?v=44"></script>
-<script src="ai.js?v=44"></script>
+<script src="ai.js?v=45"></script>
 <script src="game.js?v=44"></script>
 <script src="ui.js?v=44"></script>
 <script src="editor.js?v=44"></script>
 
-<script src="mobile-flags.js?v=6"></script>
-<script src="mobile.js?v=6"></script>
+<script src="mobile-flags.js?v=7"></script>
+<script src="mobile.js?v=7"></script>
 <script src="mobile-session.js?v=2"></script>
 </body>
 </html>

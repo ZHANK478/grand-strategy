@@ -387,7 +387,7 @@ async function generatePersonPortrait(country, role) {
 function generateRulerPortrait(country) { return generatePersonPortrait(country, 'ruler'); }
 
 // Автогенерация портрета правителя страны игрока (вкл/выкл в настройках)
-function autoPortraitsEnabled() { return localStorage.getItem('gs1852_auto_portraits') !== '0'; }
+function autoPortraitsEnabled() { return localStorage.getItem('gs1852_auto_portraits') === '1'; }
 function maybeAutoPortrait(country) {
   if (!autoPortraitsEnabled()) return;
   const c = countries[country];

@@ -68,26 +68,53 @@
     el.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();el.click();}});
   });
 
-  window.mobileDismissCard=()=>document.getElementById('mobile-country-card').hidden=true;
-  window.mobileCountryCard=name=>{
-    closeSheets();
+  window.mobileDismissCard=()=>{document.getElementById('mobile-country-card').hidden=true;document.body.classList.remove('mobile-country-open');};
+  let inspectedCountry=null;
+  function renderForeignCountry(name) {
     const c=countries[name];
     if(!c)return;
-    const own=name===playerCountry;
-    const card=document.getElementById('mobile-country-card');
     document.getElementById('mobile-card-name').textContent=c.displayName||name;
-    document.getElementById('mobile-card-description').textContent=own?
-      'Казна: '+Math.round(c.treasury).toLocaleString('ru')+' · Стабильность: '+Math.round(c.stability):
-      (worldState.atWarWith.includes(name)?'Война с вашей страной':
-       'Отношения: '+((worldState.relations[name]||0)>0?'+':'')+(worldState.relations[name]||0));
-    const primary=document.getElementById('mobile-card-primary');
-    const secondary=document.getElementById('mobile-card-secondary');
-    primary.textContent=own?'Действия':'Дипломатия';
-    primary.onclick=()=>own?mobileSection('actions'):selectCountry(name);
-    secondary.textContent=own?'Экономика':'Подробнее';
-    secondary.onclick=()=>own?mobileSection('economy'):openCountryRelations(name);
+    const flag=document.getElementById('mobile-card-flag');
+    const source=c.flagUrl||mobileFlagSource(name,year);
+    flag.hidden=!source;flag.alt='Флаг: '+(c.displayName||name);
+    if(source)flag.src=source;
+    flag.onerror=()=>flag.hidden=true;
+    const detail=document.getElementById('mobile-card-details');
+    detail.replaceChildren();
+    function portrait(source,label){
+      if(!source)return;
+      const img=document.createElement('img');img.className='mobile-foreign-portrait';
+      img.src=source;img.alt=label;img.onerror=()=>img.remove();detail.append(img);
+    }
+    function row(label,value){
+      const block=document.createElement('div');block.className='mobile-country-fact';
+      const title=document.createElement('small');title.textContent=label;
+      const text=document.createElement('strong');text.textContent=value||'—';
+      block.append(title,text);detail.append(block);
+    }
+    row('Форма правления',c.government);
+    portrait(c.portrait,'Правитель');
+    row(c.rulerTitle||'Правитель',c.ruler);
+    row('Возраст',typeof c.rulerAge==='number'?c.rulerAge+' лет':'—');
+    portrait(c.pmPortrait,'Глава правительства');
+    row(c.pmTitle||'Глава правительства',c.pm);
+    const rel=worldState.relations[name]||0;
+    row('Отношения',(rel>0?'+':'')+rel+(worldState.atWarWith.includes(name)?' · Война':worldState.alliedWith.includes(name)?' · Союз':''));
+    row('ВВП',typeof c.gdp==='number'?new Intl.NumberFormat('ru',{maximumFractionDigits:1}).format(c.gdp/1000)+' млрд':c.gdp);
+    row('Население',c.pop);
+    document.getElementById('mobile-card-primary').onclick=()=>selectCountry(name);
+  }
+  window.mobileCountryCard=name=>{
+    if(name===playerCountry){mobileSection('country');return;}
+    closeSheets();
+    if(!countries[name])return;
+    inspectedCountry=name;renderForeignCountry(name);
+    const card=document.getElementById('mobile-country-card');
     card.style.display='block';card.hidden=false;
+    document.body.classList.add('mobile-country-open');
   };
+  // Every map/details entry opens the same cabinet, without a second large screen.
+  openCountryRelations=window.mobileCountryCard;
   const pauseOpen=openPauseMenu;
   openPauseMenu=function(){closeSheets();pauseOpen();};
   document.addEventListener('click',()=>{
@@ -151,7 +178,7 @@
     document.getElementById('mobile-flag-fallback').textContent=String(playerCountryDisplayName||playerCountry).slice(0,2).toUpperCase();
   });
   const oldStats=renderPlayerStats;
-  renderPlayerStats=function(...args){const result=oldStats(...args);updateHud();return result;};
+  renderPlayerStats=function(...args){const result=oldStats(...args);updateHud();if(inspectedCountry&&!document.getElementById('mobile-country-card').hidden)renderForeignCountry(inspectedCountry);return result;};
   const oldTurnEnd=onTurnEnd;
   onTurnEnd=async function(...args){
     const result=await oldTurnEnd(...args);

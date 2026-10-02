@@ -3,6 +3,10 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="manifest" href="mobile.webmanifest">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
@@ -248,10 +252,11 @@ select{background:var(--raise);color:var(--ink);border:1px solid var(--edge);bor
 input[type=checkbox]{accent-color:var(--gold);}
 
 </style>
-<link rel="stylesheet" href="mobile.css?v=8">
+<link rel="stylesheet" href="mobile.css?v=9">
 <script>window.GS_MOBILE = true;</script>
 </head>
 <body class="menu-mode">
+<button id="mobile-fullscreen-button" onclick="mobileFullscreen()" aria-label="Включить полноэкранный режим">⛶ На весь экран</button>
 
 
 <div id="rotate-screen"><div class="rotate-symbol">↻</div><h1>Поверните телефон</h1><p>Grand Strategy играется горизонтально.</p><button onclick="mobileFullscreen()">На весь экран</button></div>
@@ -583,10 +588,10 @@ input[type=checkbox]{accent-color:var(--gold);}
 </div>
 
 <div id="left-panel" class="game-ui">
-  <div class="portrait-block">
+  <div class="mobile-own-portrait mobile-person-portrait">
     <img class="portrait-img" id="ruler-portrait" style="display:none" alt="Портрет правителя"
       onerror="this.style.display='none';this.nextElementSibling.style.display='flex';">
-    <div class="portrait-emoji" id="ruler-portrait-emoji">👑</div>
+    <div class="portrait-emoji mobile-portrait-placeholder" id="ruler-portrait-emoji">👑</div>
     <div class="portrait-hover" hidden><span id="ph-age"></span><span id="ph-since"></span><span id="ph-gov"></span><span id="ph-faith"></span></div></div>
   <div class="portrait-caption">
     <div class="pc-name" id="ruler-name">Луи-Наполеон Бонапарт</div>
@@ -601,7 +606,7 @@ input[type=checkbox]{accent-color:var(--gold);}
   <div class="psec">
     <button class="cbtn" onclick="toggle('pm')">▶ Глава правительства</button>
     <div class="ccont" id="pm">
-      <div class="portrait-block">
+      <div class="mobile-own-portrait mobile-person-portrait">
         <img class="portrait-img" id="pm-portrait" style="display:none" alt="Портрет главы правительства"
           onerror="this.style.display='none';this.nextElementSibling.style.display='flex';">
         <div class="portrait-emoji" id="pm-portrait-emoji" style="font-size:48px;">🎩</div>
@@ -854,8 +859,8 @@ input[type=checkbox]{accent-color:var(--gold);}
 <script src="ui.js?v=44"></script>
 <script src="editor.js?v=44"></script>
 
-<script src="mobile-flags.js?v=8"></script>
-<script src="mobile.js?v=8"></script>
+<script src="mobile-flags.js?v=9"></script>
+<script src="mobile.js?v=9"></script>
 <script src="mobile-session.js?v=2"></script>
 </body>
 </html>

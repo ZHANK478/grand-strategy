@@ -226,10 +226,29 @@
     document.getElementById('mobile-news-button').classList.add('has-news');
     return result;
   };
+  function syncFullscreenButton(){
+    const standalone=window.matchMedia('(display-mode: standalone)').matches||navigator.standalone===true;
+    document.getElementById('mobile-fullscreen-button').hidden=!!(document.fullscreenElement||document.webkitFullscreenElement||standalone);
+  }
   window.mobileFullscreen=async()=>{
-    try {if(!document.fullscreenElement)await document.documentElement.requestFullscreen?.();} catch {}
+    if(window.matchMedia('(display-mode: standalone)').matches||navigator.standalone===true){syncFullscreenButton();return;}
+    const root=document.documentElement;
+    const request=root.requestFullscreen||root.webkitRequestFullscreen;
+    if(!(document.fullscreenElement||document.webkitFullscreenElement)){
+      if(!request){
+        showNotif('Для полноэкранной игры: меню браузера → «На экран Домой». В Safari — «Поделиться» → «На экран Домой».');
+        return;
+      }
+      try {await request.call(root);}
+      catch {showNotif('Браузер не включил полный экран. Попробуйте ещё раз или добавьте игру на экран Домой.');return;}
+    }
+    syncFullscreenButton();
     try {await screen.orientation?.lock?.('landscape');} catch {}
   };
+  document.addEventListener('fullscreenchange',syncFullscreenButton);
+  document.addEventListener('webkitfullscreenchange',syncFullscreenButton);
+  window.matchMedia('(display-mode: standalone)').addEventListener?.('change',syncFullscreenButton);
+  syncFullscreenButton();
   refreshCountries();
   window.setInterval(()=>{if(document.body.classList.contains('menu-mode'))refreshCountries();},700);
 

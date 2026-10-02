@@ -1,0 +1,408 @@
+
+/* Landscape phone interface. The game engine does not decide the layout. */
+:root{--rail:72px;--hud:52px;--paper:#eee5ce;--panel:#fbf5e7;--edge:#ccb990;--ink:#2a241b;--mobile-height:100dvh}
+html,body{width:100%;height:var(--mobile-height);overflow:hidden}
+body{background:#101b21;font-family:var(--fb);color:var(--ink);-webkit-tap-highlight-color:transparent}
+[hidden]{display:none!important}
+button{font-family:inherit;touch-action:manipulation;cursor:pointer}
+button,select,input{min-height:44px}
+button:focus-visible,select:focus-visible{outline:3px solid #9c7c22;outline-offset:2px}
+input,textarea,select{font-size:16px!important}
+input,textarea{user-select:text}
+#rotate-screen{display:none}
+#topbar{position:absolute;inset:0 0 auto var(--rail);height:var(--hud);display:flex;gap:14px;align-items:center;padding:4px max(8px,env(safe-area-inset-right)) 4px 12px;background:rgba(251,245,231,.97);border-bottom:1px solid var(--edge);z-index:100}
+#topbar button{background:none;border:0;color:var(--ink);text-align:left}
+.mobile-country{display:flex;flex-direction:column;max-width:35%;padding:2px 6px}
+#mobile-country-name{font-weight:700;font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+#date-disp{margin:0;padding:0;font-size:11px;font-family:inherit;white-space:nowrap}
+.mobile-treasury{display:flex;flex-direction:column;font-size:14px}
+.mobile-treasury small{font-size:10px;color:var(--dim)}
+#mobile-turn-balance{margin-left:auto;font-size:11px;white-space:nowrap;color:#6b5630}
+.icon-button{width:44px;text-align:center!important;font-size:24px}
+#map-wrap{position:absolute;inset:var(--hud) 0 0 var(--rail)!important;background:#102535}
+#map-svg,#editor-svg{width:100%;height:100%;touch-action:none}
+#mobile-nav{position:absolute;left:0;top:0;bottom:0;width:var(--rail);background:#24281f;z-index:120;display:flex;flex-direction:column;padding:6px 4px;gap:2px;border-right:1px solid #657052}
+#mobile-nav button{flex:1;min-height:48px;background:none;color:#d7d7c9;border:0;border-radius:8px;font-size:10px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px}
+#mobile-nav button span{font-size:23px;line-height:1}
+#mobile-nav button.selected{background:#eee5ce;color:#2a241b}
+#actionbar{position:absolute;top:auto;left:auto;right:max(10px,env(safe-area-inset-right));bottom:max(10px,env(safe-area-inset-bottom));height:auto;padding:0;display:flex;gap:6px;background:none;border:0;z-index:130}
+#skip-select{width:96px;background:#fbf5e7;border:1px solid var(--edge);padding:7px;border-radius:8px;font-size:13px!important}
+.next-btn{margin:0;padding:10px 18px;border:1px solid #9e832e;border-radius:8px;background:#d7b763;color:#272014;font-size:13px;font-weight:700;box-shadow:0 4px 15px #0005}
+.next-btn:disabled{background:#b0a58c;color:#5e5747}
+#left-panel,#events-box,#changes-box,#actions-panel,#adv-pop,#diplo-pop,#relations-panel,#economy-panel,#history-panel,#mobile-more{
+ position:absolute!important;top:calc(var(--hud) + 8px)!important;bottom:8px!important;right:8px!important;left:auto!important;
+ width:min(440px,calc(100vw - var(--rail) - 24px))!important;max-width:none!important;max-height:none!important;
+ background:var(--panel)!important;border:1px solid var(--edge)!important;border-radius:12px!important;
+ box-shadow:0 8px 32px #0007!important;overflow-y:auto!important;z-index:200!important;
+ transform:none!important;transition:none!important;color:var(--ink)!important
+}
+#left-panel{padding-top:50px}
+#left-panel.hidden{display:none!important}
+.mobile-country-close{position:absolute;top:6px;left:12px;right:6px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--edge);padding-bottom:4px;font-weight:700}
+.sheet-close{min-width:44px;height:44px;background:none;border:0;font-size:20px;color:var(--ink)}
+#mobile-more[hidden]{display:none!important}
+.more-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:12px}
+.more-grid button{padding:12px;border:1px solid var(--edge);border-radius:8px;background:#eee5ce;color:var(--ink);font-size:14px}
+#mobile-engine-stats,#gs-account,#menu-login-btn{display:none!important}
+#mobile-zoom{position:absolute;left:10px;top:10px;display:flex;gap:6px;z-index:95}
+#mobile-zoom button{width:44px;height:44px;background:#f5edda;border:1px solid var(--edge);border-radius:8px;font-size:23px;color:var(--ink)}
+#map-mode-tabs{position:absolute;left:10px;bottom:10px;max-width:calc(100% - 290px);overflow-x:auto;border-radius:8px}
+.map-mode-btn{min-height:44px;font-size:12px;padding:8px 12px;white-space:nowrap}
+#main-menu{position:absolute;inset:0;display:flex;align-items:flex-start;justify-content:center;padding:14px;pointer-events:none;z-index:400}
+body.menu-mode #map-wrap{inset:0!important}
+.mobile-start{width:300px;max-height:calc(var(--mobile-height) - 28px);overflow-y:auto;padding:20px;background:#fbf5e7f5;border:1px solid var(--edge);border-radius:16px;box-shadow:0 14px 45px #0006;pointer-events:auto}
+.mobile-eyebrow{font-size:9px;letter-spacing:.15em;color:#7c683b}
+.mobile-start h1{font:700 29px/1.05 var(--fd);letter-spacing:.02em;margin:8px 0}
+.mobile-start p{font-size:12px;line-height:1.4;margin-bottom:12px}
+.mobile-start label{font-size:11px;display:block;margin-bottom:4px;color:var(--dim)}
+.mobile-start select{width:100%;font-size:14px!important;padding:8px;border-radius:8px;background:#fffaf0}
+.mobile-start button{width:100%;border:1px solid var(--edge);border-radius:8px;background:#eee5ce;color:var(--ink);margin-top:7px;padding:8px;font-size:13px}
+.mobile-start button.primary{background:#303e2c;color:#fff9e9;border-color:#303e2c;font-weight:700}
+.mobile-start button:disabled{opacity:.5}
+.start-secondary{display:flex;gap:5px}
+.start-secondary button{font-size:11px;padding:6px}
+#mobile-guest-note{font-size:10px;line-height:1.4;display:block;margin-top:9px;color:#786945}
+.mobile-map-hint{position:absolute;right:16px;bottom:16px;padding:8px 12px;background:#111c20c9;border:1px solid #cbb98255;border-radius:20px;color:#eee5ce;font-size:11px;pointer-events:none}
+#pause-menu,#load-menu,#settings-panel,#scenario-menu,#model-menu,#society-screen,#breaking-news{position:absolute!important;inset:0!important;padding:12px!important;background:#102019ba!important;z-index:500!important;overflow-y:auto}
+.load-box,.pause-box,.settings-box{min-width:0!important;width:min(520px,calc(100vw - 24px))!important;max-height:calc(var(--mobile-height) - 24px)!important;padding:16px!important;border-radius:12px!important;overflow-y:auto}
+#society-screen>div{width:min(620px,calc(100vw - 24px))!important;max-height:calc(var(--mobile-height) - 24px)!important}
+#society-body{min-height:40px!important}
+#society-messages{height:70px!important}
+#breaking-news>div{max-height:calc(var(--mobile-height) - 24px);overflow:auto;border-radius:12px;padding:18px!important}
+#breaking-title{font-size:23px!important}
+.pop-hdr,.events-hdr,.actions-hdr,.rel-hdr,.changes-hdr,.diplo-chat-hdr{position:sticky;top:0;z-index:2;font:700 15px var(--fd);background:#eee5ce!important;color:var(--ink)!important;padding:6px 12px;border-bottom:1px solid var(--edge)}
+.xbtn{display:inline-flex;align-items:center;justify-content:center;min-width:44px;min-height:44px;font-size:20px;color:var(--ink)!important}
+#adv-messages,#diplo-messages{height:clamp(70px,35vh,180px)}
+#economy-body,#history-body{max-height:none!important;padding:12px!important;color:var(--ink)}
+#econ-messages{height:80px!important}
+.chat-input-row{padding:8px;background:#eee5ce}
+.chat-send,.rel-diplo-btn,.add-action-btn{min-height:44px}
+.chat-input,#action-input{background:#fffaf0;font-size:16px!important}
+.country-btn,.cbtn{min-height:44px;font-size:13px}
+.adv-msg,.diplo-msg,.ev-item,.state-text{font-size:13px;line-height:1.6}
+.portrait-block{width:92px;margin:10px auto;aspect-ratio:3/4}
+.portrait-hover{display:none}
+.portrait-caption{padding:4px 12px}
+.pc-name{font-size:18px}
+.psec{padding:12px}
+.notif{position:absolute;top:auto;bottom:12px;left:calc(var(--rail) + 12px);right:auto;max-width:calc(100vw - var(--rail) - 24px);font-size:12px;z-index:700}
+#gs-login{display:none!important} /* Registration remains in auth.js for later re-enabling. */
+#gs-shop{display:none!important}
+#editor-screen{position:absolute;inset:0;z-index:550;flex-direction:row!important}
+#editor-sidebar{width:260px;height:100%;border-right:1px solid var(--edge)}
+.editor-body{padding:10px;overflow-y:auto}
+.editor-btn,.map-tpl-item,.map-saved-item,.eprov-actions button{min-height:44px;font-size:13px}
+#editor-canvas-wrap{min-width:0;min-height:0;flex:1}
+#editor-screen.mobile-editor-map-only #editor-sidebar{display:none}
+#mobile-editor-tools{position:absolute;right:8px;bottom:8px;display:flex;gap:4px;z-index:20}
+#mobile-editor-tools button{min-width:44px;min-height:44px;padding:8px;background:#fbf5e7;color:var(--ink);border:1px solid var(--edge);border-radius:8px}
+#editor-save-form,#editor-map-name-form,#editor-loadmap-form{max-height:calc(var(--mobile-height) - 24px);max-width:calc(100vw - 24px);overflow:auto;border-radius:12px}
+@media(max-height:370px){
+ :root{--hud:44px;--rail:64px}
+ #mobile-nav button{min-height:44px;font-size:9px}
+ .mobile-start{padding:12px;width:290px}
+ .mobile-start h1{font-size:22px;display:inline-block;margin:5px 0}
+ .mobile-eyebrow{display:none}
+ .mobile-start p{margin-bottom:5px}
+}
+@media(orientation:portrait){
+ #rotate-screen{position:fixed;inset:0;z-index:2000;background:#20291f;color:#f7efd9;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:28px;gap:14px}
+ .rotate-symbol{font-size:76px;color:#d7b763}
+ #rotate-screen h1{font-size:26px;font-family:var(--fd)}
+ #rotate-screen p{font-size:15px;color:#d3c8aa}
+ #rotate-screen button{padding:12px 24px;background:#d7b763;color:#282415;border:0;border-radius:10px;font-size:15px}
+}
+
+#mobile-nav .has-news{position:relative}#mobile-nav .has-news::after{content:"";width:7px;height:7px;background:#d7b763;border-radius:50%;position:absolute;right:8px;top:8px}
+
+/* Minimal map screen: two controls, all sections behind the classic menu. */
+:root{--rail:0px;--hud:0px}
+#map-wrap{inset:0!important}
+#topbar{inset:8px auto auto 8px;height:auto;padding:0;gap:8px;background:none;border:0;pointer-events:none}
+#topbar .mobile-menu-button{
+ pointer-events:auto;display:flex;align-items:center;justify-content:center;
+ width:44px;height:44px;padding:0;border-radius:9px;font:24px/1 Arial,sans-serif;
+ background:#fbf5e7ee!important;border:1px solid #b7a786!important;color:#302b22!important;
+ box-shadow:0 2px 8px #0003
+}
+.mobile-date{display:flex;flex-direction:column;color:#f5efdb;text-shadow:0 1px 3px #000,0 0 7px #000;
+ max-width:180px;font-size:11px;line-height:1.5;pointer-events:none}
+.mobile-date #mobile-country-name{font-size:12px}
+.mobile-date #date-disp{font-size:10px;color:inherit}
+#actionbar{right:max(10px,env(safe-area-inset-right));bottom:max(10px,env(safe-area-inset-bottom));background:none}
+.next-btn{min-height:44px;padding:9px 14px;font-size:12px}
+#mobile-nav,#mobile-zoom{display:none!important}
+#mobile-country-card{
+ position:absolute;left:12px;bottom:12px;width:280px;max-width:calc(100vw - 190px);
+ padding:8px 12px 12px;background:#fbf5e7f5;border:1px solid #b7a786;
+ border-radius:12px;box-shadow:0 4px 20px #0005;z-index:190
+}
+.country-card-heading{display:flex;align-items:center;justify-content:space-between;gap:6px}
+.country-card-heading strong{font-size:15px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#mobile-card-description{font-size:11px;color:#6f6249;margin:0 0 8px;line-height:1.4}
+.country-card-actions{display:flex;gap:6px}
+.country-card-actions button{flex:1;min-height:44px;padding:6px;background:#eee5ce;border:1px solid #ccb990;border-radius:7px;font-size:12px}
+#left-panel,#events-box,#changes-box,#actions-panel,#adv-pop,#diplo-pop,#relations-panel,#economy-panel,#history-panel{
+ inset:10px!important;width:auto!important;max-width:none!important;max-height:none!important;border-radius:12px!important
+}
+body.mobile-sheet-open #actionbar,body.mobile-sheet-open #topbar{display:none!important}
+#mobile-more{display:none!important}
+.mobile-menu-box{width:min(440px,calc(100vw - 24px))!important;text-align:left;padding:12px!important}
+.menu-heading{display:flex;align-items:center;justify-content:space-between}
+.pause-box .menu-heading h3{margin:0;font-size:18px}
+.pause-box .menu-heading .sheet-close{width:44px;margin:0;background:none;border:0;padding:0}
+.menu-balance{font-size:11px;color:#786945;margin-bottom:8px}
+.mobile-menu-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.pause-box .mobile-menu-grid button{width:auto;margin:0;min-height:44px;padding:8px;font-size:13px;border-radius:8px}
+.mobile-menu-grid .has-news::after{content:" •";color:#9c7c22}
+.menu-period{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:10px 0;font-size:12px}
+.menu-period #skip-select{width:130px}
+.mobile-menu-footer{display:flex;gap:6px;border-top:1px solid #ccb990;padding-top:8px}
+.pause-box .mobile-menu-footer button{width:auto;flex:1;margin:0;padding:6px;font-size:11px;border-radius:8px}
+#settings-panel #map-mode-tabs{position:static;display:flex;max-width:none;width:100%;margin-top:6px;box-shadow:none}
+#settings-panel .settings-extra{display:flex;flex-wrap:wrap;gap:6px;margin:10px 0}
+.settings-extra button{flex:1;min-height:44px;padding:8px;border:1px solid #ccb990;border-radius:8px;background:#eee5ce;color:#302b22;font-size:12px}
+.settings-extra button.danger{color:#7c2417}
+.notif{left:12px;max-width:calc(100vw - 24px)}
+
+/* Country cabinet and game menu have separate roles. */
+#topbar{inset:8px 8px auto 8px;height:44px;display:flex;align-items:center;gap:7px;pointer-events:none}
+#topbar #menu-btn{flex:0 0 44px}
+#mobile-flag-button{pointer-events:auto;display:flex;align-items:center;justify-content:center;width:44px;height:44px;flex:0 0 44px;padding:6px;background:#fbf5e7ee!important;border:1px solid #b7a786!important;border-radius:9px;color:#554d3b!important;box-shadow:0 2px 8px #0003}
+#mobile-flag-button svg{width:29px;height:29px}
+#mobile-flag-button[aria-expanded="true"]{background:#dfcca0!important;border-color:#907432!important}
+.mobile-date{max-width:120px;margin-right:auto}
+#topbar .mobile-economic-stat{pointer-events:auto;min-height:44px;display:flex;flex-direction:column;justify-content:center;align-items:flex-start;gap:2px;padding:5px 10px;background:#fbf5e7ee!important;color:#302b22!important;border:1px solid #b7a786;border-radius:8px;box-shadow:0 2px 8px #0003;max-width:150px}
+.mobile-economic-stat small{font-size:9px;letter-spacing:.04em;text-transform:uppercase;color:#786945}
+.mobile-economic-stat strong{font-size:12px;line-height:1.2;white-space:nowrap;max-width:100%;overflow:hidden;text-overflow:ellipsis}
+#actionbar{display:flex;align-items:center;gap:6px}
+#actionbar #skip-select{width:98px;min-height:44px;padding:8px;font-size:12px!important;background:#fbf5e7ee;border:1px solid #b7a786;border-radius:8px;color:#302b22}
+#left-panel{
+ left:0!important;right:auto!important;top:60px!important;bottom:0!important;
+ width:25vw!important;max-width:25vw!important;max-height:none!important;
+ padding-top:0;border-radius:0 12px 0 0!important;background:#fbf5e7f7!important;
+ border-left:0!important;border-bottom:0!important;box-shadow:4px 0 20px #0004!important;
+ overflow-x:hidden!important;overflow-y:auto!important
+}
+.mobile-country-close{position:sticky;top:0;left:auto;right:auto;z-index:3;background:#eee5ce;padding:2px 5px 2px 9px;font-size:12px;min-height:44px}
+.mobile-country-close .sheet-close{font-size:17px}
+#left-panel .portrait-block{width:62px;margin:9px auto 5px}
+#left-panel .portrait-emoji{font-size:30px}
+#left-panel .portrait-caption{padding:3px 8px 7px}
+#left-panel .pc-name{font-size:13px;line-height:1.35;overflow-wrap:anywhere}
+#left-panel .pc-title{font-size:10px;line-height:1.4}
+#left-panel .govbadge{margin:5px 8px;padding:6px;font-size:10px;line-height:1.45}
+#left-panel .psec{padding:8px}
+#left-panel .cbtn{min-height:44px;padding:7px;font-size:11px;line-height:1.3;overflow-wrap:anywhere}
+#left-panel .irow{font-size:10px;gap:5px;flex-wrap:wrap}
+#left-panel .state-text{font-size:11px}
+#left-panel #portrait-gen-btn,#left-panel #pm-portrait-gen-btn{display:none}
+#mobile-country-sections{padding:5px 8px 8px;display:flex;flex-direction:column;gap:5px;border-bottom:1px solid #ccb990}
+#mobile-country-sections button{min-height:44px;text-align:left;padding:7px 10px;background:#eee5ce;color:#302b22;border:1px solid #ccb990;border-radius:7px;font-size:12px}
+#mobile-country-sections .has-news::after{content:" •";color:#9c7c22}
+.start-secondary.start-vertical{display:flex;flex-direction:column;gap:0}
+.start-secondary.start-vertical button{width:100%;font-size:13px;padding:8px;min-height:44px}
+.mobile-start .start-secondary.start-vertical{margin-top:3px}
+.game-menu-list{display:flex;flex-direction:column;gap:6px}
+.pause-box .game-menu-list button{margin:0;min-height:44px;padding:9px;font-size:13px;border-radius:8px;text-align:left}
+.mobile-menu-box{max-width:340px!important}
+@media(max-width:650px){
+ #topbar{gap:5px}
+ .mobile-date{max-width:80px}
+ #topbar .mobile-economic-stat{padding:5px 7px;max-width:120px}
+ .mobile-economic-stat strong{font-size:11px}
+}
+
+/* Small economy band, larger real flag and a separate actions launcher. */
+#topbar{inset:8px 10px auto 8px;height:52px;display:grid;grid-template-columns:44px 74px minmax(0,1fr) auto;gap:8px;align-items:start;pointer-events:none}
+#topbar #menu-btn{margin-top:4px}
+#mobile-flag-button{width:74px;height:52px;min-height:52px;padding:2px;background:#fbf5e7ee!important;border-radius:7px;overflow:hidden}
+#mobile-flag-button img{display:block;width:64px;height:48px;object-fit:contain;border-radius:2px}
+#mobile-flag-fallback{font-size:17px;color:#554d3b}
+#mobile-economy-strip{height:28px;max-height:28px;margin-top:8px;display:flex;justify-self:start;align-items:center;gap:0;max-width:100%;background:#fbf5e7e8;border:1px solid #c6b694;border-radius:5px;overflow:hidden;pointer-events:auto}
+#mobile-economy-strip button{min-height:26px;height:26px;min-width:0;display:flex;align-items:center;gap:5px;padding:2px 8px;border:0;background:none;color:#302b22;white-space:nowrap}
+#mobile-economy-strip button+button{border-left:1px solid #d9cbaa}
+#mobile-economy-strip span{font-size:9px;color:#786945}
+#mobile-economy-strip strong{font-size:10px;font-weight:600;overflow:hidden;text-overflow:ellipsis}
+#topbar .mobile-date{margin:0;max-width:none;justify-self:end;align-self:start;min-height:28px;padding:6px 8px;background:#202a25c4;border-radius:5px;border:1px solid #e7ddbd33;text-shadow:none}
+.mobile-date #date-disp{font-size:11px;white-space:nowrap}
+#left-panel{inset:0 auto 0 0!important;top:0!important;width:30vw!important;max-width:30vw!important;border-radius:0!important;z-index:240!important;background:#fbf5e7fa!important}
+#left-panel .portrait-block{width:76px;margin-top:12px}
+#left-panel .pc-name{font-size:14px}
+#left-panel .govbadge{font-size:11px}
+#left-panel .portrait-hover{display:block;position:static;opacity:1;padding:6px 8px;margin:6px 0;background:#eee5ce;border:1px solid #ccb990;border-radius:6px}
+#left-panel .portrait-block{height:auto;aspect-ratio:auto;background:none;border:0;box-shadow:none;width:min(110px,calc(100% - 16px))}
+#left-panel .portrait-img,#left-panel .portrait-emoji{height:110px;aspect-ratio:3/4;object-fit:cover;border:1px solid #ccb990;border-radius:5px}
+#left-panel .ph-row{font-size:9px;color:#302b22;gap:4px}
+#left-panel .ph-row .k{color:#786945}
+
+#mobile-actions-button{position:absolute;left:max(12px,env(safe-area-inset-left));bottom:max(12px,env(safe-area-inset-bottom));z-index:130;min-height:44px;padding:10px 18px;background:#fbf5e7ef;border:1px solid #b7a786;border-radius:8px;color:#302b22;font-size:13px;box-shadow:0 3px 12px #0004}
+#mobile-actions-button[aria-expanded="true"]{background:#dfcca0}
+#mobile-actions-menu{position:absolute;left:12px;bottom:66px;width:min(340px,calc(100vw - 24px));max-height:calc(var(--mobile-height) - 82px);overflow:auto;padding:10px;background:#fbf5e7f7;border:1px solid #b7a786;border-radius:12px;box-shadow:0 5px 24px #0005;z-index:230}
+#mobile-actions-menu h3{font:700 16px var(--fd);margin:0}
+.mobile-action-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.mobile-action-grid button{min-height:44px;padding:8px;border:1px solid #ccb990;border-radius:8px;background:#eee5ce;color:#302b22;font-size:12px}
+.mobile-action-grid .has-news::after{content:" •";color:#9c7c22}
+body.mobile-sheet-open #mobile-actions-button,body.mobile-sheet-open #mobile-actions-menu{display:none!important}
+@media(max-width:700px){
+ #topbar{gap:5px}
+ #mobile-economy-strip button{padding:2px 5px;gap:3px}
+ #mobile-economy-strip strong{font-size:9px}
+ #mobile-economy-strip span{font-size:8px}
+ .mobile-date #date-disp{font-size:10px}
+}
+
+/* Foreign countries share the full-height left cabinet layout. */
+#mobile-country-card{inset:0 auto 0 0!important;width:30vw!important;max-width:30vw!important;height:100%;box-sizing:border-box;overflow:auto;padding:0 10px 12px;border-radius:0;z-index:240;background:#fbf5e7fa}
+#mobile-country-card .country-card-heading{position:sticky;top:0;z-index:2;background:#eee5ce;margin:0 -10px;padding:2px 5px 2px 9px;min-height:44px;font-size:12px}
+#mobile-card-flag{display:block;width:74px;height:52px;object-fit:contain;margin:12px auto 8px}
+#mobile-card-name{font-size:15px;line-height:1.4;text-align:center;margin:8px 0;overflow-wrap:anywhere}
+.mobile-country-fact{display:flex;flex-direction:column;gap:4px;padding:9px 0;border-bottom:1px solid #d9cbaa;overflow-wrap:anywhere}
+.mobile-country-fact small{font-size:10px;color:#786945}
+.mobile-country-fact strong{font-size:12px;font-weight:500;line-height:1.4}
+.mobile-foreign-portrait{display:block;width:min(110px,100%);height:110px;object-fit:cover;margin:12px auto 0;border:1px solid #ccb990;border-radius:5px}
+#mobile-card-primary{display:block;width:100%;margin-top:12px;min-height:44px;border:1px solid #ccb990;border-radius:7px;background:#eee5ce;color:#302b22;font-size:12px}
+
+/* Persistent compact cabinets leave the map available. */
+#actions-panel,#adv-pop,#diplo-pop,#economy-panel,#history-panel,#changes-box{
+ inset:0 auto 0 0!important;width:30vw!important;max-width:30vw!important;height:100%;max-height:var(--mobile-height)!important;border-radius:0!important;box-sizing:border-box;overflow:auto!important
+}
+#events-box{inset:0 0 0 auto!important;width:30vw!important;max-width:30vw!important;height:100%;border-radius:0!important;box-sizing:border-box;z-index:245!important}
+#diplo-countries,#relations-panel{display:none!important}
+body.mobile-sheet-open #topbar,body.mobile-sheet-open #actionbar,body.mobile-sheet-open #mobile-actions-button{display:flex!important}
+body.mobile-sheet-open #topbar{display:grid!important}
+#society-screen{inset:0 auto 0 0!important;width:30vw!important;padding:0!important;background:none!important;align-items:stretch!important;justify-content:stretch!important;overflow:hidden!important;z-index:240!important}
+#society-screen>div{width:100%!important;max-height:none!important;height:100%;border-radius:0!important}
+#breaking-news{inset:0 0 0 auto!important;width:30vw!important;padding:0!important;background:var(--panel)!important;align-items:stretch!important;justify-content:stretch!important}
+#breaking-news>div{width:100%!important;min-width:0!important;max-width:100%!important;max-height:100%!important;border-radius:0!important;padding:12px!important;box-sizing:border-box}
+#breaking-title{font-size:16px!important}
+#breaking-text{font-size:12px!important;line-height:1.5!important}
+#left-panel .portrait-hover{display:none!important}
+#left-panel .portrait-block{width:24vw!important;max-width:100%;height:auto!important;margin:10px auto;aspect-ratio:auto}
+#left-panel .portrait-img,#left-panel .portrait-emoji{width:100%!important;height:auto!important;aspect-ratio:3/4!important;object-fit:cover;min-height:0;font-size:48px}
+#left-panel #portrait-gen-btn,#left-panel #pm-portrait-gen-btn{display:block!important;font-size:10px!important;min-height:44px}
+
+.mobile-person-portrait{width:24vw;max-width:100%;margin:10px auto}
+.mobile-person-portrait img,.mobile-portrait-placeholder{width:100%;aspect-ratio:3/4;object-fit:cover;border:1px solid var(--edge);border-radius:5px;box-sizing:border-box}
+.mobile-portrait-placeholder{display:flex;align-items:center;justify-content:center;background:#eee5ce;font-size:48px}
+.mobile-portrait-generate{display:block;width:100%;min-height:44px;padding:6px;margin-top:5px;border:1px solid var(--edge);border-radius:5px;background:#eee5ce;color:var(--ink);font-size:10px}
+#actions-panel,#adv-pop,#diplo-pop,#economy-panel,#history-panel,#changes-box,#events-box,#society-screen{font-size:11px;line-height:1.45}
+:is(#actions-panel,#adv-pop,#diplo-pop,#economy-panel,#history-panel,#changes-box,#events-box,#society-screen) :is(.adv-msg,.diplo-msg,.ev-item,.state-text,.chg-item,.chg-empty){font-size:11px!important;line-height:1.5!important;padding:8px}
+:is(#actions-panel,#adv-pop,#diplo-pop,#economy-panel,#history-panel,#changes-box,#events-box,#society-screen) :is(.pop-hdr,.events-hdr,.actions-hdr,.changes-hdr,.diplo-chat-hdr){font-size:12px!important;padding:4px 8px!important;letter-spacing:0}
+#economy-body,#history-body,#society-body{padding:8px!important;font-size:11px}
+#adv-messages,#diplo-messages{height:clamp(90px,42vh,230px);padding:8px}
+#action-input,.chat-input{width:100%;min-width:0;font-size:12px!important}
+.chat-input-row{padding:6px;gap:4px}
+.chat-send{flex-shrink:0;padding:6px;width:36px}
+#actions-panel .add-action-btn{font-size:11px;padding:6px}
+#society-screen .map-mode-btn{font-size:11px;padding:6px;white-space:normal}
+#events-list,#domestic-list,#changes-list{padding:8px}
+#events-box,#mobile-country-card,#left-panel,#actions-panel,#adv-pop,#diplo-pop,#economy-panel,#history-panel,#changes-box{overscroll-behavior:contain;touch-action:pan-y}
+
+:is(#economy-body,#history-body,#society-body) :is(div,p,span,td,th,li){font-size:11px!important;line-height:1.45!important}
+:is(#economy-body,#history-body,#society-body) :is(h2,h3,h4){font-size:13px!important}
+#economy-body button,#history-body button,#society-body button{font-size:11px!important;padding:6px!important}
+
+#diplo-pop .diplo-chat-hdr{flex-wrap:wrap;gap:4px}
+#diplo-pop .back-btn{font-size:11px;min-height:44px;padding:5px}
+
+/* Own leaders use the same portrait geometry as the foreign cabinet. */
+#left-panel .mobile-own-portrait{width:24vw;max-width:calc(30vw - 22px);height:auto;margin:10px auto;aspect-ratio:auto;background:none;border:0;box-shadow:none}
+#left-panel .mobile-own-portrait img,#left-panel .mobile-own-portrait .mobile-portrait-placeholder{width:100%!important;height:auto!important;aspect-ratio:3/4!important;object-fit:cover;box-sizing:border-box;border:1px solid var(--edge);border-radius:5px;min-height:0}
+#left-panel .mobile-own-portrait .mobile-portrait-placeholder{opacity:1;background:#eee5ce;font-size:48px}
+#mobile-fullscreen-button{position:fixed;right:max(12px,env(safe-area-inset-right));top:max(52px,env(safe-area-inset-top));z-index:410;min-height:44px;padding:8px 12px;background:#fbf5e7ee;color:var(--ink);border:1px solid var(--edge);border-radius:8px;box-shadow:0 3px 12px #0003;font-size:12px}
+body.menu-mode #mobile-fullscreen-button{top:max(12px,env(safe-area-inset-top))}
+
+/* Fixed HUD geometry for both devices, with the army visible on phones too. */
+.mobile-hud-stat{min-height:26px;height:26px;display:flex;align-items:center;gap:5px;padding:2px 8px;border-left:1px solid #d9cbaa;box-sizing:border-box;white-space:nowrap}
+.laptop-stat{display:none}
+#left-panel #pm:not(.open){display:none!important}
+#left-panel #pm.open{display:block!important}
+#left-panel .mobile-own-portrait,.mobile-person-portrait{width:24vw!important}
+#topbar{z-index:100!important}
+#mobile-economy-strip{position:static!important;justify-self:start;margin-top:8px;max-width:100%;justify-content:flex-start!important}
+#mobile-economy-strip span{font-size:9px}
+#mobile-economy-strip strong{font-size:10px}
+@media(max-width:850px){
+ #mobile-economy-strip button,.mobile-hud-stat{flex-direction:column;align-items:flex-start;justify-content:center;gap:0;padding:1px 5px}
+ #mobile-economy-strip span{font-size:8px}
+ #mobile-economy-strip strong{font-size:9px}
+}
+@media(min-width:1024px) and (hover:hover) and (pointer:fine){
+ .laptop-stat{display:flex}
+ #topbar{height:64px;gap:10px;inset:10px 14px auto 10px}
+ #mobile-economy-strip{height:38px;max-height:38px;margin-top:5px}
+ #mobile-economy-strip button,.mobile-hud-stat{height:36px;min-height:36px;padding:4px 10px;gap:6px}
+ #mobile-economy-strip span{font-size:12px}
+ #mobile-economy-strip strong{font-size:14px}
+ .mobile-date #date-disp{font-size:15px}
+ #topbar .mobile-date{padding:8px 10px}
+ body.laptop-mode :is(#left-panel,#mobile-country-card,#actions-panel,#adv-pop,#diplo-pop,#economy-panel,#history-panel,#changes-box,#society-screen){
+  inset:auto!important;left:var(--desktop-left,10px)!important;top:var(--desktop-top,90px)!important;
+  width:30vw!important;max-width:30vw!important;height:calc(var(--mobile-height) - var(--desktop-top,90px) - 76px)!important;
+  max-height:none!important;border-radius:10px!important;z-index:var(--desktop-z,260)!important;box-shadow:0 5px 22px #0004!important
+ }
+ #events-box{top:90px!important;bottom:76px!important;height:auto!important;border-radius:10px!important}
+ :is(.mobile-country-close,.country-card-heading,.actions-hdr,.pop-hdr,.changes-hdr){cursor:move;touch-action:none}
+ :is(#actions-panel,#adv-pop,#diplo-pop,#economy-panel,#history-panel,#changes-box,#events-box,#society-screen) :is(.adv-msg,.diplo-msg,.ev-item,.state-text,.chg-item,.chg-empty){font-size:15px!important;line-height:1.6!important;padding:10px}
+ :is(#economy-body,#history-body,#society-body) :is(div,p,span,td,th,li){font-size:14px!important;line-height:1.6!important}
+ :is(#economy-body,#history-body,#society-body) :is(h2,h3,h4){font-size:17px!important}
+ :is(#economy-body,#history-body,#society-body) button{font-size:14px!important}
+ :is(.pop-hdr,.events-hdr,.actions-hdr,.changes-hdr,.diplo-chat-hdr){font-size:16px!important;padding:6px 12px!important}
+ .mobile-country-fact small{font-size:13px}
+ .mobile-country-fact strong{font-size:16px}
+ #mobile-card-name,#left-panel .pc-name{font-size:20px}
+ #left-panel .pc-title,#left-panel .govbadge,#left-panel .irow,#left-panel .state-text{font-size:14px}
+ #left-panel .cbtn,#left-panel #portrait-gen-btn,#left-panel #pm-portrait-gen-btn,.mobile-portrait-generate{font-size:13px!important}
+ #action-input,.chat-input{font-size:16px!important}
+ #mobile-actions-button,.mobile-action-grid button,.next-btn,#actionbar #skip-select{font-size:15px!important}
+ #mobile-actions-menu{width:390px}
+ #adv-messages,#diplo-messages{height:45vh}
+}
+
+/* Country cabinets always occupy the left 30%; HUD stays behind them. */
+#left-panel,#mobile-country-card{box-sizing:border-box!important;z-index:240!important}
+#topbar{z-index:100!important}
+#mobile-fullscreen-button{z-index:110}
+#mobile-economy-strip{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));width:100%;height:34px;max-height:34px;margin-top:8px}
+#mobile-economy-strip button,.mobile-hud-stat{display:flex;flex-direction:column;align-items:flex-start;justify-content:center;height:32px;min-height:32px;min-width:0;max-width:100%;padding:2px 4px;gap:0;box-sizing:border-box;overflow:hidden}
+#mobile-economy-strip span{font-size:8px;line-height:1.2}
+#mobile-economy-strip strong{font-size:9px;line-height:1.3;display:block;width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+body.laptop-mode :is(#left-panel,#mobile-country-card){
+ inset:0 auto 0 0!important;left:0!important;top:0!important;bottom:0!important;
+ width:30vw!important;max-width:30vw!important;height:var(--mobile-height)!important;
+ max-height:var(--mobile-height)!important;border-radius:0!important;z-index:240!important
+}
+body.laptop-mode :is(.mobile-country-close,.country-card-heading){cursor:default;touch-action:pan-y}
+@media(min-width:1024px) and (hover:hover) and (pointer:fine){
+ #mobile-economy-strip{height:40px;max-height:40px;margin-top:5px}
+ #mobile-economy-strip button,.mobile-hud-stat{height:38px;min-height:38px;padding:3px 8px;gap:0}
+ #mobile-economy-strip span{font-size:11px}
+ #mobile-economy-strip strong{font-size:14px}
+ #left-panel .mobile-own-portrait,.mobile-person-portrait{width:20vw!important;max-width:calc(30vw - 22px)}
+ #left-panel .cbtn,#left-panel .govbadge,#left-panel .portrait-caption,#left-panel .psec>.ccont{
+  width:20vw!important;max-width:100%;box-sizing:border-box;margin-left:auto;margin-right:auto
+ }
+ #left-panel .cbtn{display:block;min-height:36px!important;padding:6px 8px!important;font-size:12px!important}
+ #left-panel #portrait-gen-btn,#left-panel #pm-portrait-gen-btn{min-height:36px!important;font-size:12px!important}
+ #left-panel .portrait-caption{padding-left:0;padding-right:0}
+ #left-panel .psec{padding:8px}
+ #mobile-card-primary{width:20vw;max-width:100%;margin-left:auto;margin-right:auto;min-height:36px;font-size:12px}
+ .mobile-portrait-generate{min-height:36px!important;padding:6px 8px;font-size:12px!important}
+}
+
+/* Text model selection in the experimental edition. */
+#model-menu{display:none;align-items:center;justify-content:center}
+.model-picker-box{color:var(--ink);background:var(--panel)}
+.model-picker-box p{font-size:12px;line-height:1.45;margin:8px 0}
+.model-picker-box label{display:block;font-size:12px;margin:8px 0 4px}
+.model-picker-box select,.model-picker-box input{box-sizing:border-box;width:100%;min-height:44px;padding:8px;border:1px solid var(--edge);border-radius:5px;color:var(--ink);background:var(--panel);font:inherit;font-size:13px}
+.model-picker-box input[hidden]{display:none}
+.model-picker-box .load-close-btn{min-height:44px;margin-top:8px}
+#model-selected-id{overflow-wrap:anywhere}
+
+#test-ai-connection{position:absolute;inset:0;z-index:900;display:none;align-items:center;justify-content:center;padding:12px;background:#102019ba;overflow-y:auto}
+#test-ai-used-model{overflow-wrap:anywhere}
+
+#mobile-start-btn~button[hidden],#map-load-retry[hidden],#map-load-default[hidden]{display:none!important}
+#map-load-status{display:block;line-height:1.4;overflow-wrap:anywhere}

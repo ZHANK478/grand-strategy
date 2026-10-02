@@ -7,9 +7,10 @@
  const note=document.getElementById('mobile-guest-note');
  const status=document.getElementById('test-ai-status');
  const guestModel='google/gemini-3.1-flash-lite';
+ let guestModels=[guestModel];
  window.GS_GUEST_TURN_ID=null;
  function render(){
-  const labels={direct:'OpenRouter · свой ключ',account:'ИИ · аккаунт',guest:'Гость · Gemini Flash Lite',offline:'ИИ не подключён'};
+  const labels={direct:'OpenRouter · свой ключ',account:'ИИ · аккаунт',guest:'Гость · серверный ИИ',offline:'ИИ не подключён'};
   if(badge)badge.textContent=labels[connection.mode];
   if(note)note.textContent=connection.mode==='offline'?'ИИ не подключён · откройте «Подключение ИИ».':connection.message;
   if(status)status.textContent=connection.message;
@@ -25,6 +26,7 @@
    premium_required:'Сервер разрешает портреты только премиум-аккаунтам. Для теста можно использовать свой ключ.',
    no_turns:'Серверный баланс ходов исчерпан.',
    request_limit:'Лимит гостевых запросов исчерпан.',
+   model_not_allowed:'Выбранная модель не разрешена гостевым сервером. Повторите подключение.',
    turn_required:'Для этого запроса нужен зарезервированный гостевой ход.',
    server_error:'Ошибка серверной функции.',
    ai_unavailable:'Сервер не получил ответ от OpenRouter.',
@@ -50,8 +52,12 @@
    const code=typeof data.error==='string'?data.error:'';
    throw Error(errorMessage(code,response.status));
   }
+  if(Array.isArray(data.guest_models))guestModels=data.guest_models.filter(model=>typeof model==='string');
+  if(typeof data.model==='string'){
+   const used=document.getElementById('test-ai-used-model');if(used)used.textContent='Последний ответ: '+data.model;
+  }
   if(typeof data.guest_turns_remaining==='number'&&connection.mode==='guest'){
-   connection.message='Гость · осталось '+data.guest_turns_remaining+' ходов. Сервер использует только Gemini Flash Lite.';render();
+   connection.message='Гость · осталось '+data.guest_turns_remaining+' ходов. Доступно моделей: '+guestModels.length+'.';render();
   }
   if(typeof data.turns_balance==='number'&&gsProfile)gsProfile.turns_balance=data.turns_balance;
   return data;
@@ -109,6 +115,7 @@
   document.getElementById('test-ai-connection').style.display='flex';render();
  };
  window.testCloseAIConnection=()=>{document.getElementById('test-ai-connection').style.display='none';};
+ window.testResumeAIConnection=()=>{if(directKey)return;ready=null;initAuth();};
  window.testRetryAIConnection=async()=>{
   if(running||turnRunning){showNotif('Дождитесь завершения хода');return;}
   directKey='';ready=null;set('offline','Повторяем подключение…');
@@ -179,7 +186,7 @@
   }
   if(connection.mode==='guest'){
    if(kind==='image')throw Error(errorMessage('premium_required'));
-   if(payload.model!==guestModel)throw Error('Гостевой сервер поддерживает только Gemini Flash Lite. Для '+payload.model+' подключите свой ключ или аккаунт в меню «Подключение ИИ».');
+   if(!guestModels.includes(payload.model))throw Error('Модель '+payload.model+' пока не разрешена гостевым сервером. Нужна настройка Supabase; ключ остаётся на сервере.');
    return serverRequest('guest-ai',{...payload,operation:'generate',turn_id:window.GS_GUEST_TURN_ID});
   }
   return serverRequest('ai',{kind,...payload});
@@ -208,7 +215,7 @@
  window.testEnsureAIForTurn=async()=>{
   if(!await initAuth()){testOpenAIConnection();showNotif(connection.message);return false;}
   if(connection.mode==='guest'){
-   if(MODEL!==guestModel){testOpenAIConnection();showNotif('Для выбранной модели нужен свой ключ или аккаунт.');return false;}
+   if(!guestModels.includes(MODEL)){testOpenAIConnection();showNotif('Выбранная модель пока не разрешена гостевым сервером.');return false;}
    try{
     const data=await serverRequest('guest-ai',{operation:'begin_turn',request_id:crypto.randomUUID()});
     window.GS_GUEST_TURN_ID=data.turn_id;

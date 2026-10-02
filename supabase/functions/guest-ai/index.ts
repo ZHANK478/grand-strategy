@@ -2,6 +2,10 @@
 // Disable gateway Verify JWT: this function validates the user itself.
 // Uses the existing OPENROUTER_KEY secret. Never expose that key to the browser.
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+const GUEST_MODELS=['google/gemini-3.1-flash-lite','openai/gpt-6-luna','z-ai/glm-5.3-flashx','z-ai/glm-5.3'];
+// Configure the exact catalogue-confirmed Sonnet ID during deployment; do not guess it.
+const sonnetModel=Deno.env.get('GS_SONNET_MODEL');
+if(sonnetModel&&sonnetModel.startsWith('anthropic/')&&/^[a-z0-9._:-]+$/.test(sonnetModel.slice(10)))GUEST_MODELS.push(sonnetModel);
 const cors={'Access-Control-Allow-Origin':'*','Access-Control-Allow-Headers':'authorization, content-type, apikey',
  'Access-Control-Allow-Methods':'POST, OPTIONS'};
 function json(data:unknown,status=200){return new Response(JSON.stringify(data),{status,headers:{...cors,'Content-Type':'application/json'}});}
@@ -24,7 +28,7 @@ Deno.serve(async(req:Request)=>{
   if(!key)return json({error:'server_no_key'},503);
   const {data:remaining,error:statusError}=await admin.rpc('mobile_guest_status',{p_user:id});
   if(statusError)return json({error:'guest_setup_required'},503);
-  if(body.operation==='status')return json({guest_turns_remaining:remaining});
+  if(body.operation==='status')return json({guest_turns_remaining:remaining,guest_models:GUEST_MODELS});
   const uuid=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
   if(body.operation==='begin_turn'){
    if(!uuid.test(body.request_id||''))return json({error:'bad_request_id'},400);
@@ -36,6 +40,7 @@ Deno.serve(async(req:Request)=>{
   if(body.operation!=='generate'||!Array.isArray(body.messages)||
     body.messages.length>16||JSON.stringify(body.messages).length>140000||
     typeof body.model!=='string'||body.model.length>120)return json({error:'bad_payload'},400);
+  if(!GUEST_MODELS.includes(body.model))return json({error:'model_not_allowed',guest_models:GUEST_MODELS},400);
   const turnId=body.turn_id||null;
   if(turnId!==null&&!uuid.test(turnId))return json({error:'bad_turn_id'},400);
   // Only free profile preparation is allowed before the first reserved turn.
@@ -43,10 +48,10 @@ Deno.serve(async(req:Request)=>{
   const {data:allowed,error:quotaError}=await admin.rpc('mobile_guest_request',{p_user:id,p_turn:turnId});
   if(quotaError)return json({error:'quota_unavailable'},503);
   if(!allowed)return json({error:'request_limit',message:'Лимит гостевых запросов исчерпан.'},429);
-  // Use the inexpensive guest model; arbitrary client model names cannot inflate trial costs.
+  // Only an explicit server-side allowlist can use the shared key.
   const response=await fetch('https://openrouter.ai/api/v1/chat/completions',{
    method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+key},
-   body:JSON.stringify({model:'google/gemini-3.1-flash-lite',messages:body.messages,
+   body:JSON.stringify({model:body.model,messages:body.messages,
     max_tokens:Math.min(12000,Math.max(100,Number(body.max_tokens)||400)),temperature:0.75})
   });
   const result=await response.json();

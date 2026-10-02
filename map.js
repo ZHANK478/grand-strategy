@@ -63,7 +63,22 @@ function displayColorFor(owner) {
 // ---- НАСТРОЙКИ ОТОБРАЖЕНИЯ (сохраняются в localStorage) ----
 // showCountryLabels — показывать ли подписи с названиями стран (сами страны/границы видны всегда, иначе по ним нельзя будет кликать)
 let showCountryLabels = localStorage.getItem('gs1852_show_labels') !== '0';
-let countryLabelScale = parseFloat(localStorage.getItem('gs1852_label_scale')) || 1.2;
+// Upgrade only the old defaults; retain settings the player already changed.
+if(!localStorage.getItem('gs1852_label_defaults_v2')){
+  if(localStorage.getItem('gs1852_label_scale')==='1.2')localStorage.removeItem('gs1852_label_scale');
+  if(localStorage.getItem('gs1852_inner_border')==='0.12')localStorage.removeItem('gs1852_inner_border');
+  localStorage.setItem('gs1852_label_defaults_v2','1');
+}
+let countryLabelScale = parseFloat(localStorage.getItem('gs1852_label_scale')) || 1;
+let countryLabelOpacity = parseFloat(localStorage.getItem('gs1852_label_opacity'));
+if(!Number.isFinite(countryLabelOpacity))countryLabelOpacity=0.7;
+countryLabelOpacity=Math.max(0,Math.min(1,countryLabelOpacity));
+function setCountryLabelOpacity(v){
+  const n=Number(v);
+  countryLabelOpacity=Number.isFinite(n)?Math.max(0,Math.min(1,n)):0.7;
+  localStorage.setItem('gs1852_label_opacity',countryLabelOpacity);
+  labelsG.selectAll('.country-label').attr('opacity',countryLabelOpacity);
+}
 let objectScale = parseFloat(localStorage.getItem('gs1852_obj_scale')) || 1.8;
 
 function setShowCountryLabels(v) {
@@ -87,10 +102,10 @@ function setObjectScale(v) {
 // Толщина границ провинций — ЕДИНСТВЕННЫЙ слой границ (никаких отдельных «контуров держав»
 // через topojson: они давали фризы и двойные/фантомные линии на наложенных провинциях).
 let innerBorderWidth = parseFloat(localStorage.getItem('gs1852_inner_border'));
-if (isNaN(innerBorderWidth)) innerBorderWidth = 0.12;
+if (isNaN(innerBorderWidth)) innerBorderWidth = 0.05;
 
 function setInnerBorderWidth(v) {
-  innerBorderWidth = parseFloat(v); if (isNaN(innerBorderWidth)) innerBorderWidth = 0.12;
+  innerBorderWidth = parseFloat(v); if (isNaN(innerBorderWidth)) innerBorderWidth = 0.05;
   localStorage.setItem('gs1852_inner_border', innerBorderWidth);
   provincesG.selectAll('path.scenario-province').attr('stroke-width', innerBorderWidth);
 }
@@ -98,14 +113,17 @@ function setInnerBorderWidth(v) {
 // Подпись страны — размер не зависит от зума карты, но масштабируется величиной страны
 // (szMul из addCountryLabelsFromProvinces: империя — крупно, княжество — мелко).
 // mode: true — feature (центроид посчитаем), 'xy' — готовые экранные координаты, иначе lon/lat.
-function addCountryLabel(name, coordsOrFeature, isFeature, szMul) {
+function addCountryLabel(name, coordsOrFeature, isFeature, szMul, region) {
   const xy = isFeature === 'xy' ? coordsOrFeature
     : isFeature ? pathGen.centroid(coordsOrFeature) : proj(coordsOrFeature);
   if (!xy || isNaN(xy[0])) return;
-  labelsG.append('text')
+  const label=labelsG.append('text')
     .attr('class', 'country-label')
     .attr('data-country', name)
     .attr('data-szmul', szMul || 1)
+    .attr('data-region-width',region?region.width:0)
+    .attr('data-region-height',region?region.height:0)
+    .attr('opacity',countryLabelOpacity)
     .attr('data-cx', xy[0]).attr('data-cy', xy[1])
     .attr('x', xy[0]).attr('y', xy[1])
     .attr('text-anchor', 'middle').attr('dominant-baseline', 'middle')
@@ -115,6 +133,7 @@ function addCountryLabel(name, coordsOrFeature, isFeature, szMul) {
     .attr('paint-order', 'stroke')
     .attr('stroke', 'rgba(12,16,26,0.82)').attr('stroke-width', 2.2)
     .text(name.toUpperCase());
+  measureCountryLabel(label.node());
 }
 
 // Обновить подпись страны на карте под её текущее отображаемое название
@@ -122,15 +141,38 @@ function addCountryLabel(name, coordsOrFeature, isFeature, szMul) {
 function updateMapCountryLabel(canonicalName, displayName) {
   labelsG.selectAll('.country-label')
     .filter(function() { return d3.select(this).attr('data-country') === canonicalName; })
-    .text((displayName || '').toUpperCase());
+    .text((displayName || '').toUpperCase())
+    .each(function(){measureCountryLabel(this);});
+  updateCountryLabels();
 }
 
+function measureCountryLabel(node){
+  const label=d3.select(node);
+  // Measure once per text change, never on every pan/pinch frame.
+  label.attr('font-size',10);
+  let units=0;
+  try {units=node.getComputedTextLength()/10;}catch {}
+  if(!Number.isFinite(units)||units<=0)units=Math.max(1,Array.from(node.textContent).length*0.8);
+  label.attr('data-text-units',units);
+}
+function countryLabelFontSize(multiplier,width,height,textUnits,zoom,scale){
+  const preferred=6.5*Math.max(0.5,multiplier)*scale/zoom;
+  const fitWidth=width>0?width*0.85/Math.max(1,textUnits):Infinity;
+  const fitHeight=height>0?height*0.5:Infinity;
+  return Math.max(0.05,Math.min(preferred,fitWidth,fitHeight));
+}
 function updateCountryLabels() {
   const zoom = W / vb.w;
-  // Единый мелкий размер для ВСЕХ стран (ползунок «Размер названий» масштабирует их вместе).
   labelsG.selectAll('.country-label')
-    .attr('font-size', (6.5 * countryLabelScale) / zoom)
-    .attr('stroke-width', 1.8 / zoom);
+    .attr('font-size',function(){
+      return countryLabelFontSize(+this.getAttribute('data-szmul')||1,
+        +this.getAttribute('data-region-width'),+this.getAttribute('data-region-height'),
+        +this.getAttribute('data-text-units')||1,zoom,countryLabelScale);
+    })
+    .attr('opacity',countryLabelOpacity)
+    .attr('stroke-width',function(){
+      return Math.min(1.2/zoom,(+this.getAttribute('font-size')||1)*0.16);
+    });
 }
 
 // Известные города — координаты [lon, lat] для размещения объектов на карте.
@@ -264,7 +306,6 @@ function switchActiveScenario(ref) {
     scenarioProvinces = (data.provinces || []).filter(p => p.geometry);
     if (typeof applyScenarioToGame === 'function') applyScenarioToGame(data);
     renderScenarioProvinces();
-    addCountryLabelsFromProvinces();
     return data;
   }).catch(err => {
     console.error('Не удалось загрузить сценарий:', err.message);
@@ -352,39 +393,73 @@ function provinceOwnerOf(id, scenarioOwner) {
 // Подпись каждой страны ставим на её САМУЮ БОЛЬШУЮ провинцию (по площади) — надёжнее, чем
 // центроид всех кусков сразу, который может уехать в море при многочастной территории.
 // Страны берутся из фактических владельцев провинций сценария — без хардкода.
-function addCountryLabelsFromProvinces() {
-  // Для каждой страны собираем центроиды и площади её провинций (в экранных координатах)
-  const byCountry = {};
-  scenarioProvinces.forEach(p => {
-    if (!p.owner) return;
-    const feature = { type: 'Feature', geometry: p.geometry };
-    let area = 0, cxy = null;
+// Geometry is projected once; annexations only change which owner groups it.
+const labelGeometryCache=new WeakMap();
+let countryLabelOwnersSignature='';
+function currentCountryLabelOwners(){return scenarioProvinces.map(p=>p.id+'='+provinceOwnerOf(p.id,p.owner)).join('\u0000');}
+function countryLabelParts(geometry){
+  if(labelGeometryCache.has(geometry))return labelGeometryCache.get(geometry);
+  const polygons=geometry.type==='MultiPolygon'?geometry.coordinates:
+    geometry.type==='Polygon'?[geometry.coordinates]:[];
+  const parts=[];
+  polygons.forEach(coordinates=>{
+    const feature={type:'Feature',geometry:{type:'Polygon',coordinates}};
     try {
-      area = Math.abs(d3.geoArea(feature));
-      cxy = pathGen.centroid(feature);
-    } catch (e) { return; /* битая геометрия — пропускаем */ }
-    if (!cxy || isNaN(cxy[0])) return;
-    (byCountry[p.owner] = byCountry[p.owner] || []).push({ area, x: cxy[0], y: cxy[1] });
+      const bounds=pathGen.bounds(feature),area=pathGen.area(feature),xy=pathGen.centroid(feature);
+      if(!(area>0)||!bounds.flat().every(Number.isFinite)||!xy.every(Number.isFinite))return;
+      parts.push({area,x:xy[0],y:xy[1],bounds});
+    }catch {}
+  });
+  labelGeometryCache.set(geometry,parts);
+  return parts;
+}
+function countryLabelRegions(parts){
+  const parent=parts.map((_,i)=>i);
+  function root(i){while(parent[i]!==i){parent[i]=parent[parent[i]];i=parent[i];}return i;}
+  // Nearby islands belong to one regional label; distant possessions do not.
+  for(let i=0;i<parts.length;i++)for(let k=i+1;k<parts.length;k++){
+    const a=parts[i].bounds,b=parts[k].bounds;
+    const dx=Math.max(0,a[0][0]-b[1][0],b[0][0]-a[1][0]);
+    const dy=Math.max(0,a[0][1]-b[1][1],b[0][1]-a[1][1]);
+    if(Math.hypot(dx,dy)<=4)parent[root(k)]=root(i);
+  }
+  const groups=new Map();
+  parts.forEach((p,i)=>{
+    const key=root(i);
+    if(!groups.has(key))groups.set(key,{area:0,sx:0,sy:0,left:Infinity,top:Infinity,right:-Infinity,bottom:-Infinity,parts:[]});
+    const g=groups.get(key);g.area+=p.area;g.sx+=p.x*p.area;g.sy+=p.y*p.area;
+    g.left=Math.min(g.left,p.bounds[0][0]);g.right=Math.max(g.right,p.bounds[1][0]);
+    g.top=Math.min(g.top,p.bounds[0][1]);g.bottom=Math.max(g.bottom,p.bounds[1][1]);g.parts.push(p);
+  });
+  return [...groups.values()].map(g=>{
+    let x=g.sx/g.area,y=g.sy/g.area;
+    // Do not leave an archipelago label in a large empty gap.
+    if(!g.parts.some(p=>x>=p.bounds[0][0]&&x<=p.bounds[1][0]&&y>=p.bounds[0][1]&&y<=p.bounds[1][1])){
+      const biggest=g.parts.reduce((a,b)=>a.area>b.area?a:b);x=biggest.x;y=biggest.y;
+    }
+    return {area:g.area,x,y,width:g.right-g.left,height:g.bottom-g.top};
+  }).sort((a,b)=>b.area-a.area);
+}
+function addCountryLabelsFromProvinces() {
+  countryLabelOwnersSignature=currentCountryLabelOwners();
+  const byCountry=new Map();
+  scenarioProvinces.forEach(p=>{
+    const owner=provinceOwnerOf(p.id,p.owner);
+    if(!owner||!p.geometry)return;
+    if(!byCountry.has(owner))byCountry.set(owner,[]);
+    byCountry.get(owner).push(...countryLabelParts(p.geometry));
   });
   labelsG.selectAll('.country-label').remove();
-  Object.keys(byCountry).forEach(c => {
-    const parts = byCountry[c];
-    let total = 0, biggest = parts[0];
-    parts.forEach(p => { total += p.area; if (p.area > biggest.area) biggest = p; });
-    // Подпись — взвешенный по площади центр ОСНОВНОГО массива страны (провинции рядом с
-    // крупнейшей): имя ложится в центр державы, а не в одну случайную провинцию. Дальние
-    // колонии в центр не тянут — иначе имя империи уехало бы в океан между материками.
-    const R = 90;
-    let sw = 0, sx = 0, sy = 0;
-    parts.forEach(p => {
-      if (Math.hypot(p.x - biggest.x, p.y - biggest.y) <= R) { sw += p.area; sx += p.x * p.area; sy += p.y * p.area; }
+  byCountry.forEach((parts,c)=>{
+    const display=(typeof countries!=='undefined'&&countries[c]&&countries[c].displayName)||c;
+    const regions=countryLabelRegions(parts);
+    regions.forEach((region,i)=>{
+      // Tiny offshore rocks do not need another overlapping copy of the name.
+      if(i>0&&region.area<0.5)return;
+      const multiplier=Math.max(0.6,Math.min(2.5,Math.sqrt(region.area)/45));
+      addCountryLabel(c,[region.x,region.y],'xy',multiplier,region);
     });
-    const xy = sw > 0 ? [sx / sw, sy / sw] : [biggest.x, biggest.y];
-    // Все подписи ОДНОГО мелкого размера — так карта читается ровно, а имена империй не
-    // раздуваются и не налезают друг на друга.
-    const display = (typeof countries !== 'undefined' && countries[c] && countries[c].displayName) || c;
-    addCountryLabel(c, xy, 'xy', 1);
-    if (display !== c) updateMapCountryLabel(c, display);
+    if(display!==c)updateMapCountryLabel(c,display);
   });
   updateCountryLabels();
 }
@@ -475,6 +550,7 @@ function recolorProvinces() {
 function renderScenarioProvinces() {
   if (_provincesBuiltFor !== scenarioProvinces) buildProvincePaths();
   recolorProvinces();
+  if(countryLabelOwnersSignature!==currentCountryLabelOwners())addCountryLabelsFromProvinces();
 }
 
 switchActiveScenario(activeScenarioRef);

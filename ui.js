@@ -390,6 +390,8 @@ function openSettings() {
   document.getElementById('settings-panel').style.display = 'flex';
   document.getElementById('setting-show-countries').checked = showCountryLabels;
   document.getElementById('setting-label-scale').value = countryLabelScale;
+  document.getElementById('setting-label-opacity').value=countryLabelOpacity;
+  document.getElementById('setting-label-opacity-val').textContent=Math.round(countryLabelOpacity*100)+'%';
   document.getElementById('setting-label-scale-val').textContent = countryLabelScale.toFixed(1) + '×';
   document.getElementById('setting-obj-scale').value = objectScale;
   document.getElementById('setting-obj-scale-val').textContent = objectScale.toFixed(1) + '×';
@@ -413,6 +415,11 @@ function onChangeLabelScale(val) {
   const v = parseFloat(val);
   document.getElementById('setting-label-scale-val').textContent = v.toFixed(1) + '×';
   setCountryLabelScale(v);
+}
+
+function onChangeLabelOpacity(val){
+  setCountryLabelOpacity(Number(val));
+  document.getElementById('setting-label-opacity-val').textContent=Math.round(countryLabelOpacity*100)+'%';
 }
 
 function onChangeObjectScale(val) {

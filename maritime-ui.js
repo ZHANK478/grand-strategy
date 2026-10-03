@@ -58,7 +58,11 @@ function maritimeQueueArea(id,action){
 
 function maritimeRenderRoutes(){
  if(typeof svg==='undefined'||typeof proj==='undefined'||!worldState?.maritime)return;
- let group=svg.select('#maritime-routes');if(group.empty())group=svg.insert('g','#objects-g').attr('id','maritime-routes').attr('pointer-events','none');
+ const objects=svg.select('#objects-g').node();
+ if(!objects?.parentNode)return;
+ // Routes share the objects' world container, including its wrapped map copies.
+ const layer=d3.select(objects.parentNode);
+ let group=layer.select('#maritime-routes');if(group.empty())group=layer.insert('g',()=>objects).attr('id','maritime-routes').attr('pointer-events','none');
  const fleets=maritimeState().fleets.filter(f=>f.owner===playerCountry&&f.path.length);
  const paths=group.selectAll('path').data(fleets,f=>f.id);paths.exit().remove();
  paths.enter().append('path').attr('class','maritime-route').merge(paths).attr('fill','none').attr('stroke','#c9ac6f').attr('stroke-width',.8).attr('vector-effect','non-scaling-stroke').attr('d',f=>{

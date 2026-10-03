@@ -25,6 +25,11 @@ try{
    await page.goto('http://127.0.0.1:8765/economy-world.html',{waitUntil:'load',timeout:60000});
    await page.waitForFunction(()=>window.GS_MAP_LOAD?.status==='ready',{},{timeout:30000});
    console.log(mode+' BEFORE '+JSON.stringify(await page.evaluate(()=>({status:window.GS_MAP_LOAD,start:typeof window.mobileStartGame,fullscreen:typeof window.mobileFullscreen,picker:document.getElementById('mobile-country-picker').value,disabled:document.getElementById('mobile-start-btn').disabled}))));
+   if(mode==='phone'){
+    await page.evaluate(()=>{window.__fullscreenCalls=0;document.documentElement.requestFullscreen=async()=>{window.__fullscreenCalls++;};});
+    await page.click('#mobile-fullscreen-button',{timeout:5000});
+    assert.equal(await page.evaluate(()=>window.__fullscreenCalls),1,'Fullscreen is clickable in main menu');
+   }
    await page.selectOption('#mobile-country-picker','Франция');
    await page.click('#mobile-start-btn',{timeout:10000});
    await page.waitForFunction(()=>typeof gameStarted!=='undefined'&&gameStarted&&document.getElementById('main-menu').style.display==='none',{},{timeout:10000});

@@ -6,7 +6,7 @@ const KIND_FIELDS={
  power:['government','ruler_name','ruler_age','ruler_title','pm_name','pm_title','parliament'],
  army:['army_delta','map_objects'],map:['map_objects'],finance:['debt_delta'],
  diplomacy:['relations','treaties','war_declared','peace_made','province_transfer'],
- identity:['country_name','country_color'],unsupported:[]
+ identity:['country_name','country_color'],statement:['statement'],unsupported:[]
 };
 const LEADERS=['ruler_name','ruler_age','ruler_title','government','pm_name','pm_title'];
 const WORLD_FIELDS=['stability_delta','relations','relations_between','other_countries','battles',
@@ -28,8 +28,9 @@ function validateEffects(raw,ctx,scope,kind){
  const country=n=>{text(n,180);check(Object.hasOwn(ctx.countries,n)&&!ctx.countries[n].annexed,'Неизвестная или аннексированная страна: '+n);};
  const pair=(a,b)=>{country(a);country(b);check(a!==b,'Страна не может действовать против себя');};
  if(e.stability_delta!=null)number(e.stability_delta,-10,10);
- if(e.army_delta!=null){number(e.army_delta,-mine.army,100000);check(Number.isInteger(e.army_delta),'Нужна целая численность');}
+ if(e.army_delta!=null){number(e.army_delta,-mine.army,Math.max(mine.army,mine.population*1000));check(Number.isInteger(e.army_delta),'Нужна целая численность');}
  if(e.debt_delta!=null)number(e.debt_delta,-mine.debt,Math.max(100,mine.income*12));
+ if(e.statement!=null)text(e.statement,600);
  leader(e);
  if(e.government!=null&&ctx.governments)check(ctx.governments.includes(e.government),'Неподдерживаемая форма правления');
  if(e.country_name!=null)text(e.country_name,100);
@@ -87,7 +88,7 @@ function validatePlan(plan,pending,ctx){
  list(plan.orders,8);check(plan.orders.length===pending.length,'ИИ не отчитался по каждому приказу');
  const seen=new Set();
  const orders=plan.orders.map(o=>{
-  keys(o,['id','kind','status','reason','effects']);text(o.id,100);
+  keys(o,['id','kind','status','reason','effects','process']);text(o.id,100);
   check(pending.some(x=>x.id===o.id)&&!seen.has(o.id),'Неизвестный или повторный приказ');seen.add(o.id);
   check(Object.hasOwn(KIND_FIELDS,o.kind),'Неизвестный тип приказа');
   check(['execute','reject','defer'].includes(o.status),'Неверный статус приказа');text(o.reason,600);
@@ -95,7 +96,18 @@ function validatePlan(plan,pending,ctx){
   if(o.status!=='execute')check(Object.keys(effects).length===0,'Отклонённый приказ не может менять мир');
   if(o.status==='execute')check(o.kind!=='unsupported'&&Object.keys(effects).length>0,'Нет исполняемого действия');
   if(original.fixedEffects&&o.status==='execute')check(JSON.stringify(effects)===JSON.stringify(original.fixedEffects),'ИИ изменил готовую карточку');
-  return {...o,effects};
+  let process;
+  if(o.process!=null){
+   keys(o.process,['mode','days','summary']);
+   check(o.status==='execute','Процесс возможен только для принятого действия');
+   check(['implementation','referendum','recruitment'].includes(o.process.mode),'Неизвестный процесс');
+   number(o.process.days,1,3650);check(Number.isInteger(o.process.days),'Срок должен быть целым');
+   text(o.process.summary,300);
+   if(o.process.mode==='referendum')check(o.kind==='power','Голосование относится к устройству власти');
+   if(o.process.mode==='recruitment')check(o.kind==='army'&&effects.army_delta>0&&Object.keys(effects).length===1,'Набор требует отдельного процесса');
+   process={...o.process};
+  }
+  return {...o,effects,...(process?{process}:{})};
  });
  return {...plan,orders,world_effects:validateEffects(plan.world_effects,ctx,'world')};
 }

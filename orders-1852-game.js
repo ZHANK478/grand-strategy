@@ -4,11 +4,11 @@
 // правителей, парламент, сохранения (слоты), меню
 // ============================================================
 
-let turn = 1, month = 0, year = 1852, week = 0; // week 0-3 внутри месяца
+let turn = 1, month = 0, year = 1852, week = 0, day = 1; // Gregorian calendar; week retained for old saves
 const months = ['Январь','Февраль','Март','Апрель','Май','Июнь','Июль','Август','Сентябрь','Октябрь','Ноябрь','Декабрь'];
 
 function dateLabel() {
-  return (week > 0 ? `Неделя ${week + 1} · ` : '') + months[month] + ' ' + year + ' г.';
+  return day+' '+['января','февраля','марта','апреля','мая','июня','июля','августа','сентября','октября','ноября','декабря'][month]+' '+year+' г.';
 }
 function renderDate() {
   document.getElementById('date-disp').textContent = dateLabel();
@@ -1293,8 +1293,9 @@ const SKIP_OPTIONS = {
 
 // Прожить один календарный месяц в движке (экономика + возраст/смерти). Без ИИ.
 function stepOneMonth() {
-  month++;
-  if (month >= 12) { month = 0; year++; }
+  return advanceGameDays(daysUntilNextMonth());
+}
+function runMonthlyBoundary() {
   expireMapObjects();
   const econ = simulateWorldEconomy();
   ALL_COUNTRIES.forEach(c => { if (countries[c] && !countries[c].annexed) { tickClasses(countries[c], c === playerCountry); tickSociety(countries[c]); } });
@@ -1322,7 +1323,7 @@ async function nextTurn(kind) {
   if(window.ordersCanStartTurn&&!window.ordersCanStartTurn()){showNotif('Дождитесь дипломатического ответа');return false;}
   kind=kind||(typeof getSelectedSkip==='function'?getSelectedSkip():'m1');
   const opt=SKIP_OPTIONS[kind]||SKIP_OPTIONS.m1;
-  const snapshot=JSON.parse(JSON.stringify({turn,month,year,week,countries,worldState,playerActions,pendingDirectives,
+  const snapshot=JSON.parse(JSON.stringify({turn,month,year,week,day,countries,worldState,playerActions,pendingDirectives,
     territoryOwners,provinceOwners,provinceEcon,ALL_COUNTRIES,playerCountryDisplayName}));
   turnRunning=true;const btn=document.querySelector('.next-btn');btn.disabled=true;btn.textContent='Проверка приказов…';
   try{
@@ -1333,16 +1334,11 @@ async function nextTurn(kind) {
     // Decisions take effect before the month's budget and social simulation.
     const results=await onTurnEnd();
     let changes=[],deaths=[],netSum=0,borrowedSum=0;
-    if(kind==='week'){
-      week++;
-      if(week>=4){week=0;const r=stepOneMonth();changes=r.econ;deaths=r.deaths;resolvePendingSuccessions();}
-    }else{
-      week=0;
-      for(let i=0;i<opt.months;i++){
-        const r=stepOneMonth();changes=r.econ;deaths.push(...r.deaths);
-        netSum+=countries[playerCountry].lastBudget?.net||0;borrowedSum+=countries[playerCountry].lastBudget?.borrowed||0;
-        resolvePendingSuccessions();
-      }
+    const target=kind==='week'?gameDayNumber()+7:gameMonthTarget(opt.months);
+    while(gameDayNumber()<target){
+      const r=advanceGameDays(1);changes=r.econ.length?r.econ:changes;deaths.push(...r.deaths);
+      if(r.months){netSum+=countries[playerCountry].lastBudget?.net||0;borrowedSum+=countries[playerCountry].lastBudget?.borrowed||0;}
+      resolvePendingSuccessions();
     }
     announceDeaths(deaths);
     if(opt.months>1){changes=[{label:'Бюджет за '+opt.months+' месяцев',value:(netSum>=0?'+':'')+netSum.toLocaleString('ru')+' расчётных единиц',sign:netSum}];
@@ -1351,13 +1347,15 @@ async function nextTurn(kind) {
     renderPlayerStats();renderDate();renderPlayerPowerPanel();renderActionsList();
     renderOrderReceipts(results,changes);
     const engineEvents=worldState.pastEvents.slice(engineHistoryStart).filter(t=>!t.startsWith('Приказ '));
-    renderNewspaper(buildNewspaper(beforeFacts,results,engineEvents,periodStartDate));
+    const edition=buildNewspaper(beforeFacts,results,engineEvents,periodStartDate);
+    await writeNewspaper(edition);
+    renderNewspaper(edition);
     worldState.pastEvents=worldState.pastEvents.slice(-120);
     if(typeof renderMapObjects==='function')renderMapObjects();
     if(!saveGame())throw Error('Не удалось сохранить результат хода');
     return true;
   }catch(error){
-    ({turn,month,year,week,countries,worldState,playerActions,pendingDirectives,
+    ({turn,month,year,week,day,countries,worldState,playerActions,pendingDirectives,
       territoryOwners,provinceOwners,provinceEcon,ALL_COUNTRIES,playerCountryDisplayName}=snapshot);
     countryCentroids=null;
     renderPlayerStats();renderDate();renderPlayerPowerPanel();renderActionsList();
@@ -1464,7 +1462,7 @@ function saveGame(opts) {
     if (!currentSlotId) currentSlotId = 'slot_' + Date.now();
     const data = {
       version: 3,
-      turn, month, year, week,
+      turn, month, year, week, day,
       scenarioRef: (typeof activeScenarioRef !== 'undefined') ? activeScenarioRef : 'builtin-world',
       scenarioName: (typeof activeScenario !== 'undefined' && activeScenario) ? activeScenario.name : 'Европа 1852',
       countries,
@@ -1579,7 +1577,7 @@ async function loadGameSlot(id) {
     }
 
     currentSlotId = id;
-    turn = d.turn; month = d.month; year = d.year; week = d.week || 0;
+    turn = d.turn; month = d.month; year = d.year; week = d.week || 0; day = Math.max(1,Math.min(daysInGameMonth(year,month),d.day||1+week*7));
     playerCountry = d.playerCountry || 'Франция';
     playerCountryDisplayName = d.playerCountryDisplayName || playerCountry;
     territoryOwners = d.territoryOwners || {};
@@ -1650,7 +1648,7 @@ function resetGame(country) {
   playerCountry = ALL_COUNTRIES.includes(country) ? country : (ALL_COUNTRIES[0] || 'Франция');
   playerCountryDisplayName = playerCountry;
 
-  turn = 1; month = activeScenario?.month || 0; week = 0;
+  turn = 1; month = activeScenario?.month || 0; week = 0; day = activeScenario?.day || 1;
   year = (typeof activeScenario !== 'undefined' && activeScenario && activeScenario.year) ? activeScenario.year : 1852;
   territoryOwners = {};
   provinceOwners = {};

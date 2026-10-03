@@ -102,7 +102,7 @@ function buildNewspaper(before,results,engineEvents,startDate){
     o.effects.map_objects.some(x=>x.type==='army')?'Правительство изменило размещение воинских частей. Солдаты распределяются из существующей армии.':'Исполнено распоряжение о размещении или перемещении объекта. Подробности доступны на карте.',o.reason);
    if(!o.effects?.relations&&!o.effects?.map_objects&&o.before.taxes===o.after.taxes&&o.before.spending===o.after.spending&&o.before.laws===o.after.laws&&o.before.government===o.after.government&&o.before.ruler===o.after.ruler&&o.before.pm===o.after.pm&&o.before.army===o.after.army&&o.before.debt===o.after.debt)
     add('domestic','Решение главы государства вступило в силу',o.reason);
-  }else add('domestic',o.status==='failed'?'Политическая попытка не удалась':o.status==='blocked'?'Решение встретило препятствие':'Предложение не исполнено',o.text.replace(/[.!?]+$/,'')+'. '+o.reason);
+  }else if(o.status!=='in_progress')add('domestic',o.status==='failed'?'Политическая попытка не удалась':o.status==='blocked'?'Решение встретило препятствие':'Предложение не исполнено',o.text.replace(/[.!?]+$/,'')+'. '+o.reason);
  });
  ALL_COUNTRIES.forEach(n=>{
   const a=before[n],c=countries[n];if(!a||!c||c.annexed)return;
@@ -127,6 +127,10 @@ function buildNewspaper(before,results,engineEvents,startDate){
  });
  if(!domestic.length)add('domestic','Период без крупных потрясений','Правительство продолжает текущий курс. За период не подтверждено значительных внутренних событий.');
  if(!foreign.length)add('foreign','За рубежом без крупных перемен','Новых подтверждённых международных событий за период нет.');
+ if(results.length){
+  const audit=results.map(o=>ORDER_STATUS[o.status]+': '+o.text+'\n'+o.reason+'\nИзменения: '+JSON.stringify(o.effects||{})+(o.processId?'\nПроцесс: '+o.processId:'')).join('\n\n');
+  if(domestic[0])domestic[0].details+=(domestic[0].details?'\n\n':'')+'Журнал решений за период:\n'+audit;
+ }
  const edition={from:startDate,to:dateLabel(),turn,domestic:domestic.slice(-16),foreign:foreign.slice(-16)};
  worldState.newspaperHistory=[...(worldState.newspaperHistory||[]),edition].slice(-12);
  return edition;
@@ -138,8 +142,51 @@ function renderNewspaper(edition){
   const box=document.getElementById(id);if(!box)return;box.replaceChildren();
   articles.forEach(item=>{const article=document.createElement('article');article.className='newspaper-article';
    const title=document.createElement('h3');title.textContent=item.headline;
-   const body=document.createElement('p');body.textContent=item.body;article.append(title,body);if(item.details){const details=document.createElement('details');details.className='newspaper-details';const label=document.createElement('summary');label.textContent='Цифры и изменения';const text=document.createElement('p');text.textContent=item.details;details.append(label,text);article.appendChild(details);}box.appendChild(article);});
+   const body=document.createElement('p');body.textContent=item.body;article.append(title,body);if(item.details){const details=document.createElement('details');details.className='newspaper-details';const label=document.createElement('summary');label.textContent='Исполнение и последствия';const text=document.createElement('p');text.textContent=item.details;details.append(label,text);article.appendChild(details);}box.appendChild(article);});
  };
  fill('domestic-list',edition.domestic);fill('events-list',edition.foreign);
  document.getElementById('mobile-news-button')?.classList.add('has-news');
+}
+
+/* Newsroom has no permission to mutate the simulated world. */
+async function writeNewspaper(edition){
+ const sources=[];
+ ['domestic','foreign'].forEach(section=>edition[section].forEach((article,index)=>{
+  article.factId=section+'-'+index;
+  sources.push({id:article.factId,section,headline:article.headline,facts:article.body.slice(0,1400),execution:(article.details||'').slice(0,1200)});
+ }));
+ // Bounded context: one small newsroom call, no entire world or conversation history.
+ const selected=sources.slice(0,4).concat(sources.filter(s=>s.section==='foreign').slice(0,4));
+ const unique=[...new Map(selected.map(s=>[s.id,s])).values()];
+ try{
+  const raw=await askGemini(`Ты редактор газеты эпохи ${year} года, страна ${countries[playerCountry].displayName||playerCountry}. Период ${edition.from} — ${edition.to}.
+Напиши обычные газетные статьи по ПОДТВЕРЖДЁННЫМ фактам ниже. Каждая: заголовок и связный абзац из 3–5 предложений, 45–65 слов, по-русски.
+Расскажи кто, что сделал, где это известно, что происходит дальше и какая реакция реально подтверждена. Не пиши отчёт об эффектах, технические статусы, ID, названия полей, стрелки или списки изменений. Не повторяй один шаблон. Не вставляй фразы «подтверждённых сведений нет», «в рассматриваемый период», «факты подтверждены»: читатель видит газету, а не проверку источников. Если реакция неизвестна, опусти её, не заполняй статью сообщениями об отсутствии данных. Если новостей нет, достаточно двух коротких предложений. Имена и решения связывай с содержанием фактов.
+Не выдумывай свершившиеся протесты, заявления людей, результаты голосования, войны, назначения или экономические изменения. Незавершённый процесс описывай как подготовку, не успех. Отказ — как препятствие. Снижение поддержки можно описать как недовольство соответствующей группы, но не как придуманные демонстрации. Странное заявление можно критически обсуждать как заявление, оно не становится истиной.
+Каждая статья относится ТОЛЬКО к своему id. Не добавляй фактов и статей. Цифры исполнения скрыты отдельно; в статье они не обязательны.
+Факты: ${JSON.stringify(unique)}
+Верни только JSON {"articles":[{"id":"...","headline":"...","body":"..."}]}.`,3200,0);
+  const reply=parseOrderReply(raw);
+  if(!Array.isArray(reply.articles)||reply.articles.length!==unique.length)throw Error('Неполная газета');
+  const seen=new Set();
+  for(const item of reply.articles){
+   if(!unique.some(s=>s.id===item.id)||seen.has(item.id)||typeof item.headline!=='string'||typeof item.body!=='string'||item.headline.length>160||item.body.length<80||item.body.length>1800)throw Error('Некорректная статья');
+   seen.add(item.id);
+  }
+  reply.articles.forEach(item=>{
+   const target=[...edition.domestic,...edition.foreign].find(a=>a.factId===item.id);
+   target.headline=newspaperText(item.headline);target.body=newspaperText(item.body);
+  });
+  // Keep smaller unselected notices behind a single expandable factual archive.
+  const keep=new Set(unique.map(x=>x.id));
+  ['domestic','foreign'].forEach(section=>{
+   const omitted=edition[section].filter(a=>!keep.has(a.factId));
+   edition[section]=edition[section].filter(a=>keep.has(a.factId));
+   if(omitted.length&&edition[section].length)edition[section].at(-1).details+='\nДругие события:\n'+omitted.map(a=>a.headline+': '+a.body+' '+a.details).join('\n');
+  });
+  edition.editor='ai';
+ }catch(error){
+  edition.editor='facts';edition.editorError='Редактор газеты недоступен; показаны подтверждённые сводки.';
+ }
+ return edition;
 }

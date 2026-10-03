@@ -1,0 +1,22 @@
+name: Political world engine tests
+on:
+  push:
+    branches: [main, experiment/political-world]
+    paths:
+      - 'political-*.js'
+      - 'tests/political-world.test.mjs'
+      - 'tests/fixtures/political-playthroughs.json'
+      - 'scenario_orders1852.json'
+      - '.github/workflows/political-world-tests.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  engine:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node tests/political-world.test.mjs

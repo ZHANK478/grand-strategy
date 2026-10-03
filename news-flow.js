@@ -60,10 +60,11 @@ function queueNewsIssue(sender,recipient,id,text,action){
  const registry=ensureWorldActors(),actor=registry[recipient+'::government']||registry[recipient+'::cabinet'];
  if(actor){actor.issue={orderId:id,text,day:gameDayNumber()};actorRemember(actor,'Требует позиции правительства: '+sender+' — '+text);}
 }
+function newsHash(s){let a=2166136261,b=3339675911;for(let i=0;i<s.length;i++){a=Math.imul(a^s.charCodeAt(i),16777619);b=Math.imul(b^s.charCodeAt(i),2246822519);}return 'h:'+(a>>>0).toString(16)+':'+(b>>>0).toString(16)+':'+s.length;}
 function newsSignalState(country,target){
  const facts=n=>{const c=countries[n];return c?{government:c.government,army:Math.floor(c.army/5000),war:isAtWar(country,target),
  deployments:(worldState.mapObjects||[]).filter(o=>o.owner===n&&['army','naval'].includes(o.type)).map(o=>[o.id,o.location,o.lon,o.lat,Math.floor((o.troops||0)/5000)])}:null;};
- return JSON.stringify([facts(country),facts(target)]);
+ return newsHash(JSON.stringify([facts(country),facts(target)]));
 }
 const newsOldSelected=politicalActorsForTurn;
 politicalActorsForTurn=function(){
@@ -77,7 +78,7 @@ politicalContext=function(){
  const c=newsOldContext(),selected=new Set([playerCountry,...c.countries.map(x=>x.facts.id)]),f=ensureNewsFlow();
  c.issues=f.issues.filter(i=>i.status==='open'&&selected.has(i.recipient)).slice(0,16);
  c.court=Object.fromEntries([...selected].map(id=>[id,countries[id].court||null]));
- c.actors.forEach(a=>{const real=ensureWorldActors()[a.id];a.issue=real?.issue||null;a.lastSignals=real?.lastNewsSignals||{};});
+ c.actors.forEach(a=>{const real=ensureWorldActors()[a.id];a.issue=real?.issue||null;a.lastSignals=Object.keys(real?.lastNewsSignals||{}).slice(-8);});
  c.previousHeadlines=f.published.slice(-20).map(p=>({headline:p.headline,actors:p.actors,turn:p.turn}));
  return c;
 };
@@ -97,7 +98,7 @@ executePoliticalDecision=function(d,results){
  }
  const start=(worldState.periodEvents||[]).length,previousAction=worldState.currentNewsAction;worldState.currentNewsAction=d.action;let ok;try{ok=newsOldDecision(d,results);}finally{worldState.currentNewsAction=previousAction;}if(!ok)return ok;
  worldState.currentNewsActors.push(d.actor_id);
- if(repeatable){a.lastNewsSignals||={};a.lastNewsSignals[signal]=state;}
+ if(repeatable){a.lastNewsSignals||={};delete a.lastNewsSignals[signal];a.lastNewsSignals[signal]=state;a.lastNewsSignals=Object.fromEntries(Object.entries(a.lastNewsSignals).slice(-8));}
  if(d.action==='pursue'){a.newsPursuits=[...(a.newsPursuits||[]),{state:pursuitState,words:[...pursuitWords],effects:JSON.stringify(d.task?.effects||{})}].slice(-8);}
  if(d.responds_to&&d.action!=='wait'){const issue=f.issues.find(i=>i.id===d.responds_to&&i.recipient===a.country);if(issue){issue.status='answered';issue.answer={actor:d.actor_id,action:d.action,text:d.body,day:gameDayNumber()};}}
  const events=(worldState.periodEvents||[]).slice(start);events.forEach(e=>{e.decisionActor=d.actor_id;e.newsKey=d.actor_id+'|'+d.action+'|'+(d.target||'')+'|'+(d.responds_to||'')+'|'+state;e.respondsTo=d.responds_to||null;});

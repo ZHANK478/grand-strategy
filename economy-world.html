@@ -867,6 +867,10 @@ input[type=checkbox]{accent-color:var(--gold);}
   <div class="menu-heading"><h3 id="test-ai-heading">Подключение ИИ · политический мир</h3><button class="sheet-close" onclick="testCloseAIConnection()" aria-label="Закрыть">✕</button></div>
   <p id="test-ai-status" role="status"></p>
   <p id="test-ai-used-model"></p>
+  <p id="test-image-remaining" role="status">Для гостевых изображений нужен код.</p>
+  <label for="test-image-code">Код изображений</label>
+  <input id="test-image-code" type="password" autocomplete="off" placeholder="Код на ограниченное число портретов">
+  <button id="test-image-redeem" class="load-close-btn" onclick="testRedeemImageCode()">Активировать изображения</button>
   <label for="test-tester-code">Код тестировщика</label>
   <input id="test-tester-code" type="password" autocomplete="off" placeholder="Одноразовый код">
   <button id="test-tester-redeem" class="load-close-btn" onclick="testRedeemTesterCode()">Активировать тестовые ходы</button>
@@ -905,7 +909,7 @@ input[type=checkbox]{accent-color:var(--gold);}
 <script src="news-runtime.js?v=4"></script>
 <script src="news-world.js?v=1"></script>
 <script src="orders-1852-mobile.js?v=3"></script>
-<script src="news-session.js?v=1"></script>
+<script src="news-session.js?v=2"></script>
 <script src="core-loop-model-selector.js?v=2"></script>
 <script src="economy-engine.js?v=2"></script><script src="economy-ui.js?v=3"></script>
 <script src="news-flow.js?v=3"></script>

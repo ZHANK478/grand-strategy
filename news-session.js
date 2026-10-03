@@ -7,13 +7,15 @@
  const note=document.getElementById('mobile-guest-note');
  const status=document.getElementById('test-ai-status');
  const guestModel='google/gemini-3.1-flash-lite';
- let guestModels=[guestModel],guestRemaining=null;
+ let guestModels=[guestModel],guestRemaining=null,imageRemaining=0;
  window.GS_GUEST_TURN_ID=null;
  function render(){
   const labels={direct:'OpenRouter · свой ключ',account:'ИИ · аккаунт',guest:'Гость · серверный ИИ',offline:'ИИ не подключён'};
   if(badge)badge.textContent=labels[connection.mode];
   if(note)note.textContent=connection.mode==='offline'?'ИИ не подключён · откройте «Подключение ИИ».':connection.message;
   if(status)status.textContent=connection.message;
+  const images=document.getElementById('test-image-remaining');
+  if(images)images.textContent=connection.mode==='guest'?'Портретов осталось: '+imageRemaining+'. Без кода изображения гостям недоступны.':connection.mode==='direct'?'Изображения оплачиваются с вашего OpenRouter-ключа.':'Код изображений предназначен для гостевого подключения без регистрации.';
   const remaining=document.getElementById('test-hud-remaining');
   if(remaining){
    const value=connection.mode==='guest'?guestRemaining:connection.mode==='account'?gsProfile?.turns_balance:null;
@@ -29,7 +31,10 @@
    guest_required:'Сессия не гостевая. Повторите подключение.',
    no_auth:'Сессия входа недоступна. Повторите подключение или используйте свой ключ.',
    bad_auth:'Сессия входа истекла. Войдите снова.',
-   premium_required:'Дальнейшая генерация портретов требует доступа аккаунта.',
+   premium_required:'Для аккаунта генерация изображений требует соответствующего доступа.',
+   image_code_required:'Гостевые изображения доступны только по коду. Откройте «Подключение ИИ» и активируйте код изображений.',
+   bad_image_code:'Код изображений неверен, просрочен или уже закреплён за другим гостем.',
+   image_rate_limit:'Можно сделать до 10 попыток генерации изображения в час.',
    portrait_trial_used:'Пробная генерация портрета уже использована.',
    portrait_trial_busy:'Портрет уже генерируется. Дождитесь результата.',
    bad_tester_code:'Код неверен или уже активирован другим гостем.',
@@ -69,6 +74,7 @@
    guestRemaining=data.guest_turns_remaining;
    connection.message='Гость · осталось '+data.guest_turns_remaining+' ходов. Доступно моделей: '+guestModels.length+'.';render();
   }
+  if(typeof data.image_generations_remaining==='number'){imageRemaining=data.image_generations_remaining;render();}
   if(typeof data.turns_balance==='number'&&gsProfile)gsProfile.turns_balance=data.turns_balance;
   return data;
  }
@@ -129,6 +135,15 @@
    await serverRequest('guest-ai',{operation:'redeem_tester',code:field.value.trim()});
    field.value='';showNotif('Тестовые ходы активированы.');
   }catch(error){status.textContent=error.message;}
+  finally{button.disabled=false;}
+ };
+ window.testRedeemImageCode=async()=>{
+  if(running||turnRunning||typeof portraitGenerating!=='undefined'&&portraitGenerating){showNotif('Дождитесь завершения запроса');return;}
+  if(!await initAuth()||connection.mode!=='guest'){showNotif('Код изображений активируется в гостевой сессии без регистрации.');return;}
+  const field=document.getElementById('test-image-code'),button=document.getElementById('test-image-redeem');
+  button.disabled=true;
+  try{await serverRequest('guest-ai',{operation:'redeem_images',code:field.value.trim()});field.value='';showNotif('Лимит портретов активирован: '+imageRemaining+'.');}
+  catch(error){status.textContent=error.message;}
   finally{button.disabled=false;}
  };
  window.testOpenAIConnection=function(){
@@ -206,7 +221,7 @@
    return directRequest(providerPayload);
   }
   if(connection.mode==='guest'){
-   if(kind==='image')return serverRequest('guest-ai',{operation:'portrait_trial',model:'google/gemini-3.1-flash-image',messages:payload.messages});
+   if(kind==='image')return serverRequest('guest-ai',{operation:'image',model:'google/gemini-3.1-flash-image',messages:payload.messages});
    if(!guestModels.includes(payload.model))throw Error('Модель '+payload.model+' пока не разрешена гостевым сервером. Нужна настройка Supabase; ключ остаётся на сервере.');
    return serverRequest('guest-ai',{...payload,cost:window.GS_GUEST_TURN_ID?payload.cost:0,operation:'generate',turn_id:window.GS_GUEST_TURN_ID});
   }

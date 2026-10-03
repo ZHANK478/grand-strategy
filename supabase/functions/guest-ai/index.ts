@@ -57,24 +57,43 @@ Deno.serve(async(req:Request)=>{
   const {data:remaining,error:statusError}=await admin.rpc('mobile_guest_status',{p_user:id});
   if(statusError)return json({error:'guest_setup_required'},503);
   
-  if(body.operation==='portrait_trial'){
+  if(body.operation==='image'||body.operation==='portrait_trial'){
    if(body.model!=='google/gemini-3.1-flash-image'||!Array.isArray(body.messages)||body.messages.length!==1||body.messages[0]?.role!=='user'||typeof body.messages[0]?.content!=='string'||body.messages[0].content.length>4000)return json({error:'bad_payload'},400);
-   const {data:claimed,error:claimError}=await admin.rpc('mobile_portrait_claim',{p_user:id});
+   const {data:claim,error:claimError}=await admin.rpc('mobile_image_claim',{p_user:id});
    if(claimError)return json({error:'quota_unavailable'},503);
-   if(!claimed)return json({error:'portrait_trial_used'},402);
+   if(claim?.error)return json({error:claim.error},claim.error==='portrait_trial_busy'||claim.error==='image_rate_limit'?429:402);
+   if(!claim?.request_id)return json({error:'quota_unavailable'},503);
+   const controller=new AbortController();
+   const timer=setTimeout(()=>controller.abort(),90000);
    let success=false;
    try{
     const response=await fetch('https://openrouter.ai/api/v1/chat/completions',{
-     method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+key},
+     method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+key},signal:controller.signal,
      body:JSON.stringify({model:'google/gemini-3.1-flash-image',messages:body.messages,modalities:['image','text'],max_tokens:1000})
     });
     const result=await response.json();
     success=response.ok&&!!result.choices?.[0]?.message?.images?.[0]?.image_url?.url;
     if(!success)return json({error:'ai_unavailable'},502);
-    return json({...result,portrait_trial_remaining:0});
-   }finally{await admin.rpc('mobile_portrait_finish',{p_user:id,p_success:success});}
+    return json({...result,image_generations_remaining:claim.remaining});
+   }finally{
+    clearTimeout(timer);
+    const args={p_user:id,p_request:claim.request_id,p_success:success};
+    const done=await admin.rpc('mobile_image_finish',args);
+    if(done.error)await admin.rpc('mobile_image_finish',args);
+   }
   }
-  if(body.operation==='status')return json({guest_turns_remaining:remaining,guest_models:GUEST_MODELS});
+  if(body.operation==='redeem_images'){
+   if(!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(body.code||''))return json({error:'bad_image_code'},400);
+   const {data:left,error}=await admin.rpc('mobile_image_redeem',{p_user:id,p_token:body.code});
+   if(error)return json({error:'quota_unavailable'},503);
+   if(left<0)return json({error:'bad_image_code'},400);
+   return json({image_generations_remaining:left});
+  }
+  if(body.operation==='status'){
+   const {data:images,error}=await admin.rpc('mobile_image_status',{p_user:id});
+   if(error)return json({error:'quota_unavailable'},503);
+   return json({guest_turns_remaining:remaining,guest_models:GUEST_MODELS,image_generations_remaining:images});
+  }
   const uuid=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
   if(body.operation==='redeem_tester'){
    if(!uuid.test(body.code||''))return json({error:'bad_tester_code'},400);

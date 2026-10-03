@@ -238,7 +238,7 @@ askGemini=async function(prompt,...args){
  const known=Array.isArray(data.orders)?data.orders.filter(o=>o&&typeof o==='object'):[];
  const missing=pending.filter(o=>!known.some(x=>x.id===o.id||x.id===aliases.get(o.id)));
  const selected=politicalActorsForTurn(),politics=Array.isArray(data.politics)?data.politics.filter(x=>x&&typeof x==='object'):[];
- if(missing.length||(!politics.length&&selected.length)){
+ if(missing.length||(!window.POLITICAL_SUBJECTS&&!politics.length&&selected.length)){
   const context=politicalContext();
   const repair='Исправь неполный ответ исполнителя. Верни только JSON {orders:[],politics:[]}. Не повторяй уже подготовленные приказы. Для каждого из перечисленных ниже недостающих приказов нужен результат с тем же id, kind,status,reason,effects,article. Для выбранных правительств нужен собственный политический шаг или осмысленное ожидание. Не выдумывай согласие другой страны. Схема типов и правила из предыдущего задания действуют.\\n'+
    'Недостающие приказы: '+JSON.stringify(missing.map(o=>({id:aliases.get(o.id),text:o.text})))+'\\nВыбранные правительства: '+JSON.stringify(selected)+'\\nОбстановка: '+JSON.stringify(context)+

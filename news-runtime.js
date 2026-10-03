@@ -128,6 +128,7 @@ action всегда строка; amount и target — отдельные пол
  const raw=await askGemini(prompt,6500,1,{response_format:{type:'json_object'},reasoning_effort:'low'}),plan=parseOrderReply(raw);
  plan.orders=repairPlannerOrders(plan.orders,free);
  const decisions=Array.isArray(plan.politics)?plan.politics:[];
+ if(window.POLITICAL_SUBJECTS){for(let i=decisions.length-1;i>=0;i--){if(ensureWorldActors()[decisions[i]?.actor_id]?.kind==='government')decisions.splice(i,1);}}
  for(let i=1;i<decisions.length-1;i++){if(decisions[i]==='condition_order'&&typeof decisions[i+1]==='string'&&decisions[i-1]&&typeof decisions[i-1]==='object'&&!decisions[i-1].condition_order){decisions[i-1].condition_order=decisions[i+1];decisions.splice(i,2);i--;}}
  if(decisions.length>12)decisions.splice(12);
  const valid=[],errors=[];const seen=new Set();

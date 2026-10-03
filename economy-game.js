@@ -1334,12 +1334,15 @@ async function nextTurn(kind) {
     turn++;
     // Decisions take effect before the month's budget and social simulation.
     const results=await onTurnEnd();
+    if(window.politicalRunRound)await window.politicalRunRound(results,{phase:'opening',days:kind==='week'?7:opt.months*30});
+    const policyStart=gameDayNumber(),policyStride=opt.months>=12?Math.ceil(opt.months*365.25/48):90;let policyCheckpoint=policyStride;
     let changes=[],deaths=[],netSum=0,borrowedSum=0;
     const target=kind==='week'?gameDayNumber()+7:gameMonthTarget(opt.months);
     while(gameDayNumber()<target){
       const r=advanceGameDays(1);changes=r.econ.length?r.econ:changes;deaths.push(...r.deaths);
       if(r.months){netSum+=countries[playerCountry].lastBudget?.net||0;borrowedSum+=countries[playerCountry].lastBudget?.borrowed||0;}
       resolvePendingSuccessions();
+      if(window.politicalRunRound&&gameDayNumber()-policyStart>=policyCheckpoint&&gameDayNumber()<target){await window.politicalRunRound([],{phase:'continuation',days:policyStride});policyCheckpoint+=policyStride;}
     }
     await completeInitiativeDocuments();
     announceDeaths(deaths);

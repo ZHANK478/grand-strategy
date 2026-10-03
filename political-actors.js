@@ -86,7 +86,7 @@ function recordActorReactions(results){
     a.label+' включил обслуживание нового займа в финансовую повестку. Привлечённые деньги расширяют возможности правительства, но будущие выплаты остаются его обязательством.');
   }
   const threats=e.army_delta>Math.max(25000,c.army*.1)||e.war_declared?.length||e.government||e.parliament?.dissolve;
-  if(threats&&activeScenario?.rules?.autonomousWorld!==false){
+  if(!window.POLITICAL_SUBJECTS&&threats&&activeScenario?.rules?.autonomousWorld!==false){
    const peers=Object.values(registry).filter(a=>a.kind==='government'&&actorAvailable(a)&&a.country!==playerCountry&&politicalRanking().some(p=>p.id===a.country&&(p.neighbor||p.distance<15||p.gdpRank<=6||isAtWar(playerCountry,a.country))))
     .sort((a,b)=>(politicalRanking().find(p=>p.id===b.country)?.score||0)-(politicalRanking().find(p=>p.id===a.country)?.score||0)).slice(0,3);
    peers.forEach(a=>{

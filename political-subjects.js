@@ -23,7 +23,7 @@ function policyInterest(id){
  return {security:{neighbors,wars:fronts.map(x=>({enemy:x.a===id?x.b:x.a,goal:x.goal})),occupations:Object.entries(s.occupations).filter(([p,owner])=>owner===id||strategyOwner(strategyProvince(p))===id)},
  sovereignty:{dependency:c.dependency||null,obligations:contracts.map(x=>({id:x.id,type:x.type,partner:x.a===id?x.b:x.a,terms:x.terms,due:x.due}))},
  prosperity:{gdp:c.gdp,population:c.population,treasury:c.treasury,debt:c.debt,budget:c.lastBudget?{gross:c.lastBudget.gross,net:c.lastBudget.net}:null},
- regime:{ruler:c.ruler,pm:c.pm,government:c.government,stability:c.stability,reputation:c.reputation,parliament:c.parliament,agenda:c.agenda||null},
+ regime:{ruler:c.ruler,pm:c.pm,government:c.government,stability:c.stability,reputation:c.reputation,parliament:c.parliament,agenda:c.agenda||null,groups:Object.fromEntries(Object.entries(c.economy?.classes||{}).map(([k,v])=>[k,{tax:v.tax,loyalty:v.loyalty}])),spending:c.society?.spending,poverty:c.society?.poverty},
  capacity:{army:c.army,availableTroops:Math.max(0,c.army-worldState.mapObjects.filter(u=>u.type==='army'&&u.owner===id).reduce((n,u)=>n+(u.troops||0),0)),units:worldState.mapObjects.filter(u=>u.owner===id).map(u=>({id:u.id,type:u.type,troops:u.troops,province:strategyUnitProvince(u),supply:u.supply,route:s.routes.find(r=>r.unit===u.id)?.path.at(-1)}))}};
 }
 function policyNotice(source,target,text,kind='diplomacy'){
@@ -66,7 +66,7 @@ function policyContext(selected,results,phase){
  countries:relevant.map(policyPublicFacts),worldPowers:all.slice().sort((a,b)=>countries[b].gdp-countries[a].gdp).slice(0,8).map(policyPublicFacts),
  confirmedDecisions:results.map(o=>({text:o.text,status:o.status,outcome:o.reason,effects:o.effects})),
  events:(worldState.periodEvents||[]).slice(-12).map(e=>({headline:e.headline,body:e.body,actors:e.actors})),
- locations:scenarioProvinces.filter(x=>selected.includes(strategyOwner(x))).slice(0,110).map(x=>({id:x.id,name:x.name,owner:strategyOwner(x),neighbors:[...(strategyGeometry().graph[x.id]||[])].map(id=>({id,owner:strategyOwner(strategyProvince(id))}))}))};
+ locations:selected.flatMap(owner=>{const owned=scenarioProvinces.filter(x=>strategyOwner(x)===owner),border=owned.filter(x=>[...(strategyGeometry().graph[x.id]||[])].some(id=>strategyOwner(strategyProvince(id))!==owner));return [...new Map([...border,...owned].map(x=>[x.id,x])).values()].slice(0,18);}).map(x=>({id:x.id,name:x.name,owner:strategyOwner(x),neighbors:[...(strategyGeometry().graph[x.id]||[])].map(id=>({id,owner:strategyOwner(strategyProvince(id))}))}))};
 }
 function policyPrompt(selected,results,phase){
  return 'POLITICAL_CABINETS_V1\nТы играешь за самостоятельные правительства политической стратегии. Игрок не центр мира. Для КАЖДОГО кабинета выбери следующий собственный шаг по его интересам, ресурсам, обязательствам, памяти и ответам других. История задаёт старт, не предопределяет решения. Не действуй случайно и не делай всех одинаковыми.\n'+

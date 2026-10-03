@@ -123,7 +123,8 @@ function econStep(c,days=1){
   v.monthly.gross+=b.gross*12*dt;v.monthly.expense+=expected;v.monthly.net+=flow;
   v.monthly.borrowed+=borrowed;v.monthly.printed+=printed;v.monthly.unpaid+=unpaid;
   if(typeof scenarioProvinces!=='undefined'){
-   const own=scenarioProvinces.filter(p=>(provinceOwners[p.id]||p.owner)===ALL_COUNTRIES.find(id=>countries[id]===c)),total=own.reduce((s,p)=>s+(provinceEcon[p.id]?.gdp||0),0),pop=own.reduce((s,p)=>s+(provinceEcon[p.id]?.pop||0),0);
+   const ownerId=ALL_COUNTRIES.find(id=>countries[id]===c);
+   const own=ownerId?scenarioProvinces.filter(p=>(provinceOwners[p.id]||p.owner)===ownerId):[],total=own.reduce((s,p)=>s+(provinceEcon[p.id]?.gdp||0),0),pop=own.reduce((s,p)=>s+(provinceEcon[p.id]?.pop||0),0);
    own.forEach(p=>{const e=provinceEcon[p.id];if(e){e.gdp=total?e.gdp/total*c.gdp:c.gdp/own.length;e.pop=pop?e.pop/pop*c.population:c.population/own.length;e.income=e.gdp/12*.125;}});
   }
   c.income=econMonthlyRevenue(c).gross;

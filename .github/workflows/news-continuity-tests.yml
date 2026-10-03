@@ -1,0 +1,19 @@
+name: News continuity and economy tests
+on:
+  push:
+    branches: [main, experiment/news-continuity]
+    paths: ['news-*.js', 'economy-*.js', 'economy-world.html', 'tests/news-continuity.test.mjs', 'tests/fixtures/news-luna.json', '.github/workflows/news-continuity-tests.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  engine:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node tests/political-world.test.mjs
+      - run: node tests/economy-world.test.mjs
+      - run: node tests/news-continuity.test.mjs

@@ -85,7 +85,7 @@ function econStep(c,days=1){
   }
   const workforce=c.population*1000*v.workforceShare;
   const mobilization=econClamp(c.army/Math.max(1,workforce),0,.4);
-  const invest=c.society.spending.infrastructure*12*v.paidRatio/Math.max(1,c.gdp);
+  const invest=c.society.spending.infrastructure*12*v.paidRatio/Math.max(1,c.gdp*v.prices);
   const avgTax=Object.values(c.economy.classes).reduce((s,g)=>s+g.tax*g.incomeShare,0);
   const privateInvest=econClamp(.11-avgTax*.001+(c.stability-50)*.0005,.015,.18);
   v.births=econClamp(v.births+(year>=1950?-0.05:-0.01)*dt,8,45);
@@ -108,13 +108,13 @@ function econStep(c,days=1){
   Object.values(v.sectors).forEach(s=>{s.output*=GDPfactor;s.capital=Math.max(0,s.capital+(s.output*(privateInvest+invest)-s.capital*.04)*dt);});
   v.capital=Object.values(v.sectors).reduce((s,x)=>s+x.capital,0);
   c.infrastructure=econClamp(c.infrastructure+(invest*70*v.paidRatio-.4)*dt,0,100);
-  const eduPerChild=c.society.spending.education*12*v.paidRatio*1e6/Math.max(1,c.population*1000*.28);
+  const eduPerChild=c.society.spending.education*12*v.paidRatio*1e6/Math.max(1,c.population*1000*.28)/v.prices;
   c.society.literacy=econClamp(c.society.literacy+Math.min(1.5,eduPerChild/100)*(100-c.society.literacy)/100*dt,0,100);
-  v.deaths=econClamp(v.deaths-(c.society.spending.welfare*12*v.paidRatio/Math.max(1,c.gdp)*2)*dt,5,40);
+  v.deaths=econClamp(v.deaths-(c.society.spending.welfare*12*v.paidRatio/Math.max(1,c.gdp*v.prices)*2)*dt,5,40);
   const shift=Math.min(c.economy.classes.peasants.share,Math.max(0,privateInvest+invest-.05)*dt*2);
   c.economy.classes.peasants.share-=shift;c.economy.classes.commons.share+=shift*.7;c.economy.classes.middle.share+=shift*.3;
   c.society.urbanization=econClamp(100-c.economy.classes.peasants.share,0,100);
-  c.society.poverty=econClamp(c.society.poverty+((1-v.paidRatio)*4-growth*.12-welfare/Math.max(1,c.gdp)*25)*dt,0,100);
+  c.society.poverty=econClamp(c.society.poverty+((1-v.paidRatio)*4-growth*.12-welfare/Math.max(1,c.gdp*v.prices)*25)*dt,0,100);
   const monetary=printed/Math.max(1,c.gdp*dt)*100;
   const target=econClamp(1+monetary+(war?4:0)+mobilization*8+(1-v.paidRatio)*3,-2,150);
   c.inflation=(Number(c.inflation)||0)+(target-(Number(c.inflation)||0))*dt*2;v.prices*=Math.exp(c.inflation/100*dt);

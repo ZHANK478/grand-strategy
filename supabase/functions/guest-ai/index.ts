@@ -56,6 +56,24 @@ Deno.serve(async(req:Request)=>{
   if(!key)return json({error:'server_no_key'},503);
   const {data:remaining,error:statusError}=await admin.rpc('mobile_guest_status',{p_user:id});
   if(statusError)return json({error:'guest_setup_required'},503);
+  
+  if(body.operation==='portrait_trial'){
+   if(body.model!=='google/gemini-3.1-flash-image'||!Array.isArray(body.messages)||body.messages.length!==1||body.messages[0]?.role!=='user'||typeof body.messages[0]?.content!=='string'||body.messages[0].content.length>4000)return json({error:'bad_payload'},400);
+   const {data:claimed,error:claimError}=await admin.rpc('mobile_portrait_claim',{p_user:id});
+   if(claimError)return json({error:'quota_unavailable'},503);
+   if(!claimed)return json({error:'portrait_trial_used'},402);
+   let success=false;
+   try{
+    const response=await fetch('https://openrouter.ai/api/v1/chat/completions',{
+     method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+key},
+     body:JSON.stringify({model:'google/gemini-3.1-flash-image',messages:body.messages,modalities:['image','text'],max_tokens:1000})
+    });
+    const result=await response.json();
+    success=response.ok&&!!result.choices?.[0]?.message?.images?.[0]?.image_url?.url;
+    if(!success)return json({error:'ai_unavailable'},502);
+    return json({...result,portrait_trial_remaining:0});
+   }finally{await admin.rpc('mobile_portrait_finish',{p_user:id,p_success:success});}
+  }
   if(body.operation==='status')return json({guest_turns_remaining:remaining,guest_models:GUEST_MODELS});
   const uuid=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
   if(body.operation==='redeem_tester'){

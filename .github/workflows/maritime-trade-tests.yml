@@ -16,6 +16,7 @@ jobs:
       - run: node --check maritime-data.js
       - run: node --check maritime-system.js
       - run: node --check maritime-ui.js
+      - run: node --check diplomatic-conferences.js
       - run: node --check economy-map.js
       - run: node tests/scenario-startup.test.mjs
       - run: node tests/maritime-trade.test.mjs

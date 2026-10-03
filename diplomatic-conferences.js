@@ -45,17 +45,19 @@ async function conferenceGrant(id){
  try{
   const raw=await askGemini('CONFERENCE_CABINET_V1\nТы представляешь '+id+' ('+countries[id].ruler+'). Игрок предоставил тебе слово на дипломатической конференции. Отвечай только за свою страну, 80–140 слов живой дипломатической речи, с конкретными интересами, условиями и возражениями. Не говори за остальных. Не заключай договор от имени всех участников. Не меняй отношения за тон автоматически: выбери осмысленное политическое действие. Договор требует существующего предложения и отдельного согласия адресата. Если предлагаешь договор, используй pursue/task.kind:diplomacy с action:offer. accept/reject только существующий offer_id. Речь без decision допустима. Если действие не исполнено, оно не становится фактом.\n'+
    'Верни JSON {speech:"выступление",decision:null либо {goal,action:"wait|pursue|negotiate|warn|condemn|offer_alliance|offer_nonaggression|offer_peace|accept|reject_offer",target:"ID участника",motive,headline,body,task:{goal,executor,days:0,cost:0,result,headline,body,kind:"diplomacy",effects:{diplomatic_action:{action:"offer|accept|reject",target,offer_id,type:"alliance|nonaggression|peace|dependency",terms:{days,militaryAid,offensive,access,tribute,autonomy,payment,payer,subject,provinces}}}}}}. Не включай необязательные поля.\n'+
+   (typeof maritimeState==='function'?'Для торгового договора или таможенного союза допустим pursue/task.kind:trade с effects:{trade_policy:{action:"offer|accept|reject",target:"ID участника",type:"trade|customs_union",rate:0..100,external_rate:0..100 для союза,days:срок,offer_id:"при ответе"}}. Это только предложение или ответ по существующему предложению, не навязанное чужое согласие.\n':'')+
    'Состояние твоего кабинета: '+JSON.stringify({interests:policyInterest(id),goals:policyCabinet(id).goals,memory:policyCabinet(id).memory.slice(-5),offers:strategyState().offers.filter(o=>o.status==='open'&&r.participants.includes(o.a)&&r.participants.includes(o.b)),participants:r.participants.map(policyPublicFacts),history:r.messages.slice(-14).map(m=>({speaker:m.speaker,text:m.text}))}),1600,0,{response_format:{type:'json_object'},reasoning_effort:'low'});
   const reply=parseOrderReply(raw);politicalKeys(reply,['speech','decision']);politicalText(reply.speech,2600);
   if(!conferenceStore().rooms.includes(r)||r.id!==roomId||r.round!==round)throw Error('Конференция изменилась во время ответа');
   if(reply.decision){
    const d=reply.decision;d.actor_id=id+'::government';if(d.task&&!Object.keys(d.task).length)delete d.task;
-   const target=d.target||d.task?.target||d.task?.effects?.diplomatic_action?.target;
-   const da=d.task?.effects?.diplomatic_action;
-   const affected=[d.target,d.task?.target,da?.target,da?.terms?.payer,da?.terms?.subject].filter(Boolean);
+   const target=d.target||d.task?.target||d.task?.effects?.diplomatic_action?.target||d.task?.effects?.trade_policy?.target;
+   const da=d.task?.effects?.diplomatic_action,tp=d.task?.effects?.trade_policy;
+   const offerParties=da?.offer_id?strategyState().offers.find(o=>o.id===da.offer_id):tp?.offer_id&&typeof maritimeState==='function'?maritimeState().tradeOffers?.find(o=>o.id===tp.offer_id):null;
+   const affected=[d.target,d.task?.target,da?.target,da?.terms?.payer,da?.terms?.subject,tp?.target,offerParties?.a,offerParties?.b].filter(Boolean);
    strategyAssert(affected.every(n=>r.participants.includes(n)),'Действие касается страны вне конференции');
    strategyAssert(['wait','pursue','negotiate','warn','condemn','offer_alliance','offer_nonaggression','offer_peace','accept','reject_offer'].includes(d.action),'Неподходящее действие на конференции');
-   if(d.action==='pursue'){strategyAssert(d.task?.kind==='diplomacy'&&d.task.effects?.diplomatic_action,'В конференции исполняются дипломатические действия');strategyAssert(['offer','accept','reject'].includes(d.task.effects.diplomatic_action.action),'Неподходящий дипломатический шаг');}
+   if(d.action==='pursue'){const operation=d.task?.kind==='diplomacy'?d.task.effects?.diplomatic_action:d.task?.kind==='trade'&&typeof maritimeState==='function'?d.task.effects?.trade_policy:null;strategyAssert(operation,'В конференции исполняются дипломатические и торговые предложения');strategyAssert(['offer','accept','reject'].includes(operation.action),'Неподходящий дипломатический шаг');}
    validatePoliticalDecision(d);
    const actor=ensureWorldActors()[id+'::government'],previous=actor.lastPoliticalTurn;actor.lastPoliticalTurn=null;
    const snapshot=JSON.parse(JSON.stringify({countries,worldState}));
@@ -78,6 +80,14 @@ function conferenceAccept(offerId){
  if(!o)return;
  try{const result=executeDiplomaticAction(playerCountry,{action:'accept',target:o.a,offer_id:o.id});const r=conferenceRoom();r.messages.push({speaker:playerCountry,text:'Принято предложение страны '+o.a+': '+strategyTermsText(o.terms)+'. '+result,day:gameDayNumber(),notice:true});policyNotice(playerCountry,o.a,'Предложение принято: '+strategyTermsText(o.terms),'agreement');saveGame();renderDiplomacyMessages();renderPlayerStats();}
  catch(error){showNotif(error.message);}
+}
+function conferenceAcceptTrade(offerId){
+ if(turnRunning||diplomacyPending.size||typeof maritimeState!=='function')return;
+ const r=conferenceRoom(),o=maritimeState().tradeOffers?.find(o=>o.id===offerId&&o.b===playerCountry&&o.status==='open');
+ if(!r||!o||!r.participants.includes(o.a))return;
+ try{const result=applyCountryPoliticalEffects(playerCountry,'trade',{trade_policy:{action:'accept',offer_id:o.id}});if(result.status!=='executed')throw Error(result.reason);
+  r.messages.push({speaker:playerCountry,text:'Принято торговое предложение '+o.a+': взаимная ставка '+o.rate+'%'+(o.type==='customs_union'?', внешняя ставка '+o.externalRate+'%':'')+'.',day:gameDayNumber(),notice:true});saveGame();renderDiplomacyMessages();renderPlayerStats();
+ }catch(error){showNotif(error.message);}
 }
 const conferenceOldSelect=selectCountry;
 selectCountry=function(name){conferenceOpen(name);const result=conferenceOldSelect(name);renderDiplomacyMessages();return result;};
@@ -102,6 +112,7 @@ renderDiplomacyMessages=function(){
  for(const q of r.requests){const row=document.createElement('div');row.className='conference-request';const label=document.createElement('span');label.textContent=q.country+' просит слово · '+q.reason;
  const grant=document.createElement('button');grant.textContent='Дать слово';grant.disabled=turnRunning||diplomacyPending.size>0;grant.onclick=()=>conferenceGrant(q.country).catch(e=>showNotif(e.message));row.append(label,grant);controls.append(row);}
  for(const o of strategyState().offers.filter(o=>o.b===playerCountry&&o.status==='open'&&r.participants.includes(o.a))){const row=document.createElement('div');row.className='conference-request';const label=document.createElement('span');label.textContent=o.a+': '+o.type+' · '+strategyTermsText(o.terms);const accept=document.createElement('button');accept.textContent='Принять договор';accept.disabled=turnRunning||diplomacyPending.size>0;accept.onclick=()=>conferenceAccept(o.id);row.append(label,accept);controls.append(row);}
+ if(typeof maritimeState==='function')for(const o of (maritimeState().tradeOffers||[]).filter(o=>o.b===playerCountry&&o.status==='open'&&r.participants.includes(o.a))){const row=document.createElement('div');row.className='conference-request';const label=document.createElement('span');label.textContent=o.a+': '+(o.type==='customs_union'?'Таможенный союз':'Торговый договор')+' · '+o.rate+'%';const accept=document.createElement('button');accept.textContent='Принять торговые условия';accept.disabled=turnRunning||diplomacyPending.size>0;accept.onclick=()=>conferenceAcceptTrade(o.id);row.append(label,accept);controls.append(row);}
  const box=document.getElementById('diplo-messages');box.replaceChildren();
  r.messages.forEach(m=>{const div=document.createElement('div');div.className='diplo-msg '+(m.speaker===playerCountry?'france':'ai');if(r.participants.length>2){const name=document.createElement('strong');name.textContent=(countries[m.speaker]?.displayName||m.speaker)+' · ';div.append(name);}const text=document.createElement('span');text.textContent=m.text;div.append(text);box.append(div);});
  if(diplomacyPending.has('conference:'+r.id)){const line=document.createElement('p');line.textContent='Делегат готовит выступление…';box.append(line);}

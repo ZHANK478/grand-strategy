@@ -38,7 +38,7 @@ Relief is currently allocated to workers and peasants, contributes to their real
 The UI shows per-child and per-recipient amounts, including a warning about population approximation.
 
 ## Validation
-Existing 169 political and 79 economy checks, plus 41 news/continuity checks (31 cases, six assertions replaying a real two-turn Austrian session, four repair assertions replaying a malformed provider reply).
+Existing 169 political and 79 economy checks, plus 44 news/continuity checks (34 cases, six assertions replaying a real two-turn Austrian session, four repair assertions replaying a malformed provider reply).
 Four live text calls used for this fix, approximately $0.010756075. Total across the current economy allowance: six of twenty calls, $0.016225425. Failed and partial provider replies counted.
 Portrait-claim race, retry and completed-use rejection tested in a rolled-back database transaction; anon/authenticated cannot execute the claim RPC. No paid image test.
 

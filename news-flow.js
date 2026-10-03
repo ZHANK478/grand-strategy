@@ -88,13 +88,17 @@ executePoliticalDecision=function(d,results){
  if(d.condition_actor&&!worldState.currentNewsActors.includes(d.condition_actor))return false;
  if(d.responds_to&&!f.issues.some(i=>i.id===d.responds_to&&i.recipient===a.country&&i.status==='open'))return false;
  const repeatable=['warn','condemn','negotiate','support','oppose','petition'].includes(d.action),signal=d.action+'|'+(d.target||''),own=countries[a.country],state=repeatable?(a.kind==='government'?newsSignalState(a.country,d.target):JSON.stringify({government:own.government,laws:own.lawSlots,taxes:Object.values(own.economy.classes).map(g=>g.tax),spending:own.society?.spending,health:own.court?.health,army:Math.floor(own.army/5000)})):null;
- if(repeatable&&a.lastNewsSignals?.[signal]===state){
+ const pursuitState=d.action==='pursue'?newsSignalState(a.country,d.task?.target||d.target):null;
+ const pursuitWords=d.action==='pursue'?newsWords((d.task?.goal||'')+' '+(d.task?.target||d.target||'')):null;
+ const duplicatePursuit=d.action==='pursue'&&!d.responds_to&&(a.newsPursuits||[]).some(p=>{const common=p.words.filter(w=>pursuitWords.has(w)).length;return p.state===pursuitState&&p.effects===JSON.stringify(d.task?.effects||{})&&common/Math.max(1,Math.max(p.words.length,pursuitWords.size))>=.65;});
+ if((repeatable&&a.lastNewsSignals?.[signal]===state)||duplicatePursuit){
   a.goal=d.goal;a.lastPoliticalTurn=turn;actorRemember(a,'Прежняя позиция сохраняется. Повтор заявления без новых обстоятельств не является новым событием.');
   return false;
  }
  const start=(worldState.periodEvents||[]).length,previousAction=worldState.currentNewsAction;worldState.currentNewsAction=d.action;let ok;try{ok=newsOldDecision(d,results);}finally{worldState.currentNewsAction=previousAction;}if(!ok)return ok;
  worldState.currentNewsActors.push(d.actor_id);
  if(repeatable){a.lastNewsSignals||={};a.lastNewsSignals[signal]=state;}
+ if(d.action==='pursue'){a.newsPursuits=[...(a.newsPursuits||[]),{state:pursuitState,words:[...pursuitWords],effects:JSON.stringify(d.task?.effects||{})}].slice(-8);}
  if(d.responds_to&&d.action!=='wait'){const issue=f.issues.find(i=>i.id===d.responds_to&&i.recipient===a.country);if(issue){issue.status='answered';issue.answer={actor:d.actor_id,action:d.action,text:d.body,day:gameDayNumber()};}}
  const events=(worldState.periodEvents||[]).slice(start);events.forEach(e=>{e.decisionActor=d.actor_id;e.newsKey=d.actor_id+'|'+d.action+'|'+(d.target||'')+'|'+(d.responds_to||'')+'|'+state;e.respondsTo=d.responds_to||null;});
  if(d.action!=='wait'&&d.target)queueNewsIssue(a.country,d.target,d.actor_id+':'+turn+':'+d.action,d.goal+'. '+d.motive,d.action);
@@ -200,10 +204,11 @@ const newsOldBuild=buildNewspaper;
 buildNewspaper=function(before,results,events,start){
  const edition=newsOldBuild(before,results,events,start);
  edition.receipts=results.map(o=>({id:o.id,text:o.text,status:o.status,reason:o.reason}));
+ edition.orderCoverage=results.map(o=>{const a=o.newsHeadline?{headline:o.newsHeadline,body:o.newsBody}:newsFallbackArticle(o);return {...a,sourceOrder:o.id,phase:'decision',coverage:true,actors:[playerCountry],details:newsOrderDetails(o),priority:10};});
  return edition;
 };
 writeNewspaper=async function(edition){
- const flow=ensureNewsFlow(),all=worldState.periodEvents||[],own=all.filter(e=>e.section==='domestic'),abroad=all.filter(e=>e.section==='foreign');
+ const flow=ensureNewsFlow(),all=worldState.periodEvents||[],own=[...all.filter(e=>e.section==='domestic'),...(edition.orderCoverage||[]).filter(e=>!all.some(a=>a.sourceOrder===e.sourceOrder&&a.phase==='decision'))],abroad=all.filter(e=>e.section==='foreign');
  let cover=[...new Map(own.filter(e=>e.coverage).map(e=>[newsKey(e),e])).values()];
  cover=cover.filter(e=>!e.phase?.startsWith('progress-')||(!cover.some(x=>x.sourceOrder===e.sourceOrder&&x.phase==='completion')&&!cover.some(x=>x.sourceOrder===e.sourceOrder&&x.phase?.startsWith('progress-')&&x.phase>e.phase)));
  const reaction=own.filter(e=>!e.coverage&&e.decisionActor),other=own.filter(e=>!e.coverage&&!e.decisionActor);

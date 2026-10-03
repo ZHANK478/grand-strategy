@@ -227,3 +227,14 @@ tickExecutiveProcesses=function(){
  }
  return economyOldTickProcesses();
 };
+
+const economyOldRecompute=econRecompute;
+econRecompute=function(){
+ economyOldRecompute();
+ ALL_COUNTRIES.forEach(id=>{const c=countries[id];if(!c||c.annexed)return;const owned=scenarioProvinces.filter(p=>(provinceOwners[p.id]||p.owner)===id);
+ if(owned.length){c.gdp=owned.reduce((s,p)=>s+(provinceEcon[p.id]?.gdp||0),0);c.population=owned.reduce((s,p)=>s+(provinceEcon[p.id]?.pop||0),0);}
+ if(c.econV3){const total=Object.values(c.econV3.sectors).reduce((s,x)=>s+x.output,0);if(total>0)Object.values(c.econV3.sectors).forEach(s=>s.output*=c.gdp/total);}
+ c.income=econMonthlyRevenue(c).gross;
+ });
+};
+if(typeof LAW_OPTIONS!=='undefined'){const o=LAW_OPTIONS.property.find(x=>x.id==='state');if(o)o.label='Государственная собственность';}

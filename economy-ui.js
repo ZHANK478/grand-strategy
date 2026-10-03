@@ -43,7 +43,7 @@ renderEconomyPanel=function(){
 };
 const economyOldStats=renderPlayerStats;
 renderPlayerStats=function(...args){const c=countries[playerCountry];if(c){econV3(c);c.income=econMonthlyRevenue(c).gross;}const result=economyOldStats(...args);
- if(c){let el=document.getElementById('economy-hud-extra');if(!el){el=document.createElement('button');el.id='economy-hud-extra';el.type='button';el.onclick=()=>openEconomyPanel();document.getElementById('mobile-economy-strip')?.appendChild(el);}
+ if(c){const b=econBudget(c);const inc=document.getElementById('income'),cash=document.getElementById('treasury');if(inc)inc.title='Поступления '+economyFmt(b.gross)+' млн р.е./мес. Баланс '+economyFmt(b.net)+' млн р.е./мес.';if(cash)cash.title=economyFmt(c.treasury)+' млн р.е.';let el=document.getElementById('economy-hud-extra');if(!el){el=document.createElement('button');el.id='economy-hud-extra';el.type='button';el.onclick=()=>openEconomyPanel();document.getElementById('mobile-economy-strip')?.appendChild(el);}
  el.textContent=(c.population/1000).toFixed(1)+' млн · '+Math.round(c.gdp*1000/c.population).toLocaleString('ru')+' р.е./чел';
  el.title='Население и годовой ВВП на человека. Открыть экономику';}
  return result;

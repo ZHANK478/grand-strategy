@@ -29,7 +29,7 @@ The political planner receives compact economic facts and these typed instructio
 Overview, Budget, Population, Production. First-turn budget forecast exists before advancing time. The budget separates projected monthly figures and calendar-to-date accounting. A pointer-equipped laptop has a wider economy pane; mobile retains the existing compact side panel. HUD adds population and GDP/person.
 
 ## Validation
-33 accounting/schema/UI checks; 36 checks across 15 simulated turns for France, Prussia, Britain; 9 checks replaying the real Luna response plus progressive recruitment. The existing 169 political checks run unchanged in CI.
+34 accounting/schema/UI checks; 36 checks across 15 simulated turns for France, Prussia, Britain; 9 checks replaying the real Luna response plus progressive recruitment. The existing 169 political checks run unchanged in CI.
 Live allowance: 2 of 20 calls used, total $0.00546935. One retry was required by a test harness callback mistake; both calls counted. No paid calls in CI.
 
 ## Limits and next balancing work

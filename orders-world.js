@@ -77,12 +77,14 @@ function runWorldAutonomy(){
  });
 }
 function buildNewspaper(before,results,engineEvents,startDate){
+ const coverage=politicalRanking();
  const domestic=[],foreign=[],add=(section,headline,body,details='',priority=0,actors=[])=>{const list=section==='domestic'?domestic:foreign;
  const item={headline:newspaperText(headline),body:newspaperText(body),details:newspaperText(details),priority,actors};
  const grouped=priority>0?list.find(x=>x.priority>0&&x.headline===item.headline):null;
- if(grouped){if(!grouped.body.includes(item.body))grouped.body+='\n'+item.body;grouped.details+='\n'+item.details;grouped.actors=[...new Set([...grouped.actors,...item.actors])];return;}
+ if(grouped){if(section==='foreign'){grouped.parts=grouped.parts||[{body:grouped.body,details:grouped.details,actors:grouped.actors}];grouped.parts.push({body:item.body,details:item.details,actors:item.actors});}
+ if(!grouped.body.includes(item.body))grouped.body+='\n'+item.body;grouped.details+='\n'+item.details;grouped.actors=[...new Set([...grouped.actors,...item.actors])];return;}
  if(!list.some(x=>x.headline===item.headline&&x.body===item.body))list.push(item);};
- (worldState.periodEvents||[]).forEach(e=>add(e.section,e.headline,e.body,e.details,e.priority||0,e.actors||[]));
+ (worldState.periodEvents||[]).filter(e=>!(e.initiative_id&&e.initiative_phase==='active'&&ensureInitiatives().some(i=>i.id===e.initiative_id&&i.status==='reported'))).slice().sort((a,b)=>foreignNewsWeight(b,coverage)-foreignNewsWeight(a,coverage)).forEach(e=>add(e.section,e.headline,e.body,e.details,e.priority||0,e.actors||[]));
  results.forEach(o=>{
   if(o.status==='executed'){
    const a=JSON.parse(o.before.spending||'{}'),b=JSON.parse(o.after.spending||'{}');
@@ -126,11 +128,21 @@ function buildNewspaper(before,results,engineEvents,startDate){
  // Existing engine notices (wars, treaties, battles, institutions) remain authoritative.
  engineEvents.filter(t=>!(worldState.periodEvents||[]).some(e=>t===e.date+': '+e.headline+'. '+e.body)).slice(-12).forEach(t=>{
   const text=newspaperText(t),own=text.includes(playerCountry)||text.includes(playerCountryDisplayName);
-  add(own?'domestic':'foreign',/войн|ВОЙН|сражен|Битв/i.test(text)?'Военные известия':/союз|договор|пакт/i.test(text)?'Дипломатические известия':'Политические известия',text);
+  const military=/войн|ВОЙН|сражен|Битв/i.test(text),diplomatic=/союз|договор|пакт/i.test(text);
+  const actors=ALL_COUNTRIES.filter(n=>text.includes(n)||(countries[n]?.displayName?.length>=4&&text.includes(countries[n].displayName)));
+  add(own?'domestic':'foreign',military?'Военные известия':diplomatic?'Дипломатические известия':'Политические известия',text,'',military?5:diplomatic?3:1,actors);
  });
  if(!domestic.length)add('domestic','Период без крупных потрясений','Правительство продолжает текущий курс. За период не подтверждено значительных внутренних событий.');
  if(!foreign.length)add('foreign','За рубежом без крупных перемен','Новых подтверждённых международных событий за период нет.');
- domestic.sort((a,b)=>b.priority-a.priority);foreign.sort((a,b)=>b.priority-a.priority);
+ foreign.forEach(article=>{
+  if(!article.parts||article.parts.length<=3)return;
+  const parts=article.parts,major=parts.slice().sort((a,b)=>Math.max(0,...b.actors.map(n=>countries[n]?.gdp||0))-Math.max(0,...a.actors.map(n=>countries[n]?.gdp||0)))[0];
+  const chosen=[...new Set([...parts.slice(0,2),major])];
+  article.body=chosen.map(p=>p.body).join('\n');article.actors=[...new Set(chosen.flatMap(p=>p.actors))];
+  article.details+='\nПрочие участники события:\n'+parts.filter(p=>!chosen.includes(p)).map(p=>p.body+' '+p.details).join('\n');
+  delete article.parts;
+ });
+ domestic.sort((a,b)=>b.priority-a.priority);foreign.sort((a,b)=>foreignNewsWeight(b,coverage)-foreignNewsWeight(a,coverage));
  if(results.length){
   const audit=results.map(o=>ORDER_STATUS[o.status]+': '+o.text+'\n'+o.reason+'\nИзменения: '+JSON.stringify(o.effects||{})+(o.processId?'\nПроцесс: '+o.processId:'')).join('\n\n');
   if(domestic[0])domestic[0].details+=(domestic[0].details?'\n\n':'')+'Журнал решений за период:\n'+audit;
@@ -157,7 +169,7 @@ async function writeNewspaper(edition){
  const sources=[];
  ['domestic','foreign'].forEach(section=>edition[section].forEach((article,index)=>{
   article.factId=section+'-'+index;
-  sources.push({id:article.factId,section,headline:article.headline,facts:article.body.slice(0,1400),execution:(article.details||'').slice(0,1200),actors:(article.actors||[]).map(id=>({country:countries[id]?.displayName||id,ruler:countries[id]?.ruler,government:countries[id]?.government}))});
+  sources.push({id:article.factId,section,headline:article.headline,facts:article.body.slice(0,1400),execution:(article.details||'').slice(0,1200),politicalImportance:section==='foreign'?foreignNewsWeight(article):undefined,actors:(article.actors||[]).map(id=>({country:countries[id]?.displayName||id,ruler:countries[id]?.ruler,government:countries[id]?.government}))});
  }));
  // Bounded context: one small newsroom call, no entire world or conversation history.
  const selected=sources.filter(s=>s.section==='domestic').slice(0,3).concat(sources.filter(s=>s.section==='foreign').slice(0,3));

@@ -1340,6 +1340,7 @@ async function nextTurn(kind) {
       if(r.months){netSum+=countries[playerCountry].lastBudget?.net||0;borrowedSum+=countries[playerCountry].lastBudget?.borrowed||0;}
       resolvePendingSuccessions();
     }
+    await completeInitiativeDocuments();
     announceDeaths(deaths);
     if(opt.months>1){changes=[{label:'Бюджет за '+opt.months+' месяцев',value:(netSum>=0?'+':'')+netSum.toLocaleString('ru')+' расчётных единиц',sign:netSum}];
       if(borrowedSum)changes.push({label:'Займы за период',value:'+'+borrowedSum.toLocaleString('ru'),sign:-1});}

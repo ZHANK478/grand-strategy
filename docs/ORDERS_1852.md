@@ -1,3 +1,50 @@
+## Open administrative work and political attention — 3 October 2026
+
+This update uses the same rules for all player countries and custom scenarios. No country, commission name, historical minister or mission destination is hardcoded.
+
+### Generic executive work
+Validated administration effects create/update/close saved initiatives:
+- organization: commission or administrative body;
+- assignment: report, investigation or ministerial plan;
+- mission: an assignment with a real foreign-country destination;
+- programme: preparation of an executive programme.
+
+Each initiative stores mandate, executor, deadline, own country, optional destination, setup cost, monthly funding, spent funds, phase and documents. It is a persistent world object, not a map decoration or a public statement. Missions are remembered by the receiving government's actor without inventing consent.
+
+Work reaches awaiting_report on its calendar deadline. A bounded additional AI call batches up to three due documents, using actual economic snapshots and relevant foreign-country data. Documents contain analysis and up to three proposed orders; they never apply policy. The UI in Orders → Дела и документы displays full saved documents and buttons that queue ordinary orders. A fourth due document waits for the next turn. Failed report generation keeps the initiative pending and does not undo simulation or trigger an automatic retry in the same turn.
+
+Monthly funding is debited from the initiative's own treasury. Work pauses and deadlines move when funding is absent. Completed assignments/missions stop recurring charges; organizations/programmes remain established until closed. Updating a mandate restarts work with a seven-day default if no new deadline is supplied.
+
+The planner now receives explicit tax rates, treasury, debt, spending and a monthly forecast even before the first budget settlement. Relative instructions such as halving the bourgeois tax are computed from those facts, not rejected for lacking an explicit number. A harmless sole administration:{initiatives:...} response wrapper is canonicalized; extra nested effects remain invalid.
+
+Limits: administrative work supports analysis, institutions, missions and recommendations, not automatic land confiscation, foreign consent or arbitrary unmodelled economic effects. New organizations are not yet individual staff simulations. Minister chat remains advisory; the new queue and document approval live in the orders panel.
+
+### Political relevance
+Current GDP determines economic weight and a dynamically recomputed GDP rank. Tiers use ratios to scenario maximum GDP: great >=25%, regional >=6%, otherwise small. These describe the game's current data, not a newly calibrated historical GDP series.
+
+Attention score:
+- economic weight: 45 × sqrt(GDP / scenario maximum);
+- shared border: +45, identified from shared province vertices;
+- other geographic proximity: up to +25 from representative boundary-point distance;
+- existing war: +80;
+- treaty: +25;
+- own active mission to the country: +35;
+- recent direct diplomacy: +20;
+- current foreign-government issue: +15.
+
+Relevant-country selection reserves nearby/involved states and major economies within a bounded context. The actor planner and autonomous foreign selection use this policy, not income-only ranking or a fixed list of powers. Geographic sampling and shared-vertex detection are approximations; ownership changes invalidate geographic data.
+
+Foreign paper stories use political weight plus event importance. Similar reactions are grouped; long lists retain up to three prominent entries, including the economically strongest participant, while lesser entries remain in collapsed details. Engine war/treaty notices retain actor identities and editorial importance. Completed reports outrank obsolete “work just started” notices.
+
+### Validation / budget / rollback
+180 assertions executed against actual production JS in an isolated V8 DOM/storage harness, including saved initiatives, funding, role/resource validation, duplicate IDs, full document display, approval queue, relative-tax calculations, generic Prussian/French live replies, synthetic GDP/geography/ownership/ranking fixtures, and old regressions. Actual browser/device layout was not inspected.
+
+This task received its own 20-request test allowance. Used 10 successful paid requests, total $0.011751; 10 remaining for this task. Tests covered plan interpretation, first-turn missing economic context, ministerial reports, France/Prussia, and ranked newspaper rendering. No server secret was retrieved or published. No extra autonomous per-country AI requests were introduced; due-document batches are additional to the usual plan and newspaper requests.
+
+Rollback point: experiment commit c52e939d348620792900518fec0d6a03ba3b6e3d; main commit 020b16f28241af5fa77cd8cb975574d0c62c2c98. Stable core-loop page unchanged.
+
+---
+
 ## Active participants and expressive newspaper — 3 October 2026
 
 Every country receives persistent actor records from its actual institutions/classes, not a list of named historical exceptions. Cabinet, military, parliament (where present), clergy and classes have interests, influence, grievance, recent memory, demands and action dates. Foreign governments use their scenario agenda.

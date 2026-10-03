@@ -13,16 +13,19 @@ function ensureOrders(){
 }
 function orderCountry(name){return normalizeCountryName(name);}
 function orderContext(){
- return {player:playerCountry,countries,actors:ensureWorldActors(),objects:JSON.parse(JSON.stringify(worldState.mapObjects||[])),
+ return {player:playerCountry,countries,actors:ensureWorldActors(),initiatives:JSON.parse(JSON.stringify(ensureInitiatives())),objects:JSON.parse(JSON.stringify(worldState.mapObjects||[])),
   lawSlots:LAW_SLOTS,lawOption,governments:activeScenario.rules?.governments||null,relation:getRelation,atWar:isAtWar,location:resolveLocationLonLat,
   provinceOwner:key=>{const p=scenarioProvinces.find(p=>p.id===key||p.name===key);return p?(provinceOwners[p.id]||p.owner):null;}};
 }
 function canonicalEffects(e){
  const copy=JSON.parse(JSON.stringify(e));
+ // Accept the harmless category wrapper only when it contains exactly the declared initiative field.
+ if(copy&&Object.keys(copy).length===1&&copy.administration&&Object.keys(copy.administration).length===1&&Array.isArray(copy.administration.initiatives)){copy.initiatives=copy.administration.initiatives;delete copy.administration;}
  ['relations','other_countries'].forEach(k=>{if(copy[k]&&typeof copy[k]==='object'&&!Array.isArray(copy[k]))copy[k]=Object.fromEntries(Object.entries(copy[k]).map(([n,v])=>[orderCountry(n),v]));});
  ['war_declared','peace_made'].forEach(k=>{if(Array.isArray(copy[k]))copy[k]=copy[k].map(orderCountry);});
  ['relations_between','wars_between','battles','treaties'].forEach(k=>{if(Array.isArray(copy[k]))copy[k].forEach(o=>{if(o&&typeof o==='object'){if(o.a)o.a=orderCountry(o.a);if(o.b)o.b=orderCountry(o.b);}});});
  ['foreign_leader_change','province_transfer','map_objects'].forEach(k=>{if(Array.isArray(copy[k]))copy[k].forEach(o=>{if(o&&typeof o==='object'){['country','new_owner','owner'].forEach(f=>{if(o[f])o[f]=orderCountry(o[f]);});}});});
+ if(copy.initiatives)copy.initiatives.forEach(i=>{if(i.target_country)i.target_country=orderCountry(i.target_country);});
  if(copy.country_color?.country)copy.country_color.country=orderCountry(copy.country_color.country);
  return copy;
 }
@@ -73,6 +76,7 @@ renderActionsList=function(){
  });
  const running=ensureExecutiveProcesses().filter(p=>p.status==='active');
  running.forEach(p=>{const row=document.createElement('div');row.className='order-result';row.textContent='В работе: '+p.summary+' · до '+processDate(p.due);box.appendChild(row);});
+ renderInitiatives(box);
  const recent=worldState.orders.filter(o=>!['prepared','deferred'].includes(o.status)).slice(-5).reverse();
  if(recent.length){
   const log=document.createElement('details');log.className='order-technical-log';const title=document.createElement('summary');title.textContent='Журнал приказов';log.appendChild(title);box.appendChild(log);
@@ -87,7 +91,7 @@ function parseOrderReply(raw){
 }
 async function generateOrderPlan(){
  const pending=ensureOrders(),free=pending.filter(o=>!o.fixedEffects);
- const relevant=ALL_COUNTRIES.filter(n=>countries[n]&&!countries[n].annexed).sort((a,b)=>countries[b].income-countries[a].income).slice(0,12);
+ const relevant=selectPoliticalCountries(playerCountry,12);
  if(!relevant.includes(playerCountry))relevant.unshift(playerCountry);
  const context=relevant.map(id=>{const c=countries[id];return {id,name:c.displayName,ruler:c.ruler,government:c.government,army:c.army,stability:c.stability,agenda:c.agenda,pendingSuccession:c.pendingSuccession,pendingCoup:c.pendingCoup};});
  const prompt=`Ты переводишь приказы главы государства в проверяемый план исторической стратегии. Сейчас ${dateLabel()}.
@@ -97,6 +101,7 @@ ${getRealismRules()}
 Допустимые формы правления: ${JSON.stringify(activeScenario.rules?.governments||[])}.
 Регулярные выборы: electionPending=${!!countries[playerCountry].electionPending}.
 Полномочия: парламент ${JSON.stringify(countries[playerCountry].parliament)}.
+Численные исходные данные (сословия noble=землевладельцы/знать, burgher=буржуазия, commons=простое население; rate — ставка в процентах): ${JSON.stringify(executiveFacts())}.
 Экономика: ${describePlayerEconomy()}
 ${describePlayerSociety()}
 Все действующие страны сценария (ID используй ТОЧНО): ${JSON.stringify(ALL_COUNTRIES.filter(n=>countries[n]&&!countries[n].annexed))}.
@@ -106,6 +111,8 @@ ${describePlayerSociety()}
 Договоры: ${JSON.stringify(worldState.treaties||[])}.
 Переговоры этого хода: ${JSON.stringify(worldState.diploLog||[])}.
 Известные события: ${JSON.stringify(worldState.pastEvents.slice(-8))}.
+Политическое внимание (ВВП, соседство, войны и текущие дела): ${JSON.stringify(politicalRanking().slice(0,12))}.
+Действующие поручения и органы: ${JSON.stringify(initiativeContext())}.
 Участники с интересами и памятью: ${JSON.stringify(actorContext())}.
 Можешь предложить до 6 actor_intents:[{actor_id:точный ID участника,action:'support|petition|obstruct|protest|recruit|social_spending|offer_talks|denounce',motive:'краткий мотив из интересов и обстановки'}]. Это предложения, не факты: код проверит основания после исполнения приказов. Общественные группы и органы власти могут support/petition/obstruct/protest; только чужие правительства — recruit/social_spending/offer_talks/denounce. Не заставляй всех реагировать одинаково; учитывай память, полномочия и ресурсы. Нет оснований — не включай участника. Новости потом получат только действительно совершённые действия.
 Задания движка: ${JSON.stringify(pendingDirectives||[])}.
@@ -116,7 +123,7 @@ ${describePlayerSociety()}
 Готовые карточки уже заданы кодом, НЕ включай их в orders: ${JSON.stringify(pending.filter(o=>o.fixedEffects).map(o=>({text:o.text,kind:o.kind,effects:o.fixedEffects})))}.
 
 Верни ТОЛЬКО JSON без Markdown:
-{"news":[],"domestic":[],"orders":[{"id":"точный ID свободного приказа","kind":"tax|spending|law|power|army|map|finance|diplomacy|identity|statement|unsupported","status":"execute|reject|defer","reason":"краткая причина","effects":{}}],"world_effects":{}}
+{"news":[],"domestic":[],"orders":[{"id":"точный ID свободного приказа","kind":"tax|spending|law|power|army|map|finance|diplomacy|identity|statement|administration|unsupported","status":"execute|reject|defer","reason":"краткая причина","effects":{}}],"world_effects":{}}
 На КАЖДЫЙ свободный приказ нужен ровно один результат. reject/defer имеют effects:{}.
 История задаёт начальные условия, а не запреты. Любое физически возможное распоряжение собственной исполнительной власти интерпретируй как попытку. Не требуй исторической должности кандидата, отдельной кнопки или предварительного ручного указа на каждую процедуру. Пожелание не устанавливает результат. Если действие требует подготовки, используй process; не называй отсутствие кнопки причиной отказа.
 Публичное утверждение «я бог» может быть statement: мир услышит заявление, но сверхспособностей не возникнет. Реальную фантастическую трансформацию не исполняй.
@@ -124,11 +131,14 @@ process — необязательное поле приказа: {"mode":"imple
 Публичное провозглашение и фактическое установление нового режима различаются: для немедленного заявления используй statement, для установления режима — power с процессом implementation. Пока процесс идёт, старое устройство действует. Невыполнимые материальные действия — reject с конкретной физической причиной. Действия, для результата которых ещё нет безопасного представления в движке, — defer с честным ограничением прототипа, а не историческим запретом.
 Действующие процессы: ${JSON.stringify(ensureExecutiveProcesses().filter(p=>p.status==='active').map(p=>({summary:p.summary,due:processDate(p.due)})))}.
 execute — только предложение: код может заблокировать его или сорвать политическую попытку. НЕ описывай новые приказы как уже исполненные в news/domestic.
+Относительные распоряжения вычисляй по исходным данным: «налог вдвое меньше» = текущая ставка / 2, «на 5 процентных пунктов» = текущая ставка ±5. Не отклоняй из-за отсутствия явной цифры, если её можно вычислить.
+Обычные поручения, комиссии, посольства, доклады, исследования и программы НЕ отклоняй из-за отсутствия специальной кнопки. Представляй их через administration. Исполнитель должен реально подготовить документ по сроку; документ не применяет собственные предложения.
 Типы и единственные разрешённые эффекты:
 tax: economy:{tax_noble:N,tax_burgher:N,tax_commons:N}, ставки 0..100. Высокая ставка разрешена; недовольство и экономические последствия рассчитываются кодом.
 spending: society:{education_spending:N,welfare_spending:N,infrastructure_spending:N}, каждый 0..${Math.round(countries[playerCountry].income*.25)}.
 law: law_slots:{слот:id}; laws допустим только вместе с поддерживаемой системной реформой, иначе defer. laws:[{action:"enact|repeal",name:"...",description:"..."}], institutions:{church:"abolish|restore"}. Известные слоты: ${econLawSpecForPrompt()}.
 power: government/ruler_name/ruler_age/ruler_title/pm_name/pm_title; parliament:{dissolve:true|restore:true|ban_party:"имя"}. Роспуск/диктатура — политическая ПОПЫТКА, исход определит код. Для диктатуры с действующим парламентом укажи dissolve:true. Нельзя присвоить поддержку парламента.
+administration: effects должен иметь ТОЧНО вид {"initiatives":[...]}, без дополнительной обёртки administration. initiatives:[{action:"create",id:"уникальный ID",kind:"organization|mission|assignment|programme",name:"название",mandate:"конкретное задание",executor:"должность или имя исполнителя",duration_days:целое 1..3650,monthly_budget:сумма 0..25% дохода,setup_cost:сумма 0..месячного дохода,target_country:"ID адресата только для миссии"}]. organization — комиссия/орган; assignment — доклад, план, исследование; programme — подготовка программы; mission — посольство с адресатом и задачей. Для обычного доклада 7 дней, если игрок не указал иное. Досье и документ — реальные сохраняемые объекты; не подменяй их statement или map-маркером. Зафиксированное поручение не означает исполнение предлагаемых налогов, законов или чужое согласие. action:"update" с ID своего существующего дела и изменяемыми полями; action:"close" только с ID. Не добавляй process для administration: сроки уже считает дело. Физически возможная новая инициатива может быть представлена таким общим поручением без специальной мини-механики. Реальные войска, налоги и финансы всё равно используют свои проверяемые эффекты.
 statement: statement — текст публичного заявления, без сверхспособностей и без изменения правительства.
 army: army_delta — набор/демобилизация, стоимость посчитает код, либо map_objects.
 map: map_objects:[{action:"create",id:"unique_id",type:"army|hq|naval|diplomat|other",owner:"${playerCountry}",label:"...",troops:N,location:"..."}] или {action:"update",id:"...",troops:N}, {action:"move",id:"...",to:"..."}, {action:"remove",id:"..."}. Армия распределяется из наличных сил. Для временного объекта добавь expires_in_months: целое число 1..120; срок считает код по календарю, не по числу ходов. Например, поездка правителя на 4 месяца — other с его именем, location и expires_in_months:4; удаление отметки не означает смерть персонажа.
@@ -173,6 +183,7 @@ function reconcileOrderArmies(){
 }
 function executeOrderEffects(e){
  const copy=JSON.parse(JSON.stringify(e)),c=countries[playerCountry];
+ if(copy.initiatives){applyInitiatives(copy.initiatives);delete copy.initiatives;}
  if(copy.statement){
   worldState.publicStatements=[...(worldState.publicStatements||[]),{country:playerCountry,text:copy.statement,date:dateLabel(),turn}].slice(-60);
   recordWorldEvent('domestic','Заявление главы государства',c.ruler+' публично заявил: «'+copy.statement+'». Заявление само по себе не меняет государственное устройство или материальные возможности страны.',[playerCountry],'Публичное заявление зарегистрировано; материальные эффекты отсутствуют.');
@@ -200,6 +211,7 @@ function executeOrderEffects(e){
 }
 function executedOrderDescription(e){
  const c=countries[playerCountry],parts=[];
+ if(e.initiatives)parts.push('Поручения и организации зарегистрированы; документы и рекомендации готовятся по сроку');
  if(e.economy){const ids={tax_noble:'noble',tax_burgher:'burgher',tax_commons:'commons'};
   Object.keys(e.economy).forEach(k=>parts.push(c.economy.classes[ids[k]].label+': налог '+c.economy.classes[ids[k]].tax+'%'));}
  if(e.society){const labels={education_spending:['education','образование'],welfare_spending:['welfare','помощь населению'],infrastructure_spending:['infrastructure','инфраструктура']};
@@ -235,6 +247,7 @@ function applyOrderPlan(plan){
    // Known resource failures reject this order; malformed state still aborts the whole turn.
    const e=proposal.effects;
    let resourceError='';
+   if(e.initiatives&&e.initiatives.reduce((n,i)=>n+(i.setup_cost||0),0)>c.treasury)resourceError='Недостаточно казны для учреждения поручений.';
    if(e.parliament?.dissolve&&!c.parliament)resourceError='В стране уже нет парламента.';
    if(e.parliament?.restore&&c.parliament)resourceError='Парламент уже существует.';
    if(e.parliament?.ban_party&&!c.parliament?.factions?.some(f=>f.name===e.parliament.ban_party))resourceError='Указанная партия не найдена в парламенте.';
@@ -298,9 +311,9 @@ onTurnEnd=async function(){
 };
 // Preserve the country across every ruler's death, abdication, and regime change.
 const originalResetForOrders=resetGame;
-resetGame=function(...args){originalResetForOrders(...args);worldState.orders=[];renderActionsList();};
+resetGame=function(...args){politicalGeoCache=null;originalResetForOrders(...args);worldState.orders=[];renderActionsList();};
 const originalLoadForOrders=loadGameSlot;
-loadGameSlot=async function(...args){const result=await originalLoadForOrders(...args);ensureOrders();renderActionsList();renderNewspaper(worldState.newspaperHistory?.at(-1));return result;};
+loadGameSlot=async function(...args){politicalGeoCache=null;const result=await originalLoadForOrders(...args);ensureOrders();renderActionsList();renderNewspaper(worldState.newspaperHistory?.at(-1));return result;};
 window.addEventListener('gs:scenario-status',()=>{
  if(gameStarted)return;
  const picker=document.getElementById('mobile-country-picker');

@@ -32,8 +32,7 @@ function actorNotice(a,headline,body,details='',priority=3){
  actorRemember(a,headline+'. '+body);
 }
 function actorContext(){
- const registry=ensureWorldActors(),peers=ALL_COUNTRIES.filter(n=>n!==playerCountry&&countries[n]&&!countries[n].annexed&&isRelevantPair(n,playerCountry))
-  .sort((a,b)=>countryDistance(a,playerCountry)-countryDistance(b,playerCountry)).slice(0,4);
+ const registry=ensureWorldActors(),peers=selectPoliticalCountries(playerCountry,6);
  return Object.values(registry).filter(a=>actorAvailable(a)&&(a.country===playerCountry||peers.includes(a.country)&&a.kind==='government'))
   .map(a=>({id:a.id,country:a.country,role:a.label,goal:a.goal,influence:a.influence,grievance:a.grievance,memory:a.memory.slice(-2).map(m=>m.text),stability:countries[a.country].stability,army:countries[a.country].army,relation:a.country!==playerCountry?getRelation(a.country,playerCountry):null}));
 }
@@ -87,8 +86,8 @@ function recordActorReactions(results){
   }
   const threats=e.army_delta>Math.max(25000,c.army*.1)||e.war_declared?.length||e.government||e.parliament?.dissolve;
   if(threats&&activeScenario?.rules?.autonomousWorld!==false){
-   const peers=Object.values(registry).filter(a=>a.kind==='government'&&actorAvailable(a)&&a.country!==playerCountry&&isRelevantPair(a.country,playerCountry))
-    .sort((a,b)=>countryDistance(a.country,playerCountry)-countryDistance(b.country,playerCountry)).slice(0,3);
+   const peers=Object.values(registry).filter(a=>a.kind==='government'&&actorAvailable(a)&&a.country!==playerCountry&&politicalRanking().some(p=>p.id===a.country&&(p.neighbor||p.distance<15||p.gdpRank<=6||isAtWar(playerCountry,a.country))))
+    .sort((a,b)=>(politicalRanking().find(p=>p.id===b.country)?.score||0)-(politicalRanking().find(p=>p.id===a.country)?.score||0)).slice(0,3);
    peers.forEach(a=>{
     const relation=getRelation(a.country,playerCountry),aligned=/монарх|импер|королев|самодерж/i.test(countries[a.country].government)===/монарх|импер|королев|самодерж/i.test(c.government);
     const alarm=e.army_delta>0||e.war_declared?.length;
@@ -181,7 +180,8 @@ function tickWorldActors(){
  if(activeScenario?.rules?.autonomousWorld===false)return;
  const peers=Object.values(registry).filter(a=>a.kind==='government'&&actorAvailable(a));
  if(!peers.length)return;
- const nearby=peers.filter(a=>isRelevantPair(a.country,playerCountry)).sort((a,b)=>countryDistance(a.country,playerCountry)-countryDistance(b.country,playerCountry)).slice(0,3);
+ const chosen=selectPoliticalCountries(playerCountry,5);
+ const nearby=chosen.map(n=>peers.find(a=>a.country===n)).filter(Boolean).slice(0,5);
  const offset=((Math.floor(now/7)%peers.length)+peers.length)%peers.length;
  const selected=[...new Map([...nearby,peers[offset],peers[(offset+1)%peers.length]].map(a=>[a.id,a])).values()];
  selected.forEach(a=>{

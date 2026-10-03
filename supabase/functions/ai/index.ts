@@ -71,8 +71,10 @@ Deno.serve(async (req: Request) => {
         model: body.model,
         messages: body.messages,
         ...(body.max_tokens ? { max_tokens: body.max_tokens } : {}),
+        ...(kind==='text'&&body.response_format?.type==='json_object'?{response_format:{type:'json_object'}}:{}),
         ...(typeof body.temperature === 'number' ? { temperature: body.temperature } : {}),
         ...(body.modalities ? { modalities: body.modalities } : {}),
+        ...(kind==='text'&&body.reasoning_effort==='low'&&/^(openai\/gpt-6-|z-ai\/glm-5\.3$)/.test(body.model)?{reasoning:{effort:'low'}}:{}),
       }),
     });
     const orData = await orRes.json();

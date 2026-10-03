@@ -1,0 +1,130 @@
+{
+  "date": "2026-10-03",
+  "model": "openai/gpt-6-luna",
+  "requests": 20,
+  "costUSD": 0.053485875,
+  "inputTokens": 205139,
+  "outputTokens": 55690,
+  "usage": [
+    {
+      "label": "political-France-1",
+      "input": 6936,
+      "output": 4920,
+      "cost": 0.003326925
+    },
+    {
+      "label": "political-France-1-fixed",
+      "input": 7073,
+      "output": 4622,
+      "cost": 0.00319505
+    },
+    {
+      "label": "political-France-2",
+      "input": 12279,
+      "output": 3271,
+      "cost": 0.0031703
+    },
+    {
+      "label": "political-France-3",
+      "input": 11148,
+      "output": 3972,
+      "cost": 0.003379425
+    },
+    {
+      "label": "political-France-3-json",
+      "input": 11148,
+      "output": 2643,
+      "cost": 0.002714925
+    },
+    {
+      "label": "political-France-4",
+      "input": 11347,
+      "output": 3030,
+      "cost": 0.0029333
+    },
+    {
+      "label": "political-France-5",
+      "input": 11359,
+      "output": 3293,
+      "cost": 0.0030663
+    },
+    {
+      "label": "political-Prussia-1",
+      "input": 7291,
+      "output": 3293,
+      "cost": 0.0025578
+    },
+    {
+      "label": "political-Prussia-2",
+      "input": 9917,
+      "output": 2403,
+      "cost": 0.00244105
+    },
+    {
+      "label": "political-Prussia-3",
+      "input": 11511,
+      "output": 1952,
+      "cost": 0.0024148
+    },
+    {
+      "label": "political-Prussia-4",
+      "input": 11930,
+      "output": 1779,
+      "cost": 0.002380675
+    },
+    {
+      "label": "political-Prussia-5",
+      "input": 11488,
+      "output": 2685,
+      "cost": 0.002778425
+    },
+    {
+      "label": "political-Britain-1",
+      "input": 6992,
+      "output": 2362,
+      "cost": 0.002054925
+    },
+    {
+      "label": "political-Britain-2",
+      "input": 9815,
+      "output": 2857,
+      "cost": 0.0026553
+    },
+    {
+      "label": "political-Britain-3",
+      "input": 11277,
+      "output": 2468,
+      "cost": 0.00264355
+    },
+    {
+      "label": "political-Britain-4",
+      "input": 11273,
+      "output": 3053,
+      "cost": 0.00293555
+    },
+    {
+      "label": "political-Britain-4-fixed",
+      "input": 12405,
+      "output": 2027,
+      "cost": 0.00256405
+    },
+    {
+      "label": "political-Britain-5",
+      "input": 11392,
+      "output": 2124,
+      "cost": 0.002485925
+    },
+    {
+      "label": "political-Sardinia-general",
+      "input": 7894,
+      "output": 1484,
+      "cost": 0.001728675
+    },
+    {
+      "label": "political-Sardinia-follow-up",
+      "input": 10664,
+      "output": 1452,
+      "cost": 0.002058925
+    }
+  ]
+}

@@ -87,7 +87,9 @@ Deno.serve(async(req:Request)=>{
   const response=await fetch('https://openrouter.ai/api/v1/chat/completions',{
    method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+key},
    body:JSON.stringify({model:body.model,messages:body.messages,
-    max_tokens:Math.min(12000,Math.max(100,Number(body.max_tokens)||400)),temperature:0.75})
+    max_tokens:Math.min(12000,Math.max(100,Number(body.max_tokens)||400)),temperature:0.75,
+    ...(body.response_format?.type==='json_object'?{response_format:{type:'json_object'}}:{}),
+    ...(body.reasoning_effort==='low'&&/^(openai\/gpt-6-|z-ai\/glm-5\.3$)/.test(body.model)?{reasoning:{effort:'low'}}:{})})
   });
   const result=await response.json();
   if(!response.ok)return json({error:'ai_unavailable',message:'ИИ временно недоступен. Попробуйте позже.'},502);

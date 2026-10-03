@@ -473,3 +473,5 @@ body.mobile-country-open #mobile-actions-menu{left:calc(30vw + 12px);width:min(3
 .newspaper-details{font-size:10px;opacity:.8;margin-top:7px}.newspaper-details summary{cursor:pointer;min-height:32px;display:flex;align-items:center}
 
 .newspaper-details{font-size:10px;opacity:.82}.newspaper-details summary{cursor:pointer}.newspaper-details p{white-space:pre-wrap;font-size:10px;line-height:1.4}.order-technical-log{font-size:10px}
+
+.initiative-files p{white-space:pre-wrap;font-size:11px;line-height:1.45}.initiative-files details{padding:6px 0}.initiative-files button{white-space:normal;text-align:left;font-size:11px}

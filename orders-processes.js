@@ -13,6 +13,7 @@ function advanceGameDays(count){
   week=Math.floor((day-1)/7);
   tickExecutiveProcesses();
   tickWorldActors();
+  tickInitiatives();
   if(boundary){const r=runMonthlyBoundary();all.econ=r.econ;all.deaths.push(...r.deaths);all.months++;}
  }
  return all;

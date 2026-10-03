@@ -6,7 +6,7 @@ const KIND_FIELDS={
  power:['government','ruler_name','ruler_age','ruler_title','pm_name','pm_title','parliament'],
  army:['army_delta','map_objects'],map:['map_objects'],finance:['debt_delta'],
  diplomacy:['relations','treaties','war_declared','peace_made','province_transfer'],
- identity:['country_name','country_color'],statement:['statement'],unsupported:[]
+ identity:['country_name','country_color'],statement:['statement'],administration:['initiatives'],unsupported:[]
 };
 const LEADERS=['ruler_name','ruler_age','ruler_title','government','pm_name','pm_title'];
 const WORLD_FIELDS=['stability_delta','relations','relations_between','other_countries','battles',
@@ -23,6 +23,32 @@ function leader(e){LEADERS.forEach(k=>{if(e[k]!=null){if(k==='ruler_age')number(
 function validateEffects(raw,ctx,scope,kind){
  keys(raw,scope==='world'?WORLD_FIELDS:(KIND_FIELDS[kind]||[]));
  const e=clean(raw),mine=ctx.countries[ctx.player];
+ if(e.initiatives){
+  list(e.initiatives,6);const ids=new Set();
+  e.initiatives.forEach(i=>{
+   keys(i,['action','id','kind','name','mandate','executor','target_country','duration_days','monthly_budget','setup_cost']);
+   check(['create','update','close'].includes(i.action),'Неизвестное действие с поручением');text(i.id,100);check(!ids.has(i.id),'Повторный ID поручения');ids.add(i.id);
+   const existing=(ctx.initiatives||[]).find(x=>x.id===i.id);
+   if(i.action==='create'){
+    check(!existing,'Поручение уже существует');
+    check(['organization','mission','assignment','programme'].includes(i.kind),'Неизвестный вид поручения');
+    text(i.name,150);text(i.mandate,1200);text(i.executor,180);
+    number(i.duration_days,1,3650);check(Number.isInteger(i.duration_days),'Срок поручения должен быть целым');
+   }else {check(existing?.country===ctx.player,'Нет своего поручения с этим ID');if(i.action==='update')check(existing.status!=='closed','Закрытое дело нужно учредить заново');}
+   if(i.action==='close')check(Object.keys(i).every(k=>['action','id'].includes(k)),'Закрытие не меняет другие параметры');
+   if(i.action==='update'){
+    if(i.name!=null)text(i.name,150);if(i.mandate!=null)text(i.mandate,1200);if(i.executor!=null)text(i.executor,180);
+    check(i.kind==null,'Вид существующего поручения не меняется');
+    if(i.duration_days!=null){number(i.duration_days,1,3650);check(Number.isInteger(i.duration_days),'Нужен целый срок');}
+   }
+   if(i.target_country!=null){text(i.target_country,180);check(i.target_country!==ctx.player&&Object.hasOwn(ctx.countries,i.target_country)&&!ctx.countries[i.target_country].annexed,'Неизвестный адресат миссии');}
+   if(i.kind==='mission')check(i.target_country,'Миссии нужен адресат');
+   if(i.monthly_budget!=null)number(i.monthly_budget,0,Math.max(1,mine.income*.25));
+   if(i.setup_cost!=null)number(i.setup_cost,0,Math.max(1,mine.income));
+   if(i.action==='create')(ctx.initiatives||(ctx.initiatives=[])).push({...i,country:ctx.player,status:'active'});
+   if(i.action==='close')existing.status='closed';
+  });
+ }
  ['economy','society','law_slots','institutions','parliament','relations','other_countries','country_color'].forEach(k=>{if(e[k]!=null)check(plain(e[k]),'Неверный объект: '+k);});
  ['laws','treaties','relations_between','wars_between','battles','foreign_leader_change','province_transfer','map_objects','war_declared','peace_made'].forEach(k=>{if(e[k]!=null)list(e[k],30);});
  const country=n=>{text(n,180);check(Object.hasOwn(ctx.countries,n)&&!ctx.countries[n].annexed,'Неизвестная или аннексированная страна: '+n);};
@@ -99,6 +125,7 @@ function validatePlan(plan,pending,ctx){
   if(original.fixedEffects&&o.status==='execute')check(JSON.stringify(effects)===JSON.stringify(original.fixedEffects),'ИИ изменил готовую карточку');
   let process;
   if(o.process!=null){
+   check(o.kind!=='administration','Поручение уже содержит собственный срок');
    keys(o.process,['mode','days','summary']);
    check(o.status==='execute','Процесс возможен только для принятого действия');
    check(['implementation','referendum','recruitment'].includes(o.process.mode),'Неизвестный процесс');

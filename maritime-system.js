@@ -103,7 +103,7 @@ function validateNavalOrder(o,owner,execution=false){
  const m=maritimeState(),geo=maritimeGeo(),f=maritimeFleet(o.fleet_id),p=maritimePort(o.port_id);
  if(o.action==='build_port'){
   const land=strategyProvince(o.province);strategyAssert(land&&strategyControl(land)===owner&&geo.coast[land.id]?.length,'Порт требует контролируемого морского побережья');
-  if(o.name)strategyText(o.name,120);if(o.level!=null)strategyNum(o.level,1,5);if(o.shipyard!=null)strategyNum(o.shipyard,0,3);return o;
+  if(o.name)strategyText(o.name,120);if(o.level!=null){strategyNum(o.level,1,5);strategyAssert(Number.isInteger(o.level),'Уровень гавани должен быть целым');}if(o.shipyard!=null){strategyNum(o.shipyard,0,3);strategyAssert(Number.isInteger(o.shipyard),'Уровень верфи должен быть целым');}return o;
  }
  if(['build','upgrade_port'].includes(o.action)){
   strategyAssert(p&&maritimePortOwner(p)===owner,'Нужен собственный порт');
@@ -492,7 +492,10 @@ const MARITIME_INSTRUCTIONS='МОРЕ И ТОРГОВЛЯ. kind:naval effects:{n
 const maritimeOldAsk=askGemini;
 askGemini=async function(prompt,...args){if(typeof prompt==='string'&&(prompt.includes('Свободные приказы:')||prompt.startsWith('POLITICAL_CABINETS_V1')))prompt+='\n'+MARITIME_INSTRUCTIONS;return maritimeOldAsk(prompt,...args);};
 const maritimeOldPolicy=econPolicy;
-econPolicy=function(c,p){const result=maritimeOldPolicy(c,p);if(p.type==='tariff'){const owner=ALL_COUNTRIES.find(n=>countries[n]===c);if(owner){maritimeTradePolicy(owner).goods={};maritimeTouch();}}return result;};
+econPolicy=function(c,p){
+ if(p.type==='tariff'){econValidatePolicy(p,c);const owner=ALL_COUNTRIES.find(n=>countries[n]===c);if(owner){econV3(c);return executeTradePolicy(owner,{action:'tariff',good:'all',rate:p.target});}}
+ return maritimeOldPolicy(c,p);
+};
 const maritimeOldDiplomatic=executeDiplomaticAction;
 executeDiplomaticAction=function(owner,d){if(d.action==='tariff')return executeTradePolicy(owner,{action:'tariff',target:d.target,rate:d.amount,good:'all'});const r=maritimeOldDiplomatic(owner,d);maritimeTouch();return r;};
 const maritimeOldMerge=strategyMergeCountry;

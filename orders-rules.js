@@ -83,7 +83,8 @@ function validateEffects(raw,ctx,scope,kind){
  return e;
 }
 function validatePlan(plan,pending,ctx){
- keys(plan,['news','domestic','orders','world_effects']);
+ keys(plan,['news','domestic','orders','world_effects','actor_intents']);
+ if(plan.actor_intents!=null){list(plan.actor_intents,6);const actors=ctx.actors||{};const seenActors=new Set();plan.actor_intents.forEach(p=>{keys(p,['actor_id','action','motive']);text(p.actor_id,240);check(Object.hasOwn(actors,p.actor_id)&&!seenActors.has(p.actor_id),'Неизвестный или повторный участник');seenActors.add(p.actor_id);check(['support','petition','obstruct','protest','recruit','social_spending','offer_talks','denounce'].includes(p.action),'Неизвестное действие участника');text(p.motive,300);});}
  ['news','domestic'].forEach(k=>{list(plan[k],k==='news'?5:3);plan[k].forEach(s=>text(s,1000));});
  list(plan.orders,8);check(plan.orders.length===pending.length,'ИИ не отчитался по каждому приказу');
  const seen=new Set();

@@ -13,7 +13,7 @@ function ensureOrders(){
 }
 function orderCountry(name){return normalizeCountryName(name);}
 function orderContext(){
- return {player:playerCountry,countries,objects:JSON.parse(JSON.stringify(worldState.mapObjects||[])),
+ return {player:playerCountry,countries,actors:ensureWorldActors(),objects:JSON.parse(JSON.stringify(worldState.mapObjects||[])),
   lawSlots:LAW_SLOTS,lawOption,governments:activeScenario.rules?.governments||null,relation:getRelation,atWar:isAtWar,location:resolveLocationLonLat,
   provinceOwner:key=>{const p=scenarioProvinces.find(p=>p.id===key||p.name===key);return p?(provinceOwners[p.id]||p.owner):null;}};
 }
@@ -106,6 +106,8 @@ ${describePlayerSociety()}
 Договоры: ${JSON.stringify(worldState.treaties||[])}.
 Переговоры этого хода: ${JSON.stringify(worldState.diploLog||[])}.
 Известные события: ${JSON.stringify(worldState.pastEvents.slice(-8))}.
+Участники с интересами и памятью: ${JSON.stringify(actorContext())}.
+Можешь предложить до 6 actor_intents:[{actor_id:точный ID участника,action:'support|petition|obstruct|protest|recruit|social_spending|offer_talks|denounce',motive:'краткий мотив из интересов и обстановки'}]. Это предложения, не факты: код проверит основания после исполнения приказов. Общественные группы и органы власти могут support/petition/obstruct/protest; только чужие правительства — recruit/social_spending/offer_talks/denounce. Не заставляй всех реагировать одинаково; учитывай память, полномочия и ресурсы. Нет оснований — не включай участника. Новости потом получат только действительно совершённые действия.
 Задания движка: ${JSON.stringify(pendingDirectives||[])}.
 Объекты: ${JSON.stringify(worldState.mapObjects||[])}.
 Допустимые места: ${JSON.stringify(scenarioProvinces.filter(p=>(provinceOwners[p.id]||p.owner)===playerCountry).slice(0,35).map(p=>p.name))}. Города: ${Object.keys(CITY_COORDS).slice(0,60).join(', ')}.
@@ -262,6 +264,8 @@ function applyOrderPlan(plan){
  parseAndApplyEffects('EFFECTS:'+JSON.stringify(autonomous),[]);
  reconcileOrderArmies();
  if(plan.world_effects.parliament?.factions)countries[playerCountry].electionPending=false;
+ recordActorReactions(results);
+ applyActorIntents(plan.actor_intents);
  ensureOrders();
  worldState.orders=worldState.orders.filter(o=>['prepared','deferred'].includes(o.status)||o.status==='in_progress'||o.resolvedTurn>=turn-20);
  return results;

@@ -3,9 +3,9 @@
 'use strict';
 const KIND_FIELDS={
  narrative:['court_scene'],economic:['economic_policy'],tax:['economy'],spending:['society'],law:['law_slots','laws','institutions'],
- power:['government','ruler_name','ruler_age','ruler_title','pm_name','pm_title','parliament'],
+ power:['country_name','transition','government','ruler_name','ruler_age','ruler_title','pm_name','pm_title','parliament'],
  army:['army_delta','map_objects'],map:['map_objects'],finance:['debt_delta'],
- diplomacy:['relations','treaties','war_declared','peace_made','province_transfer'],
+ military:['military_order'],diplomacy:['diplomatic_action','relations','treaties','war_declared','peace_made','province_transfer'],
  identity:['country_name','country_color'],statement:['statement'],administration:['initiatives'],political:['political_task'],unsupported:[]
 };
 const LEADERS=['ruler_name','ruler_age','ruler_title','government','pm_name','pm_title'];
@@ -23,6 +23,9 @@ function leader(e){LEADERS.forEach(k=>{if(e[k]!=null){if(k==='ruler_age')number(
 function validateEffects(raw,ctx,scope,kind){
  keys(raw,scope==='world'?WORLD_FIELDS:(KIND_FIELDS[kind]||[]));
  const e=clean(raw),mine=ctx.countries[ctx.player];
+ if(e.transition!=null){check(['appoint','resign','succession','reform'].includes(e.transition),'Неверный переход власти');if(['resign','succession'].includes(e.transition))check(e.ruler_name&&e.ruler_name!==mine.ruler,'При смене главы нужен преемник');}
+ if(e.military_order){check(typeof ctx.validateMilitaryOrder==='function','Нет проверки операции');ctx.validateMilitaryOrder(e.military_order,ctx.player);}
+ if(e.diplomatic_action){check(typeof ctx.validateDiplomaticAction==='function','Нет проверки дипломатии');ctx.validateDiplomaticAction(e.diplomatic_action,ctx.player);}
  if(e.court_scene){check(typeof ctx.validateCourtScene==='function','Нет проверки личного события');ctx.validateCourtScene(e.court_scene,mine);}
  if(e.economic_policy){check(typeof ctx.validateEconomicPolicy==='function','Нет экономической проверки');ctx.validateEconomicPolicy(e.economic_policy,mine);}
  if(e.political_task){check(typeof ctx.validatePoliticalTask==='function','Нет политического исполнителя');ctx.validatePoliticalTask(e.political_task,ctx.player);}
@@ -61,7 +64,7 @@ function validateEffects(raw,ctx,scope,kind){
  if(e.debt_delta!=null)number(e.debt_delta,-mine.debt,Math.max(100,mine.income*12));
  if(e.statement!=null)text(e.statement,600);
  leader(e);
- if(e.government!=null&&ctx.governments)check(ctx.governments.includes(e.government),'Неподдерживаемая форма правления');
+ if(e.government!=null)text(e.government,180);
  if(e.country_name!=null)text(e.country_name,100);
  if(e.country_color){keys(e.country_color,['country','color']);check(e.country_color.country===ctx.player,'Можно менять только свою страну');check(/^#[a-f0-9]{6}$/i.test(e.country_color.color),'Некорректный цвет');}
  if(e.economy){keys(e.economy,['tax_noble','tax_burgher','tax_commons','tax_peasants','tax_middle']);e.economy=clean(e.economy);Object.values(e.economy).forEach(v=>number(v,0,100));}
@@ -153,14 +156,15 @@ function authority(order,c,random=Math.random){
  if(e.parliament?.veto)return {status:'blocked',reason:'Парламент заблокировал решение: '+e.parliament.veto};
  if(['economic','tax','spending','law'].includes(order.kind)&&p&&(p.power??50)>=50&&p.support<50)return {status:'blocked',reason:'Нужна поддержка парламента: '+p.support+'/100; власть парламента '+p.power+'/100.'};
  if(order.kind==='power'){
-  const controversial=!!e.government||!!e.parliament?.dissolve||!!e.parliament?.ban_party;
+  if(['resign','succession'].includes(e.transition))return {status:'executed',reason:order.reason};
+  const controversial=(!!e.government&&e.government!==c.government)||!!e.parliament?.dissolve||!!e.parliament?.ban_party;
   if(controversial){
    if(c.stability<25)return {status:'blocked',reason:'Режим слишком неустойчив для концентрации власти.'};
    const chance=powerChance(c);
    if(random()>=chance)return {status:'failed',reason:'Попытка концентрации власти сорвана; стабильность −5.',penalty:5,chance};
    return {status:'executed',reason:order.reason+' Политическая попытка удалась.',chance};
   }
-  if(p&&(p.power??50)>=50&&p.support<50)return {status:'blocked',reason:'Парламент не поддержал назначение.'};
+  if((e.ruler_name&&e.ruler_name!==c.ruler||e.pm_name&&e.pm_name!==c.pm)&&p&&(p.power??50)>=50&&p.support<50)return {status:'blocked',reason:'Парламент не поддержал назначение.'};
  }
  return {status:'executed',reason:order.reason};
 }

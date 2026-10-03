@@ -255,7 +255,7 @@ function applyOrderPlan(plan){
     let started=false;
     try {if(e.political_task){const v=startPoliticalTask(playerCountry,e.political_task,order.id);verdict.status=v.status;verdict.reason=v.reason;started=true;if(v.task)order.politicalTask=v.task.id;}else started=startExecutiveProcess(order,proposal);if(started&&!e.political_task){verdict.status='in_progress';verdict.reason=order.reason;}}
     catch(error){verdict.status='blocked';verdict.reason=error.message;}
-    if(!started&&verdict.status==='executed')executeOrderEffects(e);
+    if(!started&&verdict.status==='executed'){const applied=executeOrderEffects(e);if(applied?.status==='blocked'){verdict.status='blocked';verdict.reason=applied.reason;}}
    }
   }
   if(verdict.penalty)changeCountryStat(playerCountry,'stability',-verdict.penalty);

@@ -168,6 +168,7 @@
     row('Население',c.pop);
     document.getElementById('mobile-card-primary').onclick=()=>selectCountry(name);
   }
+  window.mobileRefreshCountry=()=>{if(inspectedCountry&&!document.getElementById('mobile-country-card').hidden)renderForeignCountry(inspectedCountry);};
   window.mobileCountryCard=name=>{
     if(name===playerCountry){mobileSection('country');return;}
     if(!countries[name])return;

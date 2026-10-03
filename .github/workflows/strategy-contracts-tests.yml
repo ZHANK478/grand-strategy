@@ -1,0 +1,20 @@
+name: Strategic state and campaign tests
+on:
+  push:
+    branches: [main, experiment/strategy-contracts]
+    paths: ['strategic-system.js', 'news-*.js', 'economy-*.js', 'orders-1852-mobile.js', 'tests/strategy-contracts.test.mjs', 'tests/fixtures/strategy-luna.json', '.github/workflows/strategy-contracts-tests.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  engine:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node tests/political-world.test.mjs
+      - run: node tests/economy-world.test.mjs
+      - run: node tests/news-continuity.test.mjs
+      - run: node tests/strategy-contracts.test.mjs

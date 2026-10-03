@@ -177,7 +177,7 @@ executeOrderEffects=function(e){const copy=JSON.parse(JSON.stringify(e));if(copy
  return economyOldExecute(copy);
 };
 const economyOldForeign=applyCountryPoliticalEffects;
-applyCountryPoliticalEffects=function(owner,kind,e){if(kind==='economic'){const ctx=orderContext();ctx.player=owner;OrderRules.validateEffects(e,ctx,'order',kind);econPolicy(countries[owner],e.economic_policy);return {status:'executed',reason:'Экономическая программа начата; последствия рассчитывает движок'};}return economyOldForeign(owner,kind,e);};
+applyCountryPoliticalEffects=function(owner,kind,e){if(kind==='economic'){const ctx=orderContext();ctx.player=owner;OrderRules.validateEffects(e,ctx,'order',kind);const verdict=OrderRules.authority({kind,status:'execute',effects:e,reason:'Экономическая программа'},countries[owner]);if(verdict.status!=='executed')return verdict;econPolicy(countries[owner],e.economic_policy);return {status:'executed',reason:'Экономическая программа начата; последствия рассчитывает движок'};}return economyOldForeign(owner,kind,e);};
 const economyOldLaw=setLawSlot;
 setLawSlot=function(country,slot,id){const c=countries[country];if(slot==='property'&&['state','private'].includes(id)){
  const v=econV3(c);Object.keys(v.sectors).forEach(sector=>econPolicy(c,{type:'ownership',sector,target:id==='state'?1:0,compensation:false,days:365}));c.lawSlots.property=id;return true;

@@ -129,7 +129,7 @@ async function policyBatch(selected,results,phase){
   for(const item of data.cabinets){try{politicalAssert(!seen.has(item.country),'Повтор кабинета');seen.add(item.country);if(policyApply(item,selected,results))acted.push(item.country);}catch(error){policyState().audit.push({day:gameDayNumber(),country:item.country,error:String(error.message).slice(0,400)});}}
   for(const id of selected.filter(n=>!seen.has(n)))p.audit.push({day:gameDayNumber(),country:id,error:'Кабинет не получил решение; повторная оценка на следующем периоде.'});
  }catch(error){p.audit.push({day:gameDayNumber(),phase,error:String(error.message).slice(0,400)});showNotif('Оценка иностранных кабинетов не получена. Действия не выдуманы; время продолжится.');}
- p.audit=p.audit.slice(-30);return acted;
+ policyState().audit=policyState().audit.slice(-30);return acted;
 }
 async function runPoliticalRound(results=[],opts={}){
  if(activeScenario.rules?.autonomousWorld===false)return;

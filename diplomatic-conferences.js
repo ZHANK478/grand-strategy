@@ -51,12 +51,15 @@ async function conferenceGrant(id){
   if(reply.decision){
    const d=reply.decision;d.actor_id=id+'::government';if(d.task&&!Object.keys(d.task).length)delete d.task;
    const target=d.target||d.task?.target||d.task?.effects?.diplomatic_action?.target;
-   strategyAssert(!target||r.participants.includes(target),'Действие касается страны вне конференции');
+   const da=d.task?.effects?.diplomatic_action;
+   const affected=[d.target,d.task?.target,da?.target,da?.terms?.payer,da?.terms?.subject].filter(Boolean);
+   strategyAssert(affected.every(n=>r.participants.includes(n)),'Действие касается страны вне конференции');
    strategyAssert(['wait','pursue','negotiate','warn','condemn','offer_alliance','offer_nonaggression','offer_peace','accept','reject_offer'].includes(d.action),'Неподходящее действие на конференции');
    if(d.action==='pursue'){strategyAssert(d.task?.kind==='diplomacy'&&d.task.effects?.diplomatic_action,'В конференции исполняются дипломатические действия');strategyAssert(['offer','accept','reject'].includes(d.task.effects.diplomatic_action.action),'Неподходящий дипломатический шаг');}
    validatePoliticalDecision(d);
    const actor=ensureWorldActors()[id+'::government'],previous=actor.lastPoliticalTurn;actor.lastPoliticalTurn=null;
-   let applied;try{applied=executePoliticalDecision(d,[]);}finally{actor.lastPoliticalTurn=previous;}
+   const snapshot=JSON.parse(JSON.stringify({countries,worldState}));
+   let applied;try{applied=executePoliticalDecision(d,[]);}catch(error){({countries,worldState}=snapshot);throw error;}finally{const liveActor=worldState.actors?.[id+'::government'];if(liveActor)liveActor.lastPoliticalTurn=previous;}
    if(!applied&&d.action!=='wait')throw Error('Предложенное действие не исполнено; выступление не опубликовано как состоявшийся результат.');
    policyRemember(id,'Конференция: '+reply.speech);
    if(target&&applied)policyNotice(id,target,reply.speech,'conference');

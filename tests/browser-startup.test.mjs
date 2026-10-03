@@ -26,9 +26,12 @@ try{
    await page.waitForFunction(()=>window.GS_MAP_LOAD?.status==='ready',{},{timeout:30000});
    console.log(mode+' BEFORE '+JSON.stringify(await page.evaluate(()=>({status:window.GS_MAP_LOAD,start:typeof window.mobileStartGame,fullscreen:typeof window.mobileFullscreen,picker:document.getElementById('mobile-country-picker').value,disabled:document.getElementById('mobile-start-btn').disabled}))));
    if(mode==='phone'){
-    await page.evaluate(()=>{window.__fullscreenCalls=0;document.documentElement.requestFullscreen=async()=>{window.__fullscreenCalls++;};});
     await page.click('#mobile-fullscreen-button',{timeout:5000});
-    assert.equal(await page.evaluate(()=>window.__fullscreenCalls),1,'Fullscreen is clickable in main menu');
+    await page.waitForFunction(()=>!!document.fullscreenElement,{},{timeout:5000});
+    assert.equal(await page.locator('#mobile-fullscreen-button').isVisible(),false);
+    await page.evaluate(()=>document.exitFullscreen());
+    await page.waitForFunction(()=>!document.fullscreenElement&&!document.getElementById('mobile-fullscreen-button').hidden);
+    console.log('phone NATIVE FULLSCREEN enter/exit passed');
    }
    await page.selectOption('#mobile-country-picker','Франция');
    await page.click('#mobile-start-btn',{timeout:10000});
@@ -40,6 +43,13 @@ try{
    assert.equal(await page.evaluate(()=>window.__fullscreenCalls),1);
    await page.click('#mobile-flag-button');
    assert.equal(await page.locator('#left-panel').evaluate(el=>getComputedStyle(el).display!=='none'),true);
+   await page.evaluate(()=>{economySetTab('sea');openEconomyPanel();});
+   assert.match(await page.locator('#economy-body').innerText(),/Флот|Эскадр|эскадр/);
+   await page.evaluate(()=>mobileSection('map'));
+   await page.evaluate(()=>{economySetTab('trade');openEconomyPanel();});
+   assert.match(await page.locator('#economy-body').innerText(),/Торговля и таможня/);
+   await page.evaluate(()=>mobileSection('map'));
+   await page.evaluate(()=>saveGame());
    assert.equal(errors.length,0,'Uncaught errors: '+errors.join('\n'));
    console.log(mode+' PASSED start/fullscreen/country');
   }catch(e){failures++;console.log(mode+' FAILED '+e.stack);console.log(mode+' DIAGNOSTICS '+JSON.stringify(await page.evaluate(()=>({load:window.GS_MAP_LOAD,start:typeof window.mobileStartGame,fullscreen:typeof window.mobileFullscreen,picker:document.getElementById('mobile-country-picker')?.value,disabled:document.getElementById('mobile-start-btn')?.disabled,menu:document.getElementById('main-menu')?.style.display}))));}

@@ -311,7 +311,7 @@ body.mobile-sheet-open #topbar{display:grid!important}
 #left-panel .mobile-own-portrait img,#left-panel .mobile-own-portrait .mobile-portrait-placeholder{width:100%!important;height:auto!important;aspect-ratio:3/4!important;object-fit:cover;box-sizing:border-box;border:1px solid var(--edge);border-radius:5px;min-height:0}
 #left-panel .mobile-own-portrait .mobile-portrait-placeholder{opacity:1;background:#eee5ce;font-size:48px}
 #mobile-fullscreen-button{position:fixed;right:max(12px,env(safe-area-inset-right));top:max(52px,env(safe-area-inset-top));z-index:410;min-height:44px;padding:8px 12px;background:#fbf5e7ee;color:var(--ink);border:1px solid var(--edge);border-radius:8px;box-shadow:0 3px 12px #0003;font-size:12px}
-body.menu-mode #mobile-fullscreen-button{top:max(12px,env(safe-area-inset-top))}
+body.menu-mode #mobile-fullscreen-button{top:max(12px,env(safe-area-inset-top));z-index:410}
 
 /* Fixed HUD geometry for both devices, with the army visible on phones too. */
 .mobile-hud-stat{min-height:26px;height:26px;display:flex;align-items:center;gap:5px;padding:2px 8px;border-left:1px solid #d9cbaa;box-sizing:border-box;white-space:nowrap}

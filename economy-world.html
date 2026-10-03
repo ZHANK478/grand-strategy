@@ -255,6 +255,7 @@ input[type=checkbox]{accent-color:var(--gold);}
 <link rel="stylesheet" href="political-world.css?v=1"><link rel="stylesheet" href="economy-world.css?v=1">
 <script>window.GS_MOBILE = true;</script>
 <link rel="stylesheet" href="conference.css?v=1">
+<link rel="stylesheet" href="game-motion.css?v=1">
 </head>
 <body class="menu-mode">
 <button id="mobile-fullscreen-button" onclick="mobileFullscreen()" aria-label="Включить полноэкранный режим">⛶ На весь экран</button>
@@ -591,6 +592,7 @@ input[type=checkbox]{accent-color:var(--gold);}
     <button id="map-mode-political" class="map-mode-btn active" onclick="setMapMode('political')">🗺 Политическая карта</button>
     <button id="map-mode-alliance" class="map-mode-btn" onclick="setMapMode('alliance')">🤝 Карта альянсов</button>
   </div></div>
+<div class="setting-row"><label><input type="checkbox" id="setting-motion" checked onchange="gsSetMotion(this.checked)"> Плавные анимации</label><div id="setting-motion-note" style="font-size:10px;color:#8a7a5e;margin-top:2px"></div></div>
 <div class="settings-extra">
  <button onclick="closeSettings();mobileSection('map');mobileMapOverview()">Обзор мира</button>
  <button onclick="mobileFullscreen()">На весь экран</button>
@@ -885,7 +887,7 @@ input[type=checkbox]{accent-color:var(--gold);}
 <script src="core-loop-config.js?v=1"></script>
 <script src="shop.js?v=44"></script>
 <script src="auth.js?v=44"></script>
-<script src="economy-map.js?v=1"></script>
+<script src="economy-map.js?v=2"></script>
 <script src="econ_data.js?v=44"></script>
 <script src="orders-1852-econ.js?v=1"></script>
 <script src="political-ai.js?v=1"></script>
@@ -910,5 +912,6 @@ input[type=checkbox]{accent-color:var(--gold);}
 <script src="strategic-system.js?v=1"></script>
 <script src="political-subjects.js?v=1"></script>
 <script src="diplomatic-conferences.js?v=1"></script>
+<script src="game-motion.js?v=1"></script>
 </body>
 </html>

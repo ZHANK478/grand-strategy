@@ -728,53 +728,62 @@ function expireMapObjects(){
 function renderMapObjects() {
   if (typeof worldState === 'undefined' || !worldState.mapObjects) return;
   const zoom = W / vb.w;
-  const sel = objectsG.selectAll('g.map-obj')
-    .data(worldState.mapObjects, d => d.id);
-
-  sel.exit().remove();
-
-  const enter = sel.enter().append('g')
-    .attr('class', 'map-obj')
-    .attr('id', d => 'mo-' + d.id);
-
+  const motion = !!window.GS_MOTION?.enabled();
+  const sel = objectsG.selectAll('g.map-obj').data(worldState.mapObjects, d => d.id);
+  const leaving = sel.exit().interrupt('map-position').style('pointer-events', 'none');
+  leaving.each(function(){this.__gsLeaving=true;this.__gsMoving=false;});
+  if (motion) leaving.transition('map-appearance').duration(130).attr('opacity', 0).remove();
+  else leaving.remove();
+  const enter = sel.enter().append('g').attr('class', 'map-obj').attr('id', d => 'mo-' + d.id);
   enter.append('circle').attr('class', 'mo-dot');
   enter.append('path').attr('class', 'mo-sym').attr('pointer-events', 'none');
   enter.append('text').attr('class', 'mo-label').attr('text-anchor', 'middle').attr('pointer-events', 'none');
-
+  if (motion) enter.attr('opacity', 0).transition('map-appearance').duration(180).attr('opacity', 1);
   const merged = enter.merge(sel);
   merged.each(function(d) {
     const loc = resolveLocationLonLat(d.location);
     if (!loc) return;
     const xy = proj(loc);
-    const k = objectScale / zoom; // единицы символа → экранные
-    const g = d3.select(this);
-    g.select('.mo-dot')
-      .attr('cx', xy[0]).attr('cy', xy[1])
-      .attr('r', 4 * k)
-      .attr('fill', ownerColor(d.owner))
-      .attr('stroke', 'rgba(10,14,22,0.85)').attr('stroke-width', 0.8 * k);
-    g.select('.mo-sym')
-      .attr('transform', `translate(${xy[0]},${xy[1]}) scale(${k})`)
-      .attr('d', MAP_SYMBOLS[d.type] || MAP_SYMBOLS.other)
-      .attr('fill', d.type === 'hq' ? '#f5f2e8' : 'none')
-      .attr('stroke', '#f5f2e8').attr('stroke-width', 0.9)
-      .attr('stroke-linejoin', 'round').attr('stroke-linecap', 'round');
-    g.select('.mo-label')
-      .attr('x', xy[0]).attr('y', xy[1] + (9 * objectScale) / zoom)
-      .attr('font-size', 5.5 * objectScale / zoom)
-      .attr('fill', '#f5f2e8')
-      .attr('font-family', 'Georgia,serif')
-      .attr('paint-order', 'stroke')
-      .attr('stroke', 'rgba(12,16,26,0.85)').attr('stroke-width', 1.4 / zoom)
-      .text(d.label + (d.troops ? ' «' + d.troops.toLocaleString('ru') + '»' : ''));
-    g.style('cursor', 'default')
-      .on('mouseover', () => {
-        tooltip.style.display = 'block';
-        document.getElementById('t-name').textContent = d.label;
-        document.getElementById('t-info').textContent = (d.troops ? '👥 ' + d.troops.toLocaleString('ru') + ' чел. · ' : '') + d.location;
-      })
-      .on('mousemove', e => positionTooltip(e))
-      .on('mouseleave', () => { tooltip.style.display = 'none'; });
+    if (!xy || !xy.every(Number.isFinite)) return;
+    const k = objectScale / zoom;
+    const node = this, g = d3.select(node);
+    if(node.__gsLeaving){g.interrupt('map-appearance').attr('opacity',1);node.__gsLeaving=false;}
+    const changed = node.__gsLocation != null && node.__gsLocation !== d.location;
+    const previous = node.__gsXY;
+    node.__gsLocation = d.location;
+    g.style('pointer-events', null);
+    if (!motion) {
+      g.interrupt('map-position').interrupt('map-appearance').attr('opacity', 1);
+      node.__gsMoving = false;node.__gsXY = xy.slice();g.attr('transform', 'translate(' + xy.join(',') + ')');
+    } else if (changed && previous && Math.hypot(xy[0]-previous[0],xy[1]-previous[1]) < W*.45) {
+      g.interrupt('map-position');
+      node.__gsMoving = true;
+      const from = previous.slice();
+      g.transition('map-position').duration(620).ease(d3.easeCubicInOut)
+        .attrTween('transform', () => t => {
+          const point = [from[0]+(xy[0]-from[0])*t,from[1]+(xy[1]-from[1])*t];
+          node.__gsXY = point;return 'translate(' + point.join(',') + ')';
+        }).on('end', () => {node.__gsMoving=false;node.__gsXY=xy.slice();});
+    } else if (changed || !node.__gsMoving) {
+      // A seam crossing or a new scenario must not fly across the whole world.
+      g.interrupt('map-position');node.__gsMoving=false;
+      node.__gsXY=xy.slice();g.attr('transform','translate('+xy.join(',')+')');
+    }
+    g.select('.mo-dot').attr('cx', 0).attr('cy', 0).attr('r', 4*k)
+      .attr('fill', ownerColor(d.owner)).attr('stroke','rgba(10,14,22,0.85)').attr('stroke-width',.8*k);
+    g.select('.mo-sym').attr('transform','scale('+k+')')
+      .attr('d', MAP_SYMBOLS[d.type]||MAP_SYMBOLS.other)
+      .attr('fill',d.type==='hq'?'#f5f2e8':'none').attr('stroke','#f5f2e8').attr('stroke-width',.9)
+      .attr('stroke-linejoin','round').attr('stroke-linecap','round');
+    g.select('.mo-label').attr('x',0).attr('y',9*objectScale/zoom)
+      .attr('font-size',5.5*objectScale/zoom).attr('fill','#f5f2e8')
+      .attr('font-family','Georgia,serif').attr('paint-order','stroke')
+      .attr('stroke','rgba(12,16,26,0.85)').attr('stroke-width',1.4/zoom)
+      .text(d.label+(d.troops?' «'+d.troops.toLocaleString('ru')+'»':''));
+    g.style('cursor','default')
+      .on('mouseover',()=>{tooltip.style.display='block';document.getElementById('t-name').textContent=d.label;document.getElementById('t-info').textContent=(d.troops?'👥 '+d.troops.toLocaleString('ru')+' чел. · ':'')+d.location;})
+      .on('mousemove',e=>positionTooltip(e))
+      .on('mouseleave',()=>{tooltip.style.display='none';});
   });
 }
 
@@ -783,35 +792,6 @@ function updateObjectScale() {
 }
 
 // Анимация передвижения объекта между городами (~3 секунды)
-function animateMove(obj, toCityName) {
-  const fromLoc = resolveLocationLonLat(obj.location);
-  const toLoc = resolveLocationLonLat(toCityName);
-  if (!fromLoc || !toLoc) return;
-  const from = proj(fromLoc), to = proj(toLoc);
-
-  const line = objectsG.append('line')
-    .attr('class', 'mo-travel-line')
-    .attr('x1', from[0]).attr('y1', from[1])
-    .attr('x2', from[0]).attr('y2', from[1])
-    .attr('stroke', ownerColor(obj.owner))
-    .attr('stroke-width', 0.6)
-    .attr('stroke-dasharray', '2,2')
-    .attr('opacity', 0.8);
-
-  const dot = objectsG.append('circle')
-    .attr('class', 'mo-travel-dot')
-    .attr('cx', from[0]).attr('cy', from[1])
-    .attr('r', 2.2)
-    .attr('fill', ownerColor(obj.owner));
-
-  line.transition().duration(3000).attr('x2', to[0]).attr('y2', to[1]);
-  dot.transition().duration(3000)
-    .attr('cx', to[0]).attr('cy', to[1])
-    .on('end', () => {
-      line.remove();
-      dot.remove();
-      renderMapObjects();
-    });
-
-  if (typeof showNotif === 'function') showNotif(`➡️ ${obj.label}: ${obj.location} → ${toCityName}`);
+function animateMove(obj,toCityName) {
+  if(typeof showNotif==='function')showNotif(obj.label+': '+obj.location+' → '+toCityName);
 }

@@ -310,7 +310,7 @@ onTurnEnd=async function(){
   plan={orders:pending.map(o=>o.fixedEffects?
    {id:o.id,kind:o.kind,status:'execute',reason:'Решение игрока',effects:o.fixedEffects}:
    {id:o.id,kind:'unsupported',status:'defer',reason:'Ответ ИИ не удалось обработать. Приказ сохранён; это техническая задержка, а не отказ власти или исполнителя.',effects:{}}),
-   world_effects:{},politics:[],articles:{},politicalErrors:[]};
+   world_effects:{},politics:[],articles:Object.fromEntries(pending.filter(o=>!o.fixedEffects).map(o=>[o.id,{headline:'Распоряжение ожидает подтверждения исполнения',body:(countries[playerCountry].ruler||'Глава государства')+' отдал распоряжение: «'+o.text+'». Подтверждённых сведений о его исполнении пока нет. Изменения по этому распоряжению не объявлены состоявшимися; оно остаётся в списке действующих поручений.'}])),politicalErrors:[]};
   showNotif('Ответ ИИ не обработан. Время продолжится; неподтверждённые приказы сохранены, их эффекты не выдумываются.');
  }
  const results=applyOrderPlan(plan);

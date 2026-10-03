@@ -1,7 +1,7 @@
 name: News continuity and economy tests
 on:
   push:
-    branches: [main, experiment/news-continuity]
+    branches: [main, experiment/news-continuity, experiment/intent-war-audit]
     paths: ['news-*.js', 'economy-*.js', 'economy-world.html', 'tests/news-continuity.test.mjs', 'tests/fixtures/news-luna.json', '.github/workflows/news-continuity-tests.yml']
   workflow_dispatch:
 permissions:

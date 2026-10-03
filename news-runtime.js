@@ -300,7 +300,20 @@ function renderOrderReceipts(results,econChanges){
 onTurnEnd=async function(){
  const eventsBox=document.getElementById('events-box'),list=document.getElementById('events-list');
  eventsBox.style.display='block';list.textContent='Проверяем приказы и готовим газету…';
- const plan=await generateOrderPlan(),results=applyOrderPlan(plan);
+ // Provider/schema failures are not a veto on the calendar or executive authority.
+ // Catch only planning failures. Application/state failures retain atomic rollback.
+ let plan;
+ try{plan=await generateOrderPlan();worldState.plannerFailure=null;}
+ catch(error){
+  const pending=ensureOrders();
+  worldState.plannerFailure={turn,date:dateLabel(),message:String(error.message||error).slice(0,500)};
+  plan={orders:pending.map(o=>o.fixedEffects?
+   {id:o.id,kind:o.kind,status:'execute',reason:'Решение игрока',effects:o.fixedEffects}:
+   {id:o.id,kind:'unsupported',status:'defer',reason:'Ответ ИИ не удалось обработать. Приказ сохранён; это техническая задержка, а не отказ власти или исполнителя.',effects:{}}),
+   world_effects:{},politics:[],articles:{},politicalErrors:[]};
+  showNotif('Ответ ИИ не обработан. Время продолжится; неподтверждённые приказы сохранены, их эффекты не выдумываются.');
+ }
+ const results=applyOrderPlan(plan);
  reactToPlayerOrders(results);
  results.forEach(o=>worldState.pastEvents.push('Приказ '+o.id+': '+ORDER_STATUS[o.status]+' — '+o.text+'. '+o.reason));
  worldState.diploLog=[];renderActionsList();

@@ -12,6 +12,7 @@ function advanceGameDays(count){
   if(day>daysInGameMonth(year,month)){day=1;month++;if(month>=12){month=0;year++;}boundary=true;}
   week=Math.floor((day-1)/7);
   tickExecutiveProcesses();
+  tickWorldActors();
   if(boundary){const r=runMonthlyBoundary();all.econ=r.econ;all.deaths.push(...r.deaths);all.months++;}
  }
  return all;
@@ -49,6 +50,7 @@ function tickExecutiveProcesses(){
  list.filter(p=>p.status==='active'&&p.due<=gameDayNumber()).forEach(p=>{
   const c=countries[p.country],order=worldState.orders.find(o=>o.id===p.id);
   if(!c||c.annexed||p.country!==playerCountry){p.status='failed';if(order){order.status='failed';order.reason='Исполнение потеряло действующую власть.';}return;}
+  const completionBefore=orderStatSnapshot(c);
   let outcome,extra='';
   let checkedEffects=null;
   try{
@@ -74,8 +76,10 @@ function tickExecutiveProcesses(){
    else executeOrderEffects(checkedEffects);
   }
   if(outcome.penalty)changeCountryStat(playerCountry,'stability',-outcome.penalty);
+
   p.status=outcome.status;p.finished=gameDayNumber();p.reason=extra+outcome.reason;
   if(order){order.status=outcome.status;order.resolvedTurn=turn;order.reason=p.reason;order.effects=outcome.status==='executed'?p.effects:{};order.after=orderStatSnapshot(countries[p.country]);}
+  if(order&&outcome.status==='executed')recordActorReactions([{...order,before:completionBefore}]);
   recordWorldEvent('domestic',outcome.status==='executed'?'Завершено решение главы государства':'Решение встретило препятствие',
    p.summary+'. '+extra+(outcome.status==='executed'?'Подготовка закончена, решение вступило в силу.':outcome.reason),[p.country],
    'Приказ: '+(order?.text||p.summary)+'. Статус: '+outcome.status+'. '+p.reason+' Эффекты: '+JSON.stringify(outcome.status==='executed'?p.effects:{})+'.');

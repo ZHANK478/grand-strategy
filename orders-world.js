@@ -77,9 +77,12 @@ function runWorldAutonomy(){
  });
 }
 function buildNewspaper(before,results,engineEvents,startDate){
- const domestic=[],foreign=[],add=(section,headline,body,details='')=>{const list=section==='domestic'?domestic:foreign;
- const item={headline:newspaperText(headline),body:newspaperText(body),details:newspaperText(details)};if(!list.some(x=>x.headline===item.headline&&x.body===item.body))list.push(item);};
- (worldState.periodEvents||[]).forEach(e=>add(e.section,e.headline,e.body,e.details));
+ const domestic=[],foreign=[],add=(section,headline,body,details='',priority=0,actors=[])=>{const list=section==='domestic'?domestic:foreign;
+ const item={headline:newspaperText(headline),body:newspaperText(body),details:newspaperText(details),priority,actors};
+ const grouped=priority>0?list.find(x=>x.priority>0&&x.headline===item.headline):null;
+ if(grouped){if(!grouped.body.includes(item.body))grouped.body+='\n'+item.body;grouped.details+='\n'+item.details;grouped.actors=[...new Set([...grouped.actors,...item.actors])];return;}
+ if(!list.some(x=>x.headline===item.headline&&x.body===item.body))list.push(item);};
+ (worldState.periodEvents||[]).forEach(e=>add(e.section,e.headline,e.body,e.details,e.priority||0,e.actors||[]));
  results.forEach(o=>{
   if(o.status==='executed'){
    const a=JSON.parse(o.before.spending||'{}'),b=JSON.parse(o.after.spending||'{}');
@@ -127,11 +130,12 @@ function buildNewspaper(before,results,engineEvents,startDate){
  });
  if(!domestic.length)add('domestic','Период без крупных потрясений','Правительство продолжает текущий курс. За период не подтверждено значительных внутренних событий.');
  if(!foreign.length)add('foreign','За рубежом без крупных перемен','Новых подтверждённых международных событий за период нет.');
+ domestic.sort((a,b)=>b.priority-a.priority);foreign.sort((a,b)=>b.priority-a.priority);
  if(results.length){
   const audit=results.map(o=>ORDER_STATUS[o.status]+': '+o.text+'\n'+o.reason+'\nИзменения: '+JSON.stringify(o.effects||{})+(o.processId?'\nПроцесс: '+o.processId:'')).join('\n\n');
   if(domestic[0])domestic[0].details+=(domestic[0].details?'\n\n':'')+'Журнал решений за период:\n'+audit;
  }
- const edition={from:startDate,to:dateLabel(),turn,domestic:domestic.slice(-16),foreign:foreign.slice(-16)};
+ const edition={from:startDate,to:dateLabel(),turn,domestic:domestic.sort((a,b)=>b.priority-a.priority).slice(0,16),foreign:foreign.sort((a,b)=>b.priority-a.priority).slice(0,16)};
  worldState.newspaperHistory=[...(worldState.newspaperHistory||[]),edition].slice(-12);
  return edition;
 }
@@ -153,19 +157,20 @@ async function writeNewspaper(edition){
  const sources=[];
  ['domestic','foreign'].forEach(section=>edition[section].forEach((article,index)=>{
   article.factId=section+'-'+index;
-  sources.push({id:article.factId,section,headline:article.headline,facts:article.body.slice(0,1400),execution:(article.details||'').slice(0,1200)});
+  sources.push({id:article.factId,section,headline:article.headline,facts:article.body.slice(0,1400),execution:(article.details||'').slice(0,1200),actors:(article.actors||[]).map(id=>({country:countries[id]?.displayName||id,ruler:countries[id]?.ruler,government:countries[id]?.government}))});
  }));
  // Bounded context: one small newsroom call, no entire world or conversation history.
- const selected=sources.slice(0,4).concat(sources.filter(s=>s.section==='foreign').slice(0,4));
+ const selected=sources.filter(s=>s.section==='domestic').slice(0,3).concat(sources.filter(s=>s.section==='foreign').slice(0,3));
  const unique=[...new Map(selected.map(s=>[s.id,s])).values()];
  try{
   const raw=await askGemini(`Ты редактор газеты эпохи ${year} года, страна ${countries[playerCountry].displayName||playerCountry}. Период ${edition.from} — ${edition.to}.
-Напиши обычные газетные статьи по ПОДТВЕРЖДЁННЫМ фактам ниже. Каждая: заголовок и связный абзац из 3–5 предложений, 45–65 слов, по-русски.
+Напиши обычные газетные статьи по ПОДТВЕРЖДЁННЫМ фактам ниже. Каждая важная статья: выразительный заголовок и 1–2 связных абзаца из 4–7 предложений, 65–100 слов, по-русски. Всего до шести статей: три внутренних, три зарубежных.
+Пиши как живая политическая газета своего времени: начни с события, затем покажи столкновение интересов, мотив участников и значение для дальнейшего хода дел. Меняй ритм фраз; допускаются образные обороты и редакционный взгляд, явно отделённый от факта. Не раздувай одно назначение повторением его названия. Никаких фраз «для читателя важно» и «речь идёт именно о посте». Прямая цитата допустима только если она есть в исходных фактах. Газета не должна быть канцелярским пересказом поля effects.
 Расскажи кто, что сделал, где это известно, что происходит дальше и какая реакция реально подтверждена. Не пиши отчёт об эффектах, технические статусы, ID, названия полей, стрелки или списки изменений. Не повторяй один шаблон. Не вставляй фразы «подтверждённых сведений нет», «в рассматриваемый период», «факты подтверждены»: читатель видит газету, а не проверку источников. Если реакция неизвестна, опусти её, не заполняй статью сообщениями об отсутствии данных. Если новостей нет, достаточно двух коротких предложений. Имена и решения связывай с содержанием фактов.
 Не выдумывай свершившиеся протесты, заявления людей, результаты голосования, войны, назначения или экономические изменения. Незавершённый процесс описывай как подготовку, не успех. Отказ — как препятствие. Снижение поддержки можно описать как недовольство соответствующей группы, но не как придуманные демонстрации. Странное заявление можно критически обсуждать как заявление, оно не становится истиной.
 Каждая статья относится ТОЛЬКО к своему id. Не добавляй фактов и статей. Цифры исполнения скрыты отдельно; в статье они не обязательны.
 Факты: ${JSON.stringify(unique)}
-Верни только JSON {"articles":[{"id":"...","headline":"...","body":"..."}]}.`,3200,0);
+Верни только JSON {"articles":[{"id":"...","headline":"...","body":"..."}]}.`,4200,0);
   const reply=parseOrderReply(raw);
   if(!Array.isArray(reply.articles)||reply.articles.length!==unique.length)throw Error('Неполная газета');
   const seen=new Set();

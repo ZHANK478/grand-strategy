@@ -348,7 +348,10 @@ function loadScenarioData(ref) {
     return {ref,name:d.name||b?.name||'Свой сценарий',year:d.year||b?.year||1852,
       countryColors:d.countryColors||{},provinces:d.provinces,countryProfiles:d.countryProfiles||{},rules:d.rules||{},month:d.month||0,dataNotes:d.dataNotes||''};
   };
-  const request=b?d3.json(b.file,{signal:controller.signal}).then(norm):
+  const embedded=ref==='builtin-world'?document.getElementById('gs-builtin-world-data'):null;
+  // The default world travels with the page, so starting it never waits for a second download.
+  const request=embedded?Promise.resolve().then(()=>norm(JSON.parse(embedded.textContent))):
+    b?d3.json(b.file,{signal:controller.signal}).then(norm):
     idbGetScenario(scenarioDataKey(ref)).then(obj=>{
       if(obj)return norm(obj);
       const raw=localStorage.getItem(scenarioDataKey(ref));
@@ -625,7 +628,10 @@ function renderScenarioProvinces() {
   if(countryLabelOwnersSignature!==currentCountryLabelOwners())addCountryLabelsFromProvinces();
 }
 
-switchActiveScenario(activeScenarioRef).catch(()=>{});
+publishScenarioStatus('loading',activeScenarioRef,'Подготавливаем карту…');
+function startInitialScenario(){switchActiveScenario(activeScenarioRef).catch(()=>{});}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',startInitialScenario,{once:true});
+else startInitialScenario();
 
 // ============================================================
 // ОБЪЕКТЫ НА КАРТЕ — армии, штабы, передвижения (создаются через EFFECTS от ИИ)

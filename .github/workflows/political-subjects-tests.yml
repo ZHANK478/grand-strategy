@@ -1,7 +1,7 @@
 name: Political cabinets and conferences
 on:
   push:
-    branches: [main, experiment/political-subjects, experiment/interface-motion]
+    branches: [main, experiment/political-subjects, experiment/interface-motion, experiment/scenario-startup]
   pull_request:
 jobs:
   political-world:
@@ -13,6 +13,8 @@ jobs:
           node-version: '22'
       - run: node --check game-motion.js
       - run: node --check economy-map.js
+      - run: node --check core-loop-startup.js
+      - run: node tests/scenario-startup.test.mjs
       - run: node tests/political-world.test.mjs
       - run: node tests/economy-world.test.mjs
       - run: node tests/news-continuity.test.mjs

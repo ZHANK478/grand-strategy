@@ -5,7 +5,7 @@ const KIND_FIELDS={
  narrative:['court_scene'],economic:['economic_policy'],tax:['economy'],spending:['society'],law:['law_slots','laws','institutions'],
  power:['country_name','transition','government','ruler_name','ruler_age','ruler_title','pm_name','pm_title','parliament'],
  army:['army_delta','map_objects'],map:['map_objects'],finance:['debt_delta'],
- military:['military_order'],diplomacy:['diplomatic_action','relations','treaties','war_declared','peace_made','province_transfer'],
+ naval:['naval_order'],trade:['trade_policy'],military:['military_order'],diplomacy:['diplomatic_action','relations','treaties','war_declared','peace_made','province_transfer'],
  identity:['country_name','country_color'],statement:['statement'],administration:['initiatives'],political:['political_task'],unsupported:[]
 };
 const LEADERS=['ruler_name','ruler_age','ruler_title','government','pm_name','pm_title'];
@@ -24,6 +24,8 @@ function validateEffects(raw,ctx,scope,kind){
  keys(raw,scope==='world'?WORLD_FIELDS:(KIND_FIELDS[kind]||[]));
  const e=clean(raw),mine=ctx.countries[ctx.player];
  if(e.transition!=null){check(['appoint','resign','succession','reform'].includes(e.transition),'Неверный переход власти');if(['resign','succession'].includes(e.transition))check(e.ruler_name&&e.ruler_name!==mine.ruler,'При смене главы нужен преемник');}
+ if(e.naval_order){check(typeof ctx.validateNavalOrder==='function','Нет морского исполнителя');ctx.validateNavalOrder(e.naval_order,ctx.player);}
+ if(e.trade_policy){check(typeof ctx.validateTradePolicy==='function','Нет торгового исполнителя');ctx.validateTradePolicy(e.trade_policy,ctx.player);}
  if(e.military_order){check(typeof ctx.validateMilitaryOrder==='function','Нет проверки операции');ctx.validateMilitaryOrder(e.military_order,ctx.player);}
  if(e.diplomatic_action){check(typeof ctx.validateDiplomaticAction==='function','Нет проверки дипломатии');ctx.validateDiplomaticAction(e.diplomatic_action,ctx.player);}
  if(e.court_scene){check(typeof ctx.validateCourtScene==='function','Нет проверки личного события');ctx.validateCourtScene(e.court_scene,mine);}
@@ -154,7 +156,7 @@ function authority(order,c,random=Math.random){
  const e=order.effects,p=c.parliament;
  if(order.status!=='execute')return {status:order.status==='reject'?'rejected':'deferred',reason:order.reason};
  if(e.parliament?.veto)return {status:'blocked',reason:'Парламент заблокировал решение: '+e.parliament.veto};
- if(['economic','tax','spending','law'].includes(order.kind)&&p&&(p.power??50)>=50&&p.support<50)return {status:'blocked',reason:'Нужна поддержка парламента: '+p.support+'/100; власть парламента '+p.power+'/100.'};
+ if(['economic','trade','tax','spending','law'].includes(order.kind)&&p&&(p.power??50)>=50&&p.support<50)return {status:'blocked',reason:'Нужна поддержка парламента: '+p.support+'/100; власть парламента '+p.power+'/100.'};
  if(order.kind==='power'){
   if(['resign','succession'].includes(e.transition))return {status:'executed',reason:order.reason};
   const controversial=(!!e.government&&e.government!==c.government)||!!e.parliament?.dissolve||!!e.parliament?.ban_party;

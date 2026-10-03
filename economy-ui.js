@@ -16,7 +16,7 @@ renderEconomyPanel=function(){
   row('Доходы бюджета / месяц',f(b.gross)+' млн р.е.')+row('Расходы / месяц',f(b.expense)+' млн р.е.')+row('Баланс / месяц',f(b.net)+' млн р.е.')+
   row('Неоплаченные обязательства',f(v.arrears)+' млн р.е.')+
   '<p>ВВП — производство всей страны. Доходы бюджета — только государственные поступления. Баланс показывает, сколько государство сохраняет или теряет. Все суммы сопоставимы в расчётной валюте сценария; это игровые оценки.</p>'+
-  heading('Что влияет на рост')+Object.entries(v.drivers).map(([k,x])=>row(({productivity:'Квалификация и производительность',investment:'Инвестиции',labor:'Рабочая сила',infrastructure:'Инфраструктура',capital:'Производственный капитал',employment:'Занятость',disruption:'Война, мобилизация, сбои',coordination:'Управление производством'})[k],f(x)+' п.п.')).join('');
+  heading('Что влияет на рост')+Object.entries(v.drivers).map(([k,x])=>row(({productivity:'Квалификация и производительность',investment:'Инвестиции',labor:'Рабочая сила',infrastructure:'Инфраструктура',capital:'Производственный капитал',employment:'Занятость',disruption:'Война, мобилизация, сбои',coordination:'Управление производством',trade:'Торговля и доступность импорта'})[k],f(x)+' п.п.')).join('');
  }else if(economyTab==='budget'){
   body=heading('Месячный бюджет при текущей политике')+row('Собираемость налогов',f(v.collection*100)+'%')+heading('Поступления')+
    b.lines.income.map(l=>row(l.name,f(l.value)+' млн')).join('')+heading('Расходы')+b.lines.expense.map(l=>row(l.name,f(l.value)+' млн')).join('')+
@@ -32,6 +32,10 @@ renderEconomyPanel=function(){
    Object.values(c.economy.classes).map(g=>'<article>'+heading(g.label)+row('Население',f(g.population/1e6)+' млн · '+f(g.share)+'%')+
     row('Доля национального дохода',f(g.incomeShare*100)+'%')+row('Налог',f(g.tax)+'%')+row('В бюджет за месяц',f(g.taxPaid)+' млн')+
     row('Реальный доход на человека',f(g.realIncome||g.annualPerPerson)+' р.е. / год')+row('Поддержка',f(g.loyalty)+'/100')+'</article>').join('');
+ }else if(economyTab==='trade'){
+  body=typeof maritimeTradeHTML==='function'?maritimeTradeHTML(playerCountry):'<p>Торговля недоступна.</p>';
+ }else if(economyTab==='sea'){
+  body=typeof maritimeSeaHTML==='function'?maritimeSeaHTML(playerCountry):'<p>Морские данные недоступны.</p>';
  }else{
   body=heading('Производство и собственность')+Object.entries(v.sectors).map(([k,s])=>'<article>'+heading(({agriculture:'Сельское хозяйство',industry:'Промышленность',resources:'Добыча',services:'Услуги и торговля'})[k])+
    row('Выпуск за год',f(s.output)+' млн')+row('Доля государства',f(s.stateShare*100)+'%')+row('Производственный капитал',f(s.capital)+' млн')+'</article>').join('')+
@@ -39,7 +43,7 @@ renderEconomyPanel=function(){
    '<p>Приказывайте текстом: национализировать отрасль, изменить координацию, снизить налог группе вдвое или увеличить расходы постепенно. Передача собственности сама по себе не увеличивает ВВП. Компенсация требует денег; конфискация вызывает сопротивление.</p>'+
    heading('Действующие программы')+(v.programs.filter(p=>p.status==='active').map(p=>row(({ownership:'Передача собственности',tax:'Налоговая реформа',spending:'Изменение расходов',coordination:'Перестройка управления'})[p.kind],f(p.elapsed/p.days*100)+'% · ещё '+(p.days-p.elapsed)+' дн.')).join('')||'<p>Программ нет.</p>');
  }
- box.innerHTML='<nav class="economy-tabs">'+Object.entries({overview:'Обзор',budget:'Бюджет',people:'Население',production:'Производство'}).map(([key,label])=>'<button type="button" class="'+(economyTab===key?'active':'')+'" onclick="economySetTab(\''+key+'\')">'+label+'</button>').join('')+'</nav>'+body;
+ box.innerHTML='<nav class="economy-tabs">'+Object.entries({overview:'Обзор',budget:'Бюджет',people:'Население',production:'Производство',trade:'Торговля',sea:'Море'}).map(([key,label])=>'<button type="button" class="'+(economyTab===key?'active':'')+'" onclick="economySetTab(\''+key+'\')">'+label+'</button>').join('')+'</nav>'+body;
 };
 const economyOldStats=renderPlayerStats;
 renderPlayerStats=function(...args){const c=countries[playerCountry];if(c){econV3(c);c.income=econMonthlyRevenue(c).gross;}const result=economyOldStats(...args);

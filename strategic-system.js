@@ -142,12 +142,12 @@ function strategyProvince(id){return scenarioProvinces.find(p=>p.id===id||p.name
 function strategyOwner(p){return provinceOwners[p.id]||p.owner;}
 function strategyControl(p){return strategyState().occupations[p.id]||strategyOwner(p);}
 function strategyGeometry(){
- if(strategyGeo?.source===scenarioProvinces)return strategyGeo;
+ if(strategyGeo?.source===scenarioProvinces&&strategyGeo.first===scenarioProvinces[0]&&Object.keys(strategyGeo.graph).length===scenarioProvinces.length)return strategyGeo;
  const graph={},centers={},vertices=new Map();
  for(const p of scenarioProvinces){graph[p.id]=new Set();const pts=p.geometry.type==='Polygon'?p.geometry.coordinates.flat():p.geometry.coordinates.flat(2);
   let x=0,y=0;for(const q of pts){x+=q[0];y+=q[1];const k=q[0].toFixed(3)+','+q[1].toFixed(3);if(!vertices.has(k))vertices.set(k,new Set());vertices.get(k).add(p.id);}centers[p.id]=[x/pts.length,y/pts.length];}
  for(const ids of vertices.values())for(const a of ids)for(const b of ids)if(a!==b)graph[a].add(b);
- strategyGeo={source:scenarioProvinces,graph,centers};return strategyGeo;
+ strategyGeo={source:scenarioProvinces,first:scenarioProvinces[0],graph,centers};return strategyGeo;
 }
 function strategyDistance(a,b){const rad=Math.PI/180,dlat=(b[1]-a[1])*rad,dlon=(b[0]-a[0])*rad;return 6371*2*Math.asin(Math.sqrt(Math.sin(dlat/2)**2+Math.cos(a[1]*rad)*Math.cos(b[1]*rad)*Math.sin(dlon/2)**2));}
 
@@ -232,7 +232,7 @@ function strategyBattle(attacker,defender,province){
 }
 function strategyDefender(owner,p){
  const units=worldState.mapObjects.filter(u=>u.type==='army'&&u.owner===owner&&strategyUnitProvince(u)===p.id&&u.troops>0);if(units.length)return units[0];
- const used=worldState.mapObjects.filter(u=>u.type==='army'&&u.owner===owner).reduce((n,u)=>n+u.troops,0),free=Math.max(0,countries[owner].army-used);
+ const used=worldState.mapObjects.filter(u=>u.type==='army'&&u.owner===owner).reduce((n,u)=>n+u.troops,0)+(typeof maritimeCargo==='function'?maritimeCargo(owner).reduce((n,u)=>n+u.troops,0):0),free=Math.max(0,countries[owner].army-used);
  if(free<1000)return null;
  const u={id:'reserve:'+owner+':'+p.id+':'+gameDayNumber(),type:'army',owner,troops:Math.min(free,Math.max(1000,Math.round(countries[owner].army*.1))),label:'Оборона '+p.name,province:p.id,location:p.name,morale:65,supply:80,stance:'defend'};
  worldState.mapObjects.push(u);return u;
@@ -474,7 +474,7 @@ econMonthlyRevenue=function(c){
 };
 function strategyPayer(c){return c.type==='dependency'?c.subject:(c.terms.payer||c.b);}
 function strategyRecipient(c){const payer=strategyPayer(c);return c.type==='dependency'?c.patron:(payer===c.b?c.a:c.b);}
-function strategyTribute(c){const rate=c.terms.tribute||0;return Math.max(0,strategyOldRevenue(countries[strategyPayer(c)]).gross*rate);}
+function strategyTribute(c){const rate=c.terms.tribute||0;return Math.max(0,econMonthlyRevenue(countries[strategyPayer(c)]).gross*rate);}
 const strategyOldBudget=econBudget;
 econBudget=function(c){
  const b=strategyOldBudget(c);if(strategyAccounting)return b;

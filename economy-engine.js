@@ -79,12 +79,13 @@ function econStep(c,days=1){
   const poor=c.economy.classes.peasants.share+c.economy.classes.commons.share;
   for(const [k,g]of Object.entries(c.economy.classes)){
    const transfer=['peasants','commons'].includes(k)?welfare/12*g.share/Math.max(1,poor):0;
-   const real=(g.disposable+transfer)*12e6/Math.max(1,g.population)/v.prices;
+   const tradeOwner=ALL_COUNTRIES.find(id=>countries[id]===c),tradePrices=typeof maritimeTrade==='function'?(maritimeTrade().result[tradeOwner]?.markup||0):0;
+   const real=(g.disposable+transfer)*12e6/Math.max(1,g.population)/v.prices/(1+tradePrices*.12);
    const change=g.realIncome?econClamp((real/g.realIncome-1)*30,-3,3):0;
    g.loyalty=econClamp(g.loyalty+change/30-(unpaid>0?.04:0)-(war?.006:0),0,100);g.realIncome=real;
   }
   const workforce=c.population*1000*v.workforceShare;
-  const mobilization=econClamp(c.army/Math.max(1,workforce),0,.4);
+  const mobilization=econClamp((c.army+(typeof maritimeCrew==='function'?maritimeCrew(ALL_COUNTRIES.find(id=>countries[id]===c)):0))/Math.max(1,workforce),0,.4);
   const invest=c.society.spending.infrastructure*12*v.paidRatio/Math.max(1,c.gdp*v.prices);
   const avgTax=Object.values(c.economy.classes).reduce((s,g)=>s+g.tax*g.incomeShare,0);
   const privateInvest=econClamp(.11-avgTax*.001+(c.stability-50)*.0005,.015,.18);
@@ -102,6 +103,7 @@ function econStep(c,days=1){
   v.drivers={capital:(sectorCapital/Math.max(1,c.gdp)-2)*.25,employment:-(v.unemployment-5)*.08,productivity:.5+c.society.literacy*.012,investment:(privateInvest+invest-.1)*12,
    labor:actualLaborGrowth*100*.35,infrastructure:(c.infrastructure-35)*.015,
    disruption:-(100-c.stability)*.015-(war?4:0)-mobilization*12-(1-v.paidRatio)*4,coordination};
+  if(typeof maritimeTrade==='function'){const owner=ALL_COUNTRIES.find(id=>countries[id]===c),trade=maritimeTrade().result[owner];if(trade)v.drivers.trade=seaClamp(trade.exports/Math.max(1,c.gdp*v.prices/12),0,.3)*2-trade.shortage*1.5;}
   const growth=econClamp(Object.values(v.drivers).reduce((s,x)=>s+x,0),-20,10);
   c.gdpGrowth=econRound(growth);c.gdp=Math.max(.001,c.gdp*(1+growth/100*dt));
   const GDPfactor=c.gdp/oldGDP;
@@ -116,7 +118,8 @@ function econStep(c,days=1){
   c.society.urbanization=econClamp(100-c.economy.classes.peasants.share,0,100);
   c.society.poverty=econClamp(c.society.poverty+((1-v.paidRatio)*4-growth*.12-welfare/Math.max(1,c.gdp*v.prices)*25)*dt,0,100);
   const monetary=printed/Math.max(1,c.gdp*dt)*100;
-  const target=econClamp(1+monetary+(war?4:0)+mobilization*8+(1-v.paidRatio)*3,-2,150);
+  const ownerForTrade=ALL_COUNTRIES.find(id=>countries[id]===c),trade=typeof maritimeTrade==='function'?maritimeTrade().result[ownerForTrade]:null;
+  const target=econClamp(1+(trade?trade.shortage*5+trade.markup*2:0)+monetary+(war?4:0)+mobilization*8+(1-v.paidRatio)*3,-2,150);
   c.inflation=(Number(c.inflation)||0)+(target-(Number(c.inflation)||0))*dt*2;v.prices*=Math.exp(c.inflation/100*dt);
   const pressure=(v.arrears/Math.max(1,b.gross*12))*8;
   c.stability=econClamp(c.stability-pressure*dt,0,100);

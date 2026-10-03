@@ -346,7 +346,7 @@ function loadScenarioData(ref) {
   const norm=d=>{
     if(!d||!Array.isArray(d.provinces)||!d.provinces.length)throw Error('В сценарии нет провинций');
     return {ref,name:d.name||b?.name||'Свой сценарий',year:d.year||b?.year||1852,
-      countryColors:d.countryColors||{},provinces:d.provinces,countryProfiles:d.countryProfiles||{},rules:d.rules||{},month:d.month||0,dataNotes:d.dataNotes||''};
+      countryColors:d.countryColors||{},provinces:d.provinces,countryProfiles:d.countryProfiles||{},rules:d.rules||{},month:d.month||0,day:d.day||1,maritime:d.maritime||null,dataNotes:d.dataNotes||''};
   };
   const embedded=ref==='builtin-world'?document.getElementById('gs-builtin-world-data'):null;
   // The default world travels with the page, so starting it never waits for a second download.
@@ -378,6 +378,7 @@ async function switchActiveScenario(ref) {
     activeScenario=data;activeScenarioRef=ref;scenarioProvinces=provinces;
     if(typeof applyScenarioToGame==='function')applyScenarioToGame(data);
     renderScenarioProvinces();
+    if(typeof window.prepareMaritimeGeography==='function')window.prepareMaritimeGeography();
     try{localStorage.setItem(ACTIVE_SCENARIO_KEY,ref);}catch{}
     publishScenarioStatus('ready',ref,'Карта готова',data);
     return data;
@@ -644,6 +645,7 @@ const OWNER_COLORS = { rebel: '#7a1a1a', foreign: '#8a1a1a' };
 // и по-разному выглядели на разных ОС.
 const MAP_SYMBOLS = {
   army:     'M-2.6,-2.6 L2.6,2.6 M2.6,-2.6 L-2.6,2.6',
+  port:     'M-3,2 H3 M-2,2 V-1 H2 V2 M-3,-1 L0,-3 L3,-1',
   naval:    'M0,-3 L0,2.4 M-2,0.4 A2,2 0 0 0 2,0.4 M-1.5,-2.2 L1.5,-2.2',
   hq:       'M-2.4,-2.4 h4.8 v4.8 h-4.8 Z',
   diplomat: 'M0,-3 L2.6,0 L0,3 L-2.6,0 Z',
@@ -732,6 +734,7 @@ function expireMapObjects(){
   'Завершилось временное присутствие','Истёк заданный срок пребывания: «'+o.label+'» ('+o.location+').',[o.owner]);});
 }
 function renderMapObjects() {
+  if(typeof maritimeRenderRoutes==='function')maritimeRenderRoutes();
   if (typeof worldState === 'undefined' || !worldState.mapObjects) return;
   const zoom = W / vb.w;
   const motion = !!window.GS_MOTION?.enabled();

@@ -29,8 +29,8 @@ for(const campaign of ['expansion','balance']){
   window.__replayOrders=ids;
   return {player:playerCountry,cash,orders:ids.length,turn,articles:(articles?.foreign||[]).length};
  },{saved,campaign});
- const result=await page.evaluate(async()=>{const plan=await generateOrderPlan();return {count:plan.orders.length,cash:countries[playerCountry].treasury,ids:plan.orders.map(o=>o.id),omitted:window.__replayOrders.filter(id=>!plan.orders.some(o=>o.id===id))};});
- const wire=captures.at(-1).wire;
+ const result=await page.evaluate(async()=>{const ctx=orderPlanningContext();window.__replaySections=Object.fromEntries(Object.entries(ctx).map(([k,v])=>[k,JSON.stringify(v).length]));const plan=await generateOrderPlan();return {count:plan.orders.length,cash:countries[playerCountry].treasury,ids:plan.orders.map(o=>o.id),omitted:window.__replayOrders.filter(id=>!plan.orders.some(o=>o.id===id))};});
+ const wire=captures.at(-1).wire;console.log('REPLAY_PACKING '+JSON.stringify({campaign,wire,sections:await page.evaluate(()=>window.__replaySections)}));
  assert.equal(result.count,before.orders,'Every real pending instruction retained');assert.equal(result.omitted.length,0);assert.equal(result.cash,before.cash,'Packing must not alter resources');
  assert.ok(wire<120000,'Real late-game prompt fits safely below backend limit');
  console.log('CONQUEST_REPLAY '+JSON.stringify({...before,wire,ordersRetained:true}));

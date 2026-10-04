@@ -232,6 +232,9 @@ orderPlanningContext=function(...args){const c=conquestOldPlanning(...args);
  if(c.playerObservation?.facts){const f=c.playerObservation.facts;c.playerObservation.facts=Object.fromEntries(['agenda','posture','warPreparation','stability','relations','economics'].filter(k=>f[k]!=null).map(k=>[k,f[k]]));}
  if(c.domesticActors&&c.actors){const ids=new Set(c.domesticActors.map(a=>a.id));c.actors=[...c.domesticActors.map(a=>({...c.actors.find(old=>old.id===a.id),...a})),...c.actors.filter(a=>!ids.has(a.id))];delete c.domesticActors;}
  if(c.issues)c.issues=c.issues.filter(i=>i.sender===playerCountry||i.recipient===playerCountry);
+ if(c.decisions)c.decisions=c.decisions.filter(d=>d.country===playerCountry||d.target===playerCountry);
+ if(c.politicalEvents)c.politicalEvents=c.politicalEvents.map(e=>{const {followUps,...fact}=e;return fact;});
+ if(c.previousHeadlines)c.previousHeadlines=c.previousHeadlines.slice(-4);
  for(const key of ['recentEvents','politicalEvents','actors','domesticActors','issues','decisions','recentOrders'])if(c[key])c[key]=conquestCompactHistory(c[key]);
  if(c.actors)c.actors=c.actors.map(a=>{delete a.country;a.memory=(a.memory||[]).map(m=>typeof m==='string'?policyBrief(m,160):{...m,text:policyBrief(m.text,160)});return a;});
  c.worldSituation=conquestWorldFacts();c.occupiedLand=scenarioProvinces.filter(p=>strategyControl(p)===playerCountry&&strategyOwner(p)!==playerCountry).map(p=>({id:p.id,name:p.name,owner:strategyOwner(p)}));return c;};

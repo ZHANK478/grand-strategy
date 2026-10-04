@@ -97,7 +97,14 @@ try{
     if(!u||u.troops!==50000||c.army!==before.army)throw Error('Deployment created wrong army');
     if(!worldState.publicStatements?.length)throw Error('Second compound step did not execute');
    }
-   if(fixture.name==='zero-taxes'&&Object.values(c.economy.classes).some(g=>g.tax!==0))throw Error('Some social taxes not changed');
+   if(fixture.name==='zero-taxes'){
+    if(Object.values(c.economy.classes).some(g=>g.tax!==0))throw Error('Some social taxes not changed');
+    const p=worldState.temporaryTaxes.find(p=>p.status==='active'),beforeTaxes=JSON.parse(worldState.orders[0].before.taxes);
+    advanceGameDays(p.due-gameDayNumber());
+    if(Object.entries(c.economy.classes).some(([k,g])=>g.tax!==beforeTaxes[k]))throw Error('Temporary tax rates did not expire');
+    if(p.status!=='completed')throw Error('Tax expiration status missing');
+    out.taxExpiration=true;out.dayDelta=gameDayNumber()-before.day;
+   }
    if(fixture.name==='yearly-offer'){
     const offer=strategyState().offers.find(o=>o.a===playerCountry&&o.status==='open');
     if(!offer||offer.terms.days!==365)throw Error('Contract term was lost');

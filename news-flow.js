@@ -133,6 +133,21 @@ applyOrderPlan=function(plan){
  const start=(worldState.periodEvents||[]).length,results=newsOldApply(plan);
  for(const o of results){
   if(!['executed','in_progress','blocked','failed','rejected','deferred'].includes(o.status))continue;
+  if(o.status==='executed'&&o.effects?.economy){
+   const values=Object.fromEntries(Object.entries(o.effects.economy).map(([k,v])=>[k.replace('tax_',''),v]));
+   const schedules=worldState.temporaryTaxes||(worldState.temporaryTaxes=[]);
+   for(const old of schedules.filter(p=>p.country===playerCountry&&p.status==='active')){
+    for(const k of Object.keys(values))delete old.values[k];
+    if(!Object.keys(old.values).length)old.status='superseded';
+   }
+   const days=politicalContractDays(o.text);
+   if(days){
+    const before=JSON.parse(o.before.taxes),restore=Object.fromEntries(Object.keys(values).map(k=>[k,before[k]]));
+    const due=/месяц/i.test(o.text)&&days%30===0?gameMonthTarget(days/30):gameDayNumber()+days;
+    schedules.push({order:o.id,country:playerCountry,values,restore,due,status:'active'});
+    o.reason+=' Временные ставки действуют до '+processDate(due)+', затем возвращаются прежние, если не будет нового распоряжения.';
+   }
+  }
   let event=worldState.periodEvents.slice(start).findLast(e=>e.sourceOrder===o.id&&!e.actor);
   const article=['executed','in_progress'].includes(o.status)?plan.articles?.[o.id]||newsFallbackArticle(o):newsFallbackArticle(o);
   if(!event){recordWorldEvent('domestic',article.headline,article.body,[playerCountry],newsOrderDetails(o));event=worldState.periodEvents.at(-1);}
@@ -209,7 +224,14 @@ executeOrderEffects=function(e){const copy=JSON.parse(JSON.stringify(e));if(copy
 const newsOldForeignEffects=applyCountryPoliticalEffects;
 applyCountryPoliticalEffects=function(owner,kind,e){if(kind==='narrative'){OrderRules.validateEffects(e,{...orderContext(),player:owner},'order',kind);applyCourtScene(owner,e.court_scene);return {status:'executed',reason:'Личное событие сохранено в истории двора'};}return newsOldForeignEffects(owner,kind,e);};
 const newsOldAdvance=advanceGameDays;
-advanceGameDays=function(n){const result=newsOldAdvance(n);for(const id of ALL_COUNTRIES){const court=countries[id]?.court;if(!court)continue;court.scenes.filter(s=>s.status==='active'&&s.due<=gameDayNumber()).forEach(s=>{
+advanceGameDays=function(n){const result=newsOldAdvance(n);
+ for(const p of (worldState.temporaryTaxes||[]).filter(p=>p.status==='active'&&p.due<=gameDayNumber())){
+  const c=countries[p.country],restored=[];
+  if(c&&!c.annexed)for(const [k,v]of Object.entries(p.values)){const group=c.economy.classes[k];if(group&&Math.abs(group.tax-v)<.000001){group.tax=p.restore[k];restored.push(group.label+': '+group.tax+'%');}}
+  p.status='completed';p.finished=gameDayNumber();
+  if(restored.length){recordWorldEvent(p.country===playerCountry?'domestic':'foreign','Завершилась временная налоговая мера','Установленный срок налогового решения истёк. Прежние ставки восстановлены: '+restored.join('; ')+'. Более поздние распоряжения сохраняют силу.',[p.country]);Object.assign(worldState.periodEvents.at(-1),{sourceOrder:p.order,phase:'expiration',coverage:true,priority:9});}
+ }
+ for(const id of ALL_COUNTRIES){const court=countries[id]?.court;if(!court)continue;court.scenes.filter(s=>s.status==='active'&&s.due<=gameDayNumber()).forEach(s=>{
  s.status='completed';if(s.health==='ill'&&court.health==='ill')court.health='recovering';
  recordWorldEvent(id===playerCountry?'domestic':'foreign','Новые известия из резиденции',s.description+' Установленный для этих обстоятельств срок завершился. '+(s.health==='ill'?'Состояние главы государства теперь обозначено как восстановление; выздоровление и политические последствия ещё не предрешены.':'Событие осталось в памяти участников и может влиять на дальнейшие разговоры.'),[id]);
  });}return result;};

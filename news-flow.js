@@ -231,6 +231,7 @@ writeNewspaper=async function(edition){
  const ranked=newsUnique([...abroad,...foreignFallback]).filter(e=>!flow.published.some(p=>p.key===newsKey(e)&&!e.coverage));
  ranked.sort((a,b)=>Number(!!b.respondsTo)-Number(!!a.respondsTo)+(b.priority||0)-(a.priority||0)+foreignNewsWeight(b)-foreignNewsWeight(a));
  edition.foreign=ranked.slice(0,7);
+ if(!edition.foreign.length)edition.foreign=[{headline:'За рубежом без новых публичных решений',body:'За этот период не подтверждено новых публичных решений, отобранных для выпуска. Начатые программы и действующие договоры продолжают исполняться.',actors:[]}];
  if(ranked.length>7)edition.foreign.push({headline:'Другие международные известия',body:'Дополнительные события этого периода доступны ниже.',details:ranked.slice(7).map(e=>e.headline+'\n'+e.body).join('\n\n'),actors:[]});
  ['domestic','foreign'].forEach(section=>{edition[section].forEach(a=>{a.details=newsClean(a.details||'').replace(/Проверенные эффекты: \{[^\n]*\}/g,'Численные изменения проверены движком.');flow.published.push({key:newsKey(a),headline:a.headline,actors:a.actors||[],turn});});});
  flow.published=flow.published.slice(-160);edition.editor='political-actions';

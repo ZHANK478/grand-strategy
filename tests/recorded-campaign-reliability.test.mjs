@@ -27,7 +27,7 @@ try{
   const orders=line?JSON.parse(line):[];
   await route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({choices:[{message:{content:JSON.stringify({orders:orders.map(o=>({id:o.id,kind:'unsupported',status:'defer',reason:'Тестовый ответ транспорта, не политическое решение.',effects:{},article:{headline:'Проверка подготовки запроса',body:'Это бесплатная проверка транспорта. Решение не исполняется.'}})),politics:[]})},finish_reason:'stop'}]})});
  });
- const page=await context.newPage(),errors=[];page.on('pageerror',e=>errors.push(e.message));
+ const page=await context.newPage(),errors=[];page.on('console',m=>{if(m.text().startsWith('PLANNING_FIXTURE '))console.log(m.text());});page.on('pageerror',e=>errors.push(e.message));
  await page.goto('http://127.0.0.1:8765/economy-world.html',{waitUntil:'load'});
  await page.waitForFunction(()=>window.GS_MAP_LOAD?.status==='ready',{},{timeout:30000});
  await page.selectOption('#mobile-country-picker','Франция');await page.click('#mobile-start-btn');
@@ -38,6 +38,7 @@ try{
   const measured=await page.evaluate(async()=>{
    const raw=politicalContext(),ctx=orderPlanningContext(),before=countries[playerCountry].treasury;
    const size=o=>JSON.stringify([{role:'user',content:compactPoliticalJSON(o)}]).length;
+   console.log('PLANNING_FIXTURE '+JSON.stringify({country:playerCountry,context:raw,own:{treasury:before,army:countries[playerCountry].army,ruler:countries[playerCountry].ruler,rulerTitle:countries[playerCountry].rulerTitle,pm:countries[playerCountry].pm,pmTitle:countries[playerCountry].pmTitle,government:countries[playerCountry].government}}));
    const plan=await generateOrderPlan();
    if(countries[playerCountry].treasury!==before)throw Error('Context preparation mutated treasury');
    if(ctx.player.treasury!==Number(before.toPrecision(7)))throw Error('Treasury omitted');

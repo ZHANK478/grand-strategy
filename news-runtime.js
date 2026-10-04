@@ -67,6 +67,13 @@ renderActionsList=function(){
  const summary=document.createElement('div');summary.className='order-summary';
  summary.textContent=b?'Прогноз месяца: доход '+b.gross.toLocaleString('ru',{maximumFractionDigits:1})+' млн р.е./мес.'+', баланс '+(b.net>=0?'+':'')+b.net.toLocaleString('ru',{maximumFractionDigits:1})+' млн р.е./мес.'+'. '+(b.net<0?'Нужно уменьшить дефицит.':'Можно направить избыток на развитие.')+' Прогноз при текущих показателях; рост и события могут изменить итог.':'Подготовьте решения на следующий месяц.';
  box.appendChild(summary);
+ if(turn===1){const c=countries[playerCountry],points=[];
+  if(b?.net<0)points.push('Дефицит '+economyFmt(Math.abs(b.net))+' млн р.е./мес.');
+  if(c.society?.poverty>45)points.push('Бедность '+economyFmt(c.society.poverty)+'%');
+  if(c.society?.literacy<65)points.push('Грамотность '+economyFmt(c.society.literacy)+'%');
+  const low=Object.values(c.economy?.classes||{}).sort((a,b)=>a.loyalty-b.loyalty)[0];if(low?.loyalty<45)points.push('Низкая поддержка: '+low.label);
+  if(worldState.atWarWith?.length)points.push('Идёт война с '+worldState.atWarWith.join(', '));
+  if(points.length){const attention=document.createElement('p');attention.className='order-summary';attention.textContent='Начальная обстановка: '+points.slice(0,3).join(' · ')+'. Это возможные темы первых распоряжений.';box.append(attention);}}
  if(!pending.length){const empty=document.createElement('p');empty.textContent='Нет подготовленных приказов. Напишите решение главы государства.';box.appendChild(empty);}
  pending.forEach((o,index)=>{
   const row=document.createElement('div');row.className='action-item order-card';

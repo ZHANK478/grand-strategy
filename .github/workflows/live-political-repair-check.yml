@@ -1,33 +1,10 @@
-name: Authorised twelve political repair requests — one time
+name: Archived authorised political repair diagnostics
 on:
-  push:
-    branches: [fix/autonomous-politics-20261004]
-    paths: [tests/live-political-repair-check.mjs]
+  workflow_dispatch:
 permissions:
   contents: read
-  actions: read
 jobs:
-  repair:
+  archived:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-      - uses: actions/download-artifact@v4
-        with:
-          github-token: ${{ github.token }}
-          repository: ZHANK478/grand-strategy
-          run-id: '37187363653'
-          pattern: political-campaign-*
-          path: political-seed
-      - run: npm install --no-save --package-lock=false playwright
-      - run: npx playwright install --with-deps chromium
-      - run: node tests/live-political-repair-check.mjs
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: political-repair-check
-          path: political-repair-output/
-          retention-days: 7
+      - run: echo 'Twelve diagnostic requests completed once. Paid reruns need a new explicit budget.'

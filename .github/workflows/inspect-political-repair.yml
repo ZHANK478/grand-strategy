@@ -1,0 +1,24 @@
+name: Inspect diagnostic replies without paid calls
+on:
+  push:
+    branches: [fix/autonomous-politics-20261004]
+    paths: [tests/inspect-political-repair.mjs]
+permissions:
+  contents: read
+  actions: read
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ github.token }}
+          repository: ZHANK478/grand-strategy
+          run-id: '37189392428'
+          name: political-repair-check
+          path: repair-seed
+      - run: node tests/inspect-political-repair.mjs

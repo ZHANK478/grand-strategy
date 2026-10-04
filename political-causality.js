@@ -265,6 +265,7 @@ const causalOldRender=renderNewspaper;
 renderNewspaper=function(edition){
  causalOldRender(edition);const box=document.getElementById('newspaper-date');if(!box||!edition)return;
  const job=edition.editorJob;
+ if(job&&['queued','editing'].includes(job.status)&&!causalEditorialWorker&&!causalEditorialQueue.some(j=>j.edition===edition))job.status='interrupted';
  if(job&&!['complete'].includes(job.status)){
   const notice=document.createElement('span');notice.className='political-editor-status';
   notice.textContent=['queued','editing'].includes(job.status)?' · Редакция готовит выпуск; игра уже доступна':' · Выпуск сохранён в исходной редакции';

@@ -493,3 +493,6 @@ body.mobile-country-open #mobile-actions-menu{left:calc(30vw + 12px);width:min(3
 
 .newspaper-brief{padding:7px 9px;border-bottom:1px solid var(--edge);font-size:10px;line-height:1.4;color:var(--ink);background:var(--panel)}
 @media(min-width:1024px) and (hover:hover) and (pointer:fine){.newspaper-brief{font-size:12px}}
+
+body:not(.laptop-mode) #events-box{bottom:max(74px,calc(env(safe-area-inset-bottom) + 64px))!important;height:auto!important}
+body.mobile-sheet-open:not(.laptop-mode) #mobile-actions-button,body.mobile-sheet-open:not(.laptop-mode) #mobile-actions-menu{left:calc(30vw + 12px)}

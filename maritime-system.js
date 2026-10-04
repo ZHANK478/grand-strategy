@@ -158,6 +158,10 @@ function executeNavalOrder(owner,o){
   strategyEvent(owner,'Началась морская переброска',u.troops+' солдат '+u.label+' погружены в порту '+p.name+'. Они остаются частью национальной армии, но больше не защищают берег.',[]);maritimeTouch();return 'Войска погружены; назначьте порт высадки.';
  }
  f.path=[];f.progress=0;f.mission=o.action;f.targetPort=p?.id||null;f.destination=p?.region||o.region||f.region;f.commandedUntil=now+30;
+ if(typeof policyNotice==='function'&&['move','patrol','escort','blockade','land'].includes(o.action)){
+  const witnessed=new Set(m.ports.filter(port=>port.region===f.destination||port.region===f.region).map(maritimePortOwner));
+  for(const target of witnessed)if(target&&target!==owner)policyNotice(owner,target,'Военное ведомство '+owner+' направило эскадру (около '+Math.round(maritimeShips(f)/5)*5+' кораблей) в район '+(geo.areas[f.destination]?.name||f.destination)+' для задачи '+o.action+'. Это распоряжение и начавшийся переход, не объявленный успех операции. Оцени собственные морские, торговые и оборонные интересы.','naval');
+ }
  if(o.action!=='hold'&&o.action!=='embark'){
   const path=maritimeSeaPath(f.region,f.destination,owner);f.path=path.slice(1);f.port=null;
   const distance=maritimeTravelDistance(path),speed=f.propulsion==='steam'?280:f.propulsion==='mixed'?230:190;

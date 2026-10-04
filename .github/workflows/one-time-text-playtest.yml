@@ -5,6 +5,7 @@ on:
     paths: [tests/live-text-campaigns.mjs]
 permissions:
   contents: read
+  actions: read
 jobs:
   play:
     runs-on: ubuntu-latest
@@ -18,6 +19,12 @@ jobs:
       - run: npx playwright install --with-deps chromium
       - run: node tests/news-continuity.test.mjs
       - run: node tests/maritime-trade.test.mjs
+      - uses: actions/download-artifact@v4
+        with:
+          name: text-campaigns-20261004
+          run-id: '37182129441'
+          github-token: ${{ github.token }}
+          path: playtest-seed/
       - run: node tests/live-text-campaigns.mjs
       - uses: actions/upload-artifact@v4
         if: always()

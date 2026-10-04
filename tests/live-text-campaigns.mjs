@@ -5,7 +5,11 @@ import {createServer} from 'node:http';
 import {readFile,writeFile,mkdir} from 'node:fs/promises';
 import {resolve,extname} from 'node:path';
 import assert from 'node:assert/strict';
-const root=process.cwd(),limit=40,report={limit,attempts:0,usage:[],campaigns:[],blockedOptionalCalls:0};
+const root=process.cwd(),limit=40;
+const seedReport=JSON.parse(await readFile('playtest-seed/report.json','utf8'));
+const seedResponses=JSON.parse(await readFile('playtest-seed/Франция-responses.json','utf8'));
+const report={limit,attempts:seedReport.attempts,usage:seedReport.usage,campaigns:[],blockedOptionalCalls:0,replayedRequests:0};
+if(seedReport.attempts!==2)throw Error('Expected exactly two already paid seed requests');
 await mkdir('playtest-output',{recursive:true});
 const server=createServer(async(req,res)=>{
  try{const p=resolve(root,'.'+decodeURIComponent(new URL(req.url,'http://localhost').pathname));if(!p.startsWith(root+'/'))throw Error('path');
@@ -44,10 +48,14 @@ try{
  for(const [country,program]of Object.entries(programs)){
   const campaign={country,goal:country==='Франция'?'Реформы и морская торговля без войны':'Германское влияние, сотрудничество и проверка бюджетных ограничений',turns:[],pageErrors:[],cloudWarnings:[]};report.campaigns.push(campaign);
   const context=await browser.newContext({viewport:{width:844,height:390},isMobile:true,hasTouch:true});
-  let perTurn=0,currentStep=0;const replies=[];
+  let perTurn=0,currentStep=0,seedIndex=0;const replies=[];
   await context.route('**/functions/v1/guest-ai',async route=>{
    const body=route.request().postDataJSON();
    if(body?.operation!=='generate'){await route.continue();return;}
+   if(country==='Франция'&&currentStep===1&&seedIndex<seedResponses.length){
+    const old=seedResponses[seedIndex++];perTurn++;report.replayedRequests++;replies.push(old);
+    await route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({choices:[{message:{content:old.response},finish_reason:'stop'}],model:'openai/gpt-6-luna',usage:old.usage})});return;
+   }
    if(report.attempts>=limit||perTurn>=2){
     report.blockedOptionalCalls++;await route.fulfill({status:429,contentType:'application/json',body:JSON.stringify({error:'request_limit',message:'Explicit playtest budget reached'})});return;
    }
@@ -67,7 +75,9 @@ try{
   await page.goto('http://127.0.0.1:8765/economy-world.html',{waitUntil:'load',timeout:60000});
   await page.waitForFunction(()=>window.GS_MAP_LOAD?.status==='ready',{},{timeout:30000});
   await page.evaluate(async()=>{await initAuth();setTextModel('openai/gpt-6-luna');});
-  await page.selectOption('#mobile-country-picker',country);await page.click('#mobile-start-btn');
+  const chosen=await page.locator('#mobile-country-picker option').evaluateAll((options,label)=>options.find(o=>o.value===label)?.value||options.find(o=>label==='Пруссия'&&/Прусси/.test(o.value))?.value,country);
+  if(!chosen)throw Error('Country missing: '+country);
+  await page.selectOption('#mobile-country-picker',chosen);await page.click('#mobile-start-btn');
   campaign.initial=await page.evaluate(()=>({day:gameDayNumber(),date:dateLabel(),cash:countries[playerCountry].treasury,army:countries[playerCountry].army,taxes:Object.fromEntries(Object.entries(countries[playerCountry].economy.classes).map(([k,v])=>[k,v.tax])),budget:econBudget(countries[playerCountry])}));
   for(let i=0;i<10;i++){
    currentStep=i+1;perTurn=0;
@@ -97,6 +107,8 @@ try{
    console.log('PLAYTURN '+JSON.stringify({country,...result}));
    await writeFile('playtest-output/report.json',JSON.stringify(report,null,2));
    await writeFile('playtest-output/'+country+'-responses.json',JSON.stringify(replies,null,2));
+   const checkpoint=await page.evaluate(()=>JSON.parse(localStorage.getItem(SAVE_PREFIX+currentSlotId)));
+   await writeFile('playtest-output/'+country+'-state.json',JSON.stringify(checkpoint));
    assert.ok(result.day>start,'Calendar must advance');assert.equal(campaign.pageErrors.length,0,'No browser errors');
   }
   // Actual anonymous cloud round trip, with fractional metadata.

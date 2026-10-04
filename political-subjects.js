@@ -94,7 +94,7 @@ function policySelect(limit=6,respondOnly=false,excluded=[]){
   const urgent=incoming.length+addressed.length+proposal.length>0,wars=policyLive().filter(other=>other!==n&&isAtWar(n,other)),stale=Math.max(0,gameDayNumber()-(a.lastReviewDay??gameDayNumber()-120));
   if(respondOnly&&!urgent)return null;
   if(!respondOnly&&!urgent&&a.reviewDay>gameDayNumber()&&!wars.length&&stale<90)return null;
-  const crisis=incoming.some(i=>['war','border','peace'].includes(i.kind));
+  const crisis=incoming.some(i=>['war','border','peace'].includes(i.kind)||i.kind==='political'&&i.salience>=65);
   return {n,stale,urgent,score:Math.min(3,incoming.length)*70+Math.min(3,addressed.length)*50+Math.min(2,proposal.length)*100+
    (crisis?180:0)+(wars.length?400:0)+(geo.neighbors[n]?.has(playerCountry)?35:0)+(a.reviewDay<=gameDayNumber()?30:0)+
    (a.goals.some(g=>g.status==='active')?15:0)+Math.max(0,28-ranking.indexOf(n)*2)+Math.min(120,stale)};
@@ -121,7 +121,7 @@ function policyContext(selected,results,phase){
  return {id,actor:id+'::government',interests,
  goals:a.goals.map(g=>({...g,goal:policyBrief(g.goal,250),success:policyBrief(g.success,200)})),
  memory:a.memory.slice(-3).map(m=>({day:m.day,text:policyBrief(m.text,280)})),
- inbox:a.inbox.filter(i=>i.status==='open').slice(-6).map(i=>({id:i.id,source:i.source,kind:i.kind,text:policyBrief(i.text,320),day:i.day})),
+ inbox:a.inbox.filter(i=>i.status==='open').slice(-6).map(i=>({id:i.id,source:i.source,kind:i.kind,text:policyBrief(i.text,320),day:i.day,eventId:i.eventId,salience:i.salience})),
  assessment:policyBrief(a.assessment,350)||null,lastOutcome:a.lastOutcome?{...a.lastOutcome,material:policyBrief(a.lastOutcome.material,300)}:null,
  issues:ensureNewsFlow().issues.filter(i=>i.status==='open'&&i.recipient===id).slice(-5).map(i=>({id:i.id,sender:i.sender,recipient:i.recipient,text:policyBrief(i.text,400),action:i.action,status:i.status,created:i.created,lastUpdate:i.lastUpdate})),
  offers:strategyState().offers.filter(o=>o.status==='open'&&o.b===id).slice(-5).map(offer),
@@ -215,46 +215,67 @@ function policyPrepareBatch(selected,results,phase){
  }
  return {selected,prompt};
 }
-async function policyBatch(selected,results,phase){
- if(!selected.length)return [];
+async function policyGenerateBatch(selected,results,phase){
+ if(!selected.length)return null;
  const p=policyState();if(p.calls.turn!==turn)p.calls={turn,used:0};
- const ceiling=worldState.plannedPeriod&&/год|Год|лет|6 месяц/.test(worldState.plannedPeriod)?8:2;
- if(p.calls.used>=ceiling)return [];
- const batch=policyPrepareBatch(selected,results,phase);selected=batch.selected;const prepared=batch.prompt;
- p.calls.used++;const acted=[];
+ const ceiling=worldState.plannedPeriod&&/год|Год|лет|6 месяц/.test(worldState.plannedPeriod)?12:3;
+ if(p.calls.used>=ceiling)return null;
+ const batch=policyPrepareBatch(selected,results,phase);
+ // Prepare complete immutable prompts before awaiting. No state effects in workers.
+ p.calls.used++;
  try{
-  const raw=await askGemini(prepared,10000,0,{response_format:{type:'json_object'},reasoning_effort:'low'});
-  const data=parseOrderReply(raw);politicalAssert(Array.isArray(data.cabinets)&&data.cabinets.length<=selected.length,'Неверный список кабинетов');
-  const seen=new Set(),invalid=[];
-  for(const item of data.cabinets){try{politicalAssert(!seen.has(item.country),'Повтор кабинета');seen.add(item.country);if(policyApply(item,selected,results))acted.push(item.country);}catch(error){invalid.push({country:item.country,error:String(error.message).slice(0,400),reply:item});}}
-  if(invalid.length){
-   try{
-    const repair=parseOrderReply(await askGemini(prepared+"\nВОССТАНОВЛЕНИЕ ФОРМАТА. Только неисполненные кабинеты ниже. Сохрани собственные цели и намерения, исправь ошибки по схеме. Уважай реального адресата предложения, текущие войны и уже заключённые договоры. Чужое согласие не придумывай. Если война уже окончилась, продолжение обсуждения — communicate, не новое принятие мира. Верни {cabinets:[...]}.\nОшибки: "+JSON.stringify(invalid),9000,0,{response_format:{type:'json_object'},reasoning_effort:'low'}));
-    politicalAssert(Array.isArray(repair.cabinets),'Нет исправлений кабинетов');
-    for(const failure of invalid){
-     try{
-      const candidates=repair.cabinets.filter(c=>c.country===failure.country);politicalAssert(candidates.length===1,'Нет однозначного исправления кабинета');
-      if(policyApply(candidates[0],[failure.country],results)){acted.push(failure.country);failure.repaired=true;}
-     }catch(error){failure.repairError=String(error.message).slice(0,400);}
-    }
-   }catch(error){for(const failure of invalid)failure.repairError=String(error.message).slice(0,400);}
-   for(const {reply,...failure}of invalid)policyState().audit.push({day:gameDayNumber(),...failure});
-  }
-  for(const id of selected.filter(n=>!seen.has(n)))policyState().audit.push({day:gameDayNumber(),country:id,error:'Кабинет не получил решение; повторная оценка на следующем периоде.'});
- }catch(error){p.audit.push({day:gameDayNumber(),phase,error:String(error.message).slice(0,400)});showNotif('Оценка иностранных кабинетов не получена. Действия не выдуманы; время продолжится.');}
+  const data=parseOrderReply(await askGemini(batch.prompt,4800,0,{response_format:{type:'json_object'},reasoning_effort:'low'}));
+  politicalAssert(Array.isArray(data.cabinets)&&data.cabinets.length<=batch.selected.length,'Неверный список кабинетов');
+  return {...batch,data};
+ }catch(error){
+  policyState().audit.push({day:gameDayNumber(),phase,error:String(error.message).slice(0,400)});return null;
+ }
+}
+async function policyCommitBatch(batch,results,repair=true){
+ if(!batch)return [];
+ const {selected,prompt,data}=batch,acted=[],invalid=[],seen=new Set();
+ for(const item of data.cabinets){
+  try{politicalAssert(!seen.has(item.country),'Повтор кабинета');seen.add(item.country);if(policyApply(item,selected,results))acted.push(item.country);}
+  catch(error){invalid.push({country:item.country,error:String(error.message).slice(0,400),reply:item});}
+ }
+ if(repair&&invalid.length){
+  try{
+   const fixed=parseOrderReply(await askGemini(prompt+
+    '\nВОССТАНОВЛЕНИЕ ФОРМАТА. Только неисполненные кабинеты ниже. Применение остальных решений уже закончено. Исправь формат по схеме; используй актуальные предложения, ресурсы и войны. Не принимай законченные договоры снова. Сохрани намерение, чужое согласие не выдумывай. Верни {cabinets:[...]}.\nОшибки: '+JSON.stringify(invalid)+
+    '\nАктуальные факты после проверки: '+compactPoliticalJSON(policyContext(invalid.map(x=>x.country).filter(n=>selected.includes(n)),results,'repair')),4200,0,{response_format:{type:'json_object'},reasoning_effort:'low'}));
+   for(const failure of invalid){
+    try{const matches=fixed.cabinets?.filter(d=>d.country===failure.country)||[];politicalAssert(matches.length===1,'Нет однозначного исправления');
+     if(policyApply(matches[0],[failure.country],results)){acted.push(failure.country);failure.repaired=true;}
+    }catch(error){failure.repairError=String(error.message).slice(0,400);}
+   }
+  }catch(error){invalid.forEach(f=>f.repairError=String(error.message).slice(0,400));}
+ }
+ for(const {reply,...failure}of invalid)policyState().audit.push({day:gameDayNumber(),...failure});
+ for(const id of selected.filter(n=>!seen.has(n)))policyState().audit.push({day:gameDayNumber(),country:id,error:'Кабинет не получил решение; повторная оценка на следующем периоде.'});
  policyState().audit=policyState().audit.slice(-30);return acted;
+}
+async function policyBatch(selected,results,phase){
+ return policyCommitBatch(await policyGenerateBatch(selected,results,phase),results);
+}
+async function policyParallelWave(selected,results,phase){
+ const groups=[];for(let i=0;i<selected.length;i+=3)groups.push(selected.slice(i,i+3));
+ // Both generators read committed state. All application remains in stable order.
+ const generated=await Promise.allSettled(groups.slice(0,2).map(group=>policyGenerateBatch(group,results,phase)));
+ const acted=[];for(const reply of generated)if(reply.status==='fulfilled')acted.push(...await policyCommitBatch(reply.value,results));
+ return acted;
 }
 async function runPoliticalRound(results=[],opts={}){
  if(activeScenario.rules?.autonomousWorld===false)return;
- const p=policyState();policyScanWorld();p.round++;
+ const p=policyState();if(typeof causalScan==='function')causalScan(results);policyScanWorld();p.round++;
  const originalSignals=new Map(policyLive().map(n=>[n,new Set(policyCabinet(n).inbox.filter(i=>i.status==='open').map(i=>i.id))]));
  const selected=policySelect(6);
- await policyBatch(selected,results,opts.phase||'opening');
- // Recipients not yet reviewed respond to committed initiatives. No recursive loop.
- policyScanWorld();
+ await policyParallelWave(selected,results,opts.phase||'opening');
+ // Dependent replies are generated only after senders' actual effects are committed.
+ if(typeof causalScan==='function')causalScan();policyScanWorld();
  const eligible=policySelect(policyLive().length,true).filter(n=>!selected.includes(n)||policyCabinet(n).inbox.some(i=>i.status==='open'&&!originalSignals.get(n)?.has(i.id)));
  const recipients=eligible.slice(0,3);if(recipients.length)policyState().round++;
- await policyBatch(recipients,[], 'response');
+ await policyBatch(recipients,results,'response');
+ if(typeof causalScan==='function')causalScan();
 }
 window.politicalRunRound=runPoliticalRound;
 const policyOldReset=resetGame;

@@ -30,7 +30,7 @@ function livingGroupStories(list){
  return [...stories.values()].map(s=>({...s,body:s.facts.join('\n\n')}));
 }
 function livingInternational(e){
- if(e.respondsTo||e.policyTarget)return true;
+ if(e.respondsTo||e.policyTarget||e.salience>=55||e.causalEvent)return true;
  if(['war','mobilize','deploy','negotiate','warn','condemn','offer_alliance','offer_nonaggression','offer_peace','accept','reject_offer'].includes(e.policyAction))return true;
  if(['diplomacy','military','naval','trade','power'].includes(e.policyKind))return true;
  const text=e.headline+' '+e.body;
@@ -46,20 +46,17 @@ function livingOrderProgress(o){
  program?{type:program.kind,status:program.status,remainingDays:Math.max(0,program.days-program.elapsed),target:program.target}:
  build?{type:build.type,status:build.status,remainingDays:Math.max(0,build.due-day),count:build.count,cost:build.cost,port:maritimePort(build.port)?.name}:null;
 }
-async function livingEditStories(edition,stories){
+function livingEditorFacts(stories){return stories.map((s,i)=>({id:'N'+(i+1),section:s.section,headline:s.headline,facts:s.body.slice(0,2400),execution:(s.details||'').slice(0,1600),order:s.sourceOrder?worldState.orders.find(o=>o.id===s.sourceOrder)?.text:undefined,verified:s.sourceOrder?(()=>{const o=worldState.orders.find(o=>o.id===s.sourceOrder);return o?{status:o.status,reason:o.reason,before:o.before,after:o.after,effects:o.effects,currentBudget:econBudget(countries[playerCountry]),progress:livingOrderProgress(o)}:null;})():undefined,actors:(s.actors||[]).map(id=>({country:countries[id]?.displayName||id,ruler:countries[id]?.ruler,government:countries[id]?.government}))}));}
+async function livingEditStories(edition,stories,frozen=null){
  if(!stories.length)return;
- const facts=stories.map((s,i)=>({id:'N'+(i+1),section:s.section,headline:s.headline,
- facts:s.body.slice(0,2400),execution:s.details.slice(0,1800),
- order:s.sourceOrder?worldState.orders.find(o=>o.id===s.sourceOrder)?.text:undefined,
- verified:s.sourceOrder?(()=>{const o=worldState.orders.find(o=>o.id===s.sourceOrder);return o?{status:o.status,reason:o.reason,before:o.before,after:o.after,effects:o.effects,currentBudget:econBudget(countries[playerCountry]),progress:livingOrderProgress(o)}:null;})():undefined,
- actors:(s.actors||[]).map(id=>({country:countries[id]?.displayName||id,ruler:countries[id]?.ruler,government:countries[id]?.government}))}));
- const prompt='NEWSPAPER_EDITOR_V2\nТы редактор политической газеты '+year+' года в '+(countries[playerCountry].displayName||playerCountry)+'. Период '+edition.from+' — '+edition.to+'.\n'+
+ const facts=frozen?.facts||livingEditorFacts(stories);
+ const prompt='NEWSPAPER_EDITOR_V2\nТы редактор политической газеты '+(frozen?.year??year)+' года в '+(frozen?.country||(countries[playerCountry].displayName||playerCountry))+'. Период '+edition.from+' — '+edition.to+'.\n'+
  'Напиши полноценные выразительные газетные заметки по событиям ниже. Газета должна показывать столкновение интересов и значение события для людей и государств. Начинай с самого события, а не поручения написать доклад. Для значимого решения 70–120 слов, 1–2 абзаца; небольшой промежуточный итог 35–60 слов. Не все события сенсация: тон соразмерен ставкам. Смерть, смена власти, война и разрыв с парламентом требуют соответствующего масштаба и открытого вопроса о будущем. Школьная реформа — рассказ о доступе к учёбе, споре об устройстве общества и людях, которых она затрагивает; не о том, что поле закона обновлено.\n'+
  'facts и execution — источники ОДНОЙ истории. verified — фактическое применение: при расхождении с формулировкой статьи оно имеет приоритет. Набор и строительство в работе нельзя представить завершёнными. Объедини распоряжение, исполнение и реакции в одну статью. Не печатай отдельно, что создан приказ, готовится отчёт, достигнут статус, движок подтвердил шаг. Не перечисляй сроки/бюджет/статусы как служебный отчёт: они уже скрыты под статьёй. Число солдат или кораблей допустимо, если это суть события. Не засоряй статьи оговорками вроде «это ещё не означает», «подтверждения не получено», «дальнейшие последствия зависят».\n'+
  'Отделяй факт от анализа. Мотивы и реакции, присутствующие в facts, передавай конкретно; не подменяй их «министры одобряют, но беспокоятся о финансировании». Если реальной реакции нет, редакция МОЖЕТ обсуждать, какие интересы сталкиваются, что поставлено на карту и какой вопрос остаётся открытым, явно как собственный анализ/предположение. Это не новая политическая позиция, массовый протест или чужое решение. Не выдумывай цитат, терактов, голосований, внешних заявлений, состоявшихся побед или численных последствий. Нельзя объявлять результат вместо начатого процесса. Физически невозможное заявление можно обсуждать как заявление, не истину. История — отправная точка, а не запрет альтернативных событий.\n'+
  'Верни только JSON {"articles":[{"id":"N1","headline":"заголовок до 150 символов","body":"связная статья"}]}. Ровно одна статья на каждое id; без effects, списка изменений и чужих решений.\nИсточники: '+compactPoliticalJSON(facts);
  try{
-  const data=parseOrderReply(await askGemini(prompt,8500,0,{response_format:{type:'json_object'},reasoning_effort:'low'}));
+  const data=parseOrderReply(await askGemini(prompt,8500,0,{response_format:{type:'json_object'},reasoning_effort:'low',...(frozen?{model:frozen.model,turn_id:frozen.turnId}:{})}));
   if(!Array.isArray(data.articles))throw Error('Редактор не вернул статьи');
   const seen=new Set();
   for(const a of data.articles){
@@ -90,7 +87,8 @@ writeNewspaper=async function(edition){
  edition.archive={domestic:homeOther,foreign:foreignOther};
  edition.domestic=mainHome;edition.foreign=mainForeign;
  const stories=[...mainHome.map(s=>Object.assign(s,{section:'domestic'})),...mainForeign.map(s=>Object.assign(s,{section:'foreign'}))];
- await livingEditStories(edition,stories);
+ if(typeof causalQueueEdition==='function')edition.editorSource={facts:livingEditorFacts(stories),year,country:countries[playerCountry].displayName||playerCountry,model:MODEL,turnId:window.GS_GUEST_TURN_ID};
+ else await livingEditStories(edition,stories);
  edition.technicalOrders=ensureOrders().filter(o=>o.technicalError).map(o=>({id:o.id,text:o.text,error:o.technicalError}));
  // Quiet periods get a short neutral line, never seven fabricated cabinet stories.
  if(!edition.foreign.length)edition.foreign=[{headline:'Международная хроника',body:'За этот период новых публичных дипломатических решений не поступило.',actors:[]}];

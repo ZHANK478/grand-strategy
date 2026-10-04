@@ -1328,12 +1328,16 @@ async function nextTurn(kind) {
   turnRunning=true;const btn=document.querySelector('.next-btn');btn.disabled=true;btn.textContent='Проверка приказов…';
   try{
     const beforeFacts=captureWorldFacts(),periodStartDate=dateLabel();
+    if(typeof causalBeginTurn==='function')causalBeginTurn();
     worldState.plannedPeriod=opt.label;
     const engineHistoryStart=worldState.pastEvents.length;
     worldState.periodEvents=[];
     turn++;
     // Decisions take effect before the month's budget and social simulation.
     const results=await onTurnEnd();
+    if(typeof causalScan==='function')causalScan(results);
+    renderPlayerStats();renderPlayerPowerPanel();renderActionsList();
+    btn.textContent='Кабинеты принимают решения…';
     if(window.politicalRunRound)await window.politicalRunRound(results,{phase:'opening',days:kind==='week'?7:opt.months*30});
     const policyStart=gameDayNumber(),policyStride=opt.months>=12?Math.ceil(opt.months*365.25/48):90;let policyCheckpoint=policyStride;
     let changes=[],deaths=[],netSum=0,borrowedSum=0;
@@ -1346,6 +1350,7 @@ async function nextTurn(kind) {
     }
     await completeInitiativeDocuments();
     announceDeaths(deaths);
+    if(typeof causalDeathAlerts==='function')causalDeathAlerts(deaths);
     if(opt.months>1){changes=[{label:'Бюджет за '+opt.months+' месяцев',value:(netSum>=0?'+':'')+netSum.toLocaleString('ru')+' расчётных единиц',sign:netSum}];
       if(borrowedSum)changes.push({label:'Займы за период',value:'+'+borrowedSum.toLocaleString('ru'),sign:-1});}
     reconcileOrderArmies();
@@ -1358,6 +1363,7 @@ async function nextTurn(kind) {
     worldState.pastEvents=worldState.pastEvents.slice(-120);
     if(typeof renderMapObjects==='function')renderMapObjects();
     if(!saveGame())throw Error('Не удалось сохранить результат хода');
+    if(typeof causalCommitTurn==='function')causalCommitTurn(edition);
     return true;
   }catch(error){
     ({turn,month,year,week,day,countries,worldState,playerActions,pendingDirectives,

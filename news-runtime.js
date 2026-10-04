@@ -156,7 +156,8 @@ action всегда строка; amount и target — отдельные пол
  plan.orders.forEach(o=>{if(o.effects?.political_task){const source=free.find(x=>x.id===o.id);if(source)bindPoliticalMandate(o.effects.political_task,source.text,o.article);}});
  const articles=new Map(plan.orders.map(o=>[o.id,o.article]));
  const packet=(proposal,original)=>{
-  const {article,technicalError,...rest}=proposal;
+  const {article,technicalError,signal,...rest}=proposal;
+  const politicalSignal=typeof causalValidateSignal==='function'?causalValidateSignal(signal,playerCountry):null;
   if(rest.effects?.political_task)bindPoliticalMandate(rest.effects.political_task,original.text,article);
   if(rest.kind==='tax'&&Object.keys(rest.effects||{}).length&&Object.keys(rest.effects).every(k=>['tax_noble','tax_burgher','tax_commons','tax_peasants','tax_middle'].includes(k)))rest.effects={economy:rest.effects};
   if(rest.kind==='spending'&&Object.keys(rest.effects||{}).length&&Object.keys(rest.effects).every(k=>['education_spending','welfare_spending','infrastructure_spending'].includes(k)))rest.effects={society:rest.effects};
@@ -167,7 +168,7 @@ action всегда строка; amount и target — отдельные пол
    rest.effects={political_task:{goal:original.text,executor:countries[playerCountry].pm||'Кабинет министров',days:politicalDuration(original.text),cost:0,result:article.body,headline:article.headline,body:article.body}};
   }
   OrderRules.validatePlan({news:[],domestic:[],orders:[rest],world_effects:{}},[{id:original.id}],orderContext());
-  return rest;
+  return {...rest,...(politicalSignal?{signal:politicalSignal}:{})};
  };
  const byId=new Map(),invalid=[];
  for(const original of free){
@@ -343,7 +344,7 @@ function applyOrderPlan(plan){
   if(verdict.penalty)changeCountryStat(playerCountry,'stability',-verdict.penalty);
   if(proposal.technicalError)order.technicalError=proposal.technicalError;
   else if(verdict.status==='executed'||verdict.status==='in_progress')delete order.technicalError;
-  order.status=verdict.status;order.kind=proposal.kind;order.effects=verdict.status==='executed'?JSON.parse(JSON.stringify(proposal.effects)):{};
+  order.status=verdict.status;order.kind=proposal.kind;order.signal=proposal.signal||null;order.effects=verdict.status==='executed'?JSON.parse(JSON.stringify(proposal.effects)):{};
   order.relationsBefore=relationsBefore;order.relationsAfter=Object.fromEntries(Object.keys(relationsBefore).map(n=>[n,getRelation(playerCountry,n)]));
   order.reason=verdict.status==='executed'&&!proposal.effects.political_task?executedOrderDescription(proposal.effects):verdict.reason;order.resolvedTurn=turn;order.before=before;order.after=orderStatSnapshot(c);
   if(verdict.chance!=null)order.chance=verdict.chance;

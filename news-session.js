@@ -220,14 +220,14 @@
   if(kind==='text'&&JSON.stringify(payload.messages).length>140000)throw Error(errorMessage('payload_too_large'));
   if(!await initAuth())throw Error(connection.message);
   if(connection.mode==='direct'){
-   const {cost,reasoning_effort,...providerPayload}=payload;
+   const {cost,reasoning_effort,turn_id,...providerPayload}=payload;
    if(reasoning_effort==='low'&&/^(openai\/gpt-6-|z-ai\/glm-5\.3$)/.test(payload.model))providerPayload.reasoning={effort:'low'};
    return directRequest(providerPayload);
   }
   if(connection.mode==='guest'){
    if(kind==='image')return serverRequest('guest-ai',{operation:'image',model:'google/gemini-3.1-flash-image',messages:payload.messages});
    if(!guestModels.includes(payload.model))throw Error('Модель '+payload.model+' пока не разрешена гостевым сервером. Нужна настройка Supabase; ключ остаётся на сервере.');
-   return serverRequest('guest-ai',{...payload,cost:window.GS_GUEST_TURN_ID?payload.cost:0,operation:'generate',turn_id:window.GS_GUEST_TURN_ID});
+   return serverRequest('guest-ai',{...payload,cost:(payload.turn_id??window.GS_GUEST_TURN_ID)?payload.cost:0,operation:'generate',turn_id:payload.turn_id??window.GS_GUEST_TURN_ID});
   }
   return serverRequest('ai',{kind,...payload});
  }

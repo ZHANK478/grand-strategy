@@ -30,7 +30,7 @@ function reactToPlayerOrders(results){
    recordWorldEvent('domestic',difference>0?'Новый налог вызывает недовольство':'Снижение налогов укрепляет поддержку',
     (difference>0?'Правительство увеличило налоговую нагрузку на группу «':'Налоговое послабление получила группа «')+group.label+'». '+(difference>0?'Решение отразилось на поддержке власти.':'Снижение нагрузки укрепляет расположение к правительству.'),[playerCountry],group.label+': ставка '+old[key]+'% → '+now[key]+'%. Поддержка '+before+' → '+group.loyalty+'.');
   });
-  if(o.before.government!==o.after.government){
+  if(!window.POLITICAL_SUBJECTS&&o.before.government!==o.after.government){
    ALL_COUNTRIES.filter(n=>n!==playerCountry&&!countries[n].annexed&&isRelevantPair(n,playerCountry)).slice(0,4).forEach(n=>{
     const aligned=/монарх|импер|королев|самодерж/i.test(countries[n].government)===/монарх|импер|королев|самодерж/i.test(c.government);
     const before=getRelation(playerCountry,n);addRelation(playerCountry,n,aligned?2:-3);

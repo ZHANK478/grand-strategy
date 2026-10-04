@@ -13,3 +13,11 @@
 .living-minister-responses summary{cursor:pointer}
 .living-minister-responses details{margin:.5rem 0;padding:.5rem;border:1px solid rgba(130,110,78,.3);border-radius:5px}
 .economy-explanation{font-size:.9em;line-height:1.55}
+
+.political-breaking-news{position:fixed;z-index:1600;top:50%;left:50%;transform:translate(-50%,-50%);width:min(420px,72vw);max-height:75dvh;overflow:auto;background:#e9dfc9;color:#34291e;border:1px solid #978467;border-radius:6px;box-shadow:0 12px 48px #0008;padding:18px;user-select:text}
+.political-breaking-news small{font-size:11px;letter-spacing:.06em}
+.political-breaking-news h2{font-family:Georgia,serif;font-size:22px;margin:12px 0}
+.political-breaking-news p{font-size:14px;line-height:1.5}
+.political-breaking-news button{display:block;margin-left:auto;background:transparent;color:inherit;border:1px solid #978467;padding:7px 12px;border-radius:4px;cursor:pointer}
+.political-editor-status{font-size:.85em;opacity:.7}
+@media(max-width:900px){.political-breaking-news{padding:12px;width:min(360px,65vw)}.political-breaking-news h2{font-size:18px}.political-breaking-news p{font-size:12px}}

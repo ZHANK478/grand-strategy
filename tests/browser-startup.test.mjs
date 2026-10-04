@@ -154,6 +154,23 @@ try{
    },protocolFixtures);
    console.log(mode+' POLITICAL_PROTOCOL '+JSON.stringify(protocol));
 
+
+   const reading=await page.evaluate(async()=>{
+    const text='Правительство открыло школы девочкам. Решение меняет доступ к образованию и вызывает спор о будущем страны.';
+    renderNewspaper({from:dateLabel(),to:dateLabel(),domestic:[{headline:'Школьная реформа',body:text,details:'Права изменены.'}],foreign:[],archive:{domestic:[],foreign:[]}});
+    const article=document.querySelector('#domestic-list .newspaper-article'),paragraph=article.querySelector('p');
+    const range=document.createRange();range.selectNodeContents(paragraph);const selection=window.getSelection();selection.removeAllRanges();selection.addRange(range);
+    const selected=selection.toString(),userSelect=getComputedStyle(paragraph).userSelect;selection.removeAllRanges();
+    window.__copied='';Object.defineProperty(navigator,'clipboard',{configurable:true,value:{writeText:async value=>{window.__copied=value;}}});
+    article.querySelector('.living-copy-button').click();await Promise.resolve();await Promise.resolve();
+    economySetTab('people');const economy=document.getElementById('economy-body').textContent;
+    return {selected,userSelect,copied:window.__copied,economy};
+   });
+   assert.equal(reading.userSelect,'text','Touch text is selectable');
+   assert.match(reading.selected,/школы девочкам/,'Text can be selected');
+   assert.match(reading.copied,/Права изменены/,'Copy includes precise effects for sharing');
+   assert.match(reading.economy,/Доступ девочек|Грамотность/,'Education causes visible in actual UI');
+
    console.log(mode+' PASSED start/fullscreen/country and failure isolation');
   }catch(e){failures++;console.log(mode+' FAILED '+e.stack);console.log(mode+' DIAGNOSTICS '+JSON.stringify(await page.evaluate(()=>({load:window.GS_MAP_LOAD,start:typeof window.mobileStartGame,fullscreen:typeof window.mobileFullscreen,picker:document.getElementById('mobile-country-picker')?.value,disabled:document.getElementById('mobile-start-btn')?.disabled,menu:document.getElementById('main-menu')?.style.display}))));}
   await context.close();

@@ -39,6 +39,14 @@ econMonthlyRevenue=function(c){
  const resources=Object.values(v.sectors).reduce((s,x)=>s+x.output*v.prices/12*x.stateShare*.12,0);
  return {gross:taxes+tariffs+resources,taxes,perClass,tariffs,resources};
 };
+function econEducation(c){
+ const v=econV3(c),girls=({none:.2,partial:.65,equal:1})[c.lawSlots?.women]??Math.max(.2,Math.min(1,(c.society.womensRights||0)/100));
+ const provision=({church:.75,partial:.9,universal:1})[c.lawSlots?.education]??.9;
+ const access=(.5+.5*girls)*provision;
+ const perChild=c.society.spending.education*12*v.paidRatio*1e6/Math.max(1,c.population*1000*.28)/v.prices;
+ return {girlsAccess:girls,access,perChild,annualLiteracyGain:Math.min(1.5,perChild/100)*Math.max(0,access*100-c.society.literacy)/100};
+}
+function econDemography(c){const v=econV3(c),deaths=v.deaths+(econWar(c)?4:0)+Math.max(0,c.society.poverty-65)*.08+(v.paidRatio<.8?2:0);return {births:v.births,deaths,migration:v.migration,annualRate:(v.births-deaths+v.migration)/1000};}
 function econWar(c){return typeof isAtWar==='function'&&ALL_COUNTRIES.some(n=>countries[n]!==c&&!countries[n].annexed&&isAtWar(c.displayName,n));}
 function econBudget(c){
  const v=econV3(c),r=econMonthlyRevenue(c),war=econWar(c),sp=c.society.spending;
@@ -110,8 +118,8 @@ function econStep(c,days=1){
   Object.values(v.sectors).forEach(s=>{s.output*=GDPfactor;s.capital=Math.max(0,s.capital+(s.output*(privateInvest+invest)-s.capital*.04)*dt);});
   v.capital=Object.values(v.sectors).reduce((s,x)=>s+x.capital,0);
   c.infrastructure=econClamp(c.infrastructure+(invest*70*v.paidRatio-.4)*dt,0,100);
-  const eduPerChild=c.society.spending.education*12*v.paidRatio*1e6/Math.max(1,c.population*1000*.28)/v.prices;
-  c.society.literacy=econClamp(c.society.literacy+Math.min(1.5,eduPerChild/100)*(100-c.society.literacy)/100*dt,0,100);
+  const education=econEducation(c);
+  c.society.literacy=econClamp(c.society.literacy+education.annualLiteracyGain*dt,0,100);
   v.deaths=econClamp(v.deaths-(c.society.spending.welfare*12*v.paidRatio/Math.max(1,c.gdp*v.prices)*2)*dt,5,40);
   const shift=Math.min(c.economy.classes.peasants.share,Math.max(0,privateInvest+invest-.05)*dt*2);
   c.economy.classes.peasants.share-=shift;c.economy.classes.commons.share+=shift*.7;c.economy.classes.middle.share+=shift*.3;

@@ -96,7 +96,8 @@ function validatePoliticalTask(t,owner){
  }
 
  if(t.process){politicalKeys(t.process,['mode','days','summary']);politicalAssert(t.process.mode==='implementation'&&t.process.days===t.days,'Противоречивый срок поручения');delete t.process;}
- politicalKeys(t,['goal','executor','target','days','cost','result','headline','body','effects','kind','offer','sourceMandate','targets','interpretationCorrected','answer','instructions']);
+ politicalKeys(t,['goal','executor','target','days','cost','result','headline','body','effects','kind','offer','sourceMandate','targets','interpretationCorrected','answer','instructions','response']);
+ if(t.response!=null)politicalText(t.response,6000);
  if(t.instructions!=null)politicalAssert(t.instructions&&typeof t.instructions==='object'&&JSON.stringify(t.instructions).length<=4000,'Слишком длинное содержание поручения');
  ['goal','executor','result','headline','body'].forEach(k=>politicalText(t[k],k==='body'?2000:k==='headline'?160:1200));
  politicalAssert(Number.isInteger(t.days)&&t.days>=0&&t.days<=3650,'Неверный срок политического действия');
@@ -306,13 +307,13 @@ function finishPoliticalTask(t){
   if(t.status==='executed'){
    if(t.answer){const response=answerPoliticalOffer(t.country,t.target,t.answer,t.offer);t.status=response.status;t.reason=response.reason;}
    else if(t.offer)createPoliticalOffer(t.country,t.target,t.offer,politicalContractDays(t.sourceMandate||t.goal+' '+t.result));
-   if(t.status==='executed'){c.politicalRecords=[...(c.politicalRecords||[]),{id:t.id,goal:t.goal,result:t.result,executor:t.executor,target:t.target,date:dateLabel()}].slice(-40);
+   if(t.status==='executed'){c.politicalRecords=[...(c.politicalRecords||[]),{id:t.id,goal:t.goal,result:t.result,response:t.response||null,executor:t.executor,target:t.target,date:dateLabel()}].slice(-40);
    actors.forEach(a=>actorRemember(a,'Решение власти: '+t.goal+'. Результат: '+t.result));}
   }
  }
  t.finished=gameDayNumber();
  const order=worldState.orders.find(o=>o.id===t.source);
- if(order){order.status=t.status;order.reason=t.reason;order.resolvedTurn=turn;order.after=orderStatSnapshot(c);order.effects=t.status==='executed'?t.effects||{}:{};}
+ if(order){if(t.status==='executed'&&t.response)order.response=t.response;order.status=t.status;order.reason=t.reason;order.resolvedTurn=turn;order.after=orderStatSnapshot(c);order.effects=t.status==='executed'?t.effects||{}:{};}
  politicalEvent(t.country,t.status==='executed'?'Политическое решение осуществлено':'Исполнение встретило препятствие',
   t.status==='executed'?t.result:t.goal+'. '+t.reason,'Процесс: '+t.id+'. Статус: '+t.status+'. Проверенные эффекты: '+JSON.stringify(t.effects||{}),t.target?[t.target]:[]);
 }

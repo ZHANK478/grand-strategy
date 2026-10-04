@@ -233,9 +233,10 @@
  // All text paths use this request; errors during a turn abort it before effects are applied.
  askGemini=async function(prompt,maxTokens=400,cost=1,options={}){
   try{
-   const data=await request('text',{model:MODEL,messages:[{role:'user',content:prompt}],max_tokens:maxTokens,temperature:0.75,cost,...options});
+   const data=await request('text',{model:MODEL,messages:[{role:'user',content:prompt}],max_tokens:Math.max(maxTokens,options.response_format?maxTokens:1800),temperature:0.75,cost,reasoning_effort:'low',...options});
    const text=textContent(data.choices?.[0]?.message);
-   if(!text.trim())throw Error('ИИ не вернул текст. Возможно, лимит ответа ушёл на рассуждения.');
+   if(!text.trim()){const reason=data.choices?.[0]?.finish_reason;throw Error(reason==='length'?'Провайдер исчерпал лимит ответа до выдачи текста. Запрос сохранён; его можно повторить.':'Провайдер вернул пустой ответ. Запрос сохранён; это сбой ИИ, а не отказ министра.');}
+   if(data.choices?.[0]?.finish_reason==='length'&&options.response_format)throw Error('Провайдер обрезал план до завершения. Неподтверждённые приказы сохранены; повторите их обработку без хода.');
    return text;
   }catch(error){
    if(turnRunning)throw error;

@@ -180,7 +180,7 @@ const newsOldFinishTask=finishPoliticalTask;
 finishPoliticalTask=function(t){
  const start=(worldState.periodEvents||[]).length;newsOldFinishTask(t);
  const events=worldState.periodEvents.slice(start),order=worldState.orders.find(o=>o.id===t.source);
- events.forEach(e=>{e.sourceTask=t.id;e.phase=t.days===0?'decision':'completion';e.coverage=!!order;
+ events.forEach(e=>{e.sourceTask=t.id;e.storyId=t.id;e.phase=t.days===0?'decision':'completion';e.coverage=!!order;
   if(order){e.sourceOrder=order.id;e.headline=order.newsHeadline?'Итог: '+order.newsHeadline:'Завершено решение главы государства';e.body=t.status==='executed'?t.result:t.goal+'. '+newsClean(t.reason);e.details=newsOrderDetails(order);}
   else {e.headline=(countries[t.country].displayName||t.country)+': завершено — '+(t.headline||'политическое поручение');e.body=t.executor+' завершил работу по поручению «'+t.goal+'». '+(t.status==='executed'?'Исполнение поручения зарегистрировано: '+t.result:newsClean(t.reason));e.details=newsClean(t.reason||'');}
  });
@@ -267,7 +267,7 @@ buildNewspaper=function(before,results,events,start){
  edition.orderCoverage=results.map(o=>{const a=o.newsHeadline?{headline:o.newsHeadline,body:o.newsBody}:newsFallbackArticle(o);return {...a,sourceOrder:o.id,phase:'decision',coverage:true,actors:[playerCountry],details:newsOrderDetails(o),priority:10};});
  return edition;
 };
-writeNewspaper=async function(edition){
+async function collectNewspaperFacts(edition){
  const flow=ensureNewsFlow(),all=worldState.periodEvents||[],own=[...all.filter(e=>e.section==='domestic'),...(edition.orderCoverage||[]).filter(e=>!all.some(a=>a.sourceOrder===e.sourceOrder&&a.phase==='decision'))],abroad=all.filter(e=>e.section==='foreign');
  let cover=[...new Map(own.filter(e=>e.coverage).map(e=>[newsKey(e),e])).values()];
  cover=cover.filter(e=>!e.phase?.startsWith('progress-')||(!cover.some(x=>x.sourceOrder===e.sourceOrder&&x.phase==='completion')&&!cover.some(x=>x.sourceOrder===e.sourceOrder&&x.phase?.startsWith('progress-')&&x.phase>e.phase)));
@@ -291,6 +291,7 @@ writeNewspaper=async function(edition){
  flow.published=flow.published.slice(-160);edition.editor='political-actions';
  return edition;
 };
+writeNewspaper=collectNewspaperFacts;
 const newsOldAsk=askGemini;
 askGemini=async function(prompt,...args){
  if(typeof prompt!=='string'||!prompt.includes('Свободные приказы:'))return newsOldAsk(prompt,...args);
@@ -342,7 +343,7 @@ const newsOldStartTask=startPoliticalTask;
 startPoliticalTask=function(owner,task,source){
  const start=(worldState.periodEvents||[]).length,result=newsOldStartTask(owner,task,source);
  if(result.task){const order=worldState.orders.find(o=>o.id===source);result.task.newsIssueId=order?source:source+':'+turn+':'+(worldState.currentNewsAction||'pursue');
-  worldState.periodEvents.slice(start).forEach(e=>{e.sourceTask=result.task.id;if(order){e.sourceOrder=order.id;e.phase=task.days===0?'decision':e.phase||'decision';e.coverage=true;}});
+  worldState.periodEvents.slice(start).forEach(e=>{e.sourceTask=result.task.id;e.storyId=result.task.id;if(order){e.sourceOrder=order.id;e.phase=task.days===0?'decision':e.phase||'decision';e.coverage=true;}});
  }
  return result;
 };

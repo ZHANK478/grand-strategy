@@ -20,7 +20,7 @@ try{
   await page.waitForFunction(()=>window.GS_MAP_LOAD?.status==='ready',{},{timeout:60000});
   await page.selectOption('#mobile-country-picker','Франция');
   await page.click('#mobile-start-btn');
-  assert.ok(new URL(page.url()).pathname.endsWith('/economy-world.html')&&new URL(page.url()).searchParams.get('v')==='16','Root entry opens current build');
+  assert.ok(new URL(page.url()).pathname.endsWith('/economy-world.html')&&new URL(page.url()).searchParams.get('v')==='17','Root entry opens current build');
   const state=await page.evaluate(()=>({started:gameStarted,player:playerCountry,countries:Object.keys(countries).length,ports:worldState.maritime?.ports.length}));
   assert.ok(state.started&&state.player==='Франция'&&state.countries>40&&state.ports>0);
   assert.equal(errors.length,0,errors.join('; '));

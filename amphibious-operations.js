@@ -174,10 +174,10 @@ function amphibiousTick(){
    continue;
   }
   if(!f||!maritimeShips(f)){t.status='failed';t.reason='Эскадра утрачена';amphibiousReceipt(t);continue;}
-  if(!source||!maritimeAccessiblePort(t.owner,source)){amphibiousBlock(t,'Порт погрузки больше не доступен');continue;}
+  if(!source||(!maritimeAccessiblePort(t.owner,source)&&!f.cargo.some(u=>u.id===t.wave))){amphibiousBlock(t,'Порт погрузки больше не доступен');continue;}
   if(!target){amphibiousBlock(t,'Цель больше не существует в сценарии');continue;}
   if(t.status==='blocked'){
-   if(!maritimeSeaPath(f.region,source.region,t.owner)||!maritimeSeaPath(source.region,target.region,t.owner))continue;
+   if(f.cargo.some(u=>u.id===t.wave)?!maritimeSeaPath(f.region,target.region,t.owner):!maritimeSeaPath(f.region,source.region,t.owner)||!maritimeSeaPath(source.region,target.region,t.owner))continue;
    t.status=f.cargo.some(u=>u.id===t.wave)?'sailing':'assembling';delete t.reason;
    if(t.status==='sailing'){amphibiousSail(t,f);continue;}
   }

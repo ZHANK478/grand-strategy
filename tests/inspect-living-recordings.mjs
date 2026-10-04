@@ -3,6 +3,7 @@ import {readFile} from 'node:fs/promises';
 for(const id of ['france','prussia','austria']){
  const dir='recordings/living-campaign-'+id;
  const report=JSON.parse(await readFile(dir+'/report.json','utf8'));
+ console.log('REPORT_METRICS '+JSON.stringify({id,requests:report.usage.map(u=>({type:u.type,extra:u.extra,tokens:u.usage,wire:u.wire,ms:u.ms})),initial:report.initial,final:report.turns.at(-1)&&{education:report.turns.at(-1).education,demography:report.turns.at(-1).demography,cash:report.turns.at(-1).cash},cost:report.cost}));
  const replies=JSON.parse(await readFile(dir+'/responses.json','utf8'));
  for(const item of replies){
   if(typeof item.response!=='string')continue;

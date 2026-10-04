@@ -307,7 +307,7 @@ function finishPoliticalTask(t){
   if(t.status==='executed'){
    if(t.answer){const response=answerPoliticalOffer(t.country,t.target,t.answer,t.offer);t.status=response.status;t.reason=response.reason;}
    else if(t.offer)createPoliticalOffer(t.country,t.target,t.offer,politicalContractDays(t.sourceMandate||t.goal+' '+t.result));
-   if(t.status==='executed'){c.politicalRecords=[...(c.politicalRecords||[]),{id:t.id,goal:t.goal,result:t.result,response:t.response||null,executor:t.executor,target:t.target,date:dateLabel()}].slice(-40);
+   if(t.status==='executed'){c.politicalRecords=[...(c.politicalRecords||[]),{id:t.id,goal:t.goal,result:t.result,response:t.response||null,instructions:t.instructions||null,kind:t.kind||'organization',effects:t.effects||{},executor:t.executor,target:t.target,date:dateLabel()}].slice(-40);
    actors.forEach(a=>actorRemember(a,'Решение власти: '+t.goal+'. Результат: '+t.result));}
   }
  }

@@ -2,7 +2,12 @@
    newspaper editor; this module performs no network requests. */
 'use strict';
 const INSTITUTION_LEGISLATIVE=['law','tax','spending','economic','trade'];
-const institutionId=(owner,kind,name)=>owner+'::'+kind+':'+encodeURIComponent(name);
+const institutionId=(owner,kind,name)=>{
+ // Stable short IDs keep exact actor references cheap in model context/output.
+ let hash=2166136261;const text=String(name).normalize('NFC');
+ for(let i=0;i<text.length;i++)hash=Math.imul(hash^text.charCodeAt(i),16777619);
+ return owner+'::'+kind+':'+(hash>>>0).toString(36);
+};
 function institutionState(c){
  const s=c.institutionsV1||={version:1,bills:[],factions:{},communities:{},lastSupport:null,nextDay:null};
  s.bills||=[];s.factions||={};s.communities||={};

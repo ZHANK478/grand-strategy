@@ -1,4 +1,5 @@
 // Explicit one-time paid playtest. Never run from ordinary CI or pull requests.
+// Resume with two recorded calls; the previous follow-up stopped before any paid stage.
 // User authorised 40 provider requests on 2026-10-04. Guard counts attempts, not successes.
 import { chromium } from 'playwright';
 import {createServer} from 'node:http';

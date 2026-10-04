@@ -28,7 +28,7 @@ try{
   const saved=JSON.parse(await readFile('political-seed/political-campaign-'+name+'/state.json','utf8'));
   const metrics=await page.evaluate(async saved=>{
    localStorage.setItem(SAVE_PREFIX+'late-replay',JSON.stringify(saved));if(!await loadGameSlot('late-replay'))throw Error('load');
-   const selected=policySelect(6),ctx=policyContext(selected,[],'offline'),raw=policyPrompt(selected,[],'offline'),prompt=raw+'\n'+MARITIME_INSTRUCTIONS;
+   const batch=policyPrepareBatch(policySelect(6),[],'offline'),selected=batch.selected,ctx=policyContext(selected,[],'offline'),prompt=batch.prompt+'\n'+MARITIME_INSTRUCTIONS;
    return {country:playerCountry,selected,wire:JSON.stringify([{role:'user',content:prompt}]).length,sections:Object.fromEntries(Object.entries(ctx).map(([k,v])=>[k,JSON.stringify(v).length])),cabinetSections:ctx.cabinets.map(c=>({id:c.id,sections:Object.fromEntries(Object.entries(c.interests).map(([k,v])=>[k,JSON.stringify(v).length]))}))};
   },saved);
   sizes.push({name,...metrics});assert.ok(metrics.wire<110000,'Late cabinet context must fit with margin');console.log('REPLAY_SIZE_DETAIL '+JSON.stringify({name,...metrics}));

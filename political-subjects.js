@@ -204,14 +204,19 @@ function policyApply(raw,selected,results){
  }
  return ok;
 }
+function policyPrepareBatch(selected,results,phase){
+ selected=selected.slice();let prompt=policyPrompt(selected,results,phase);
+ while(selected.length>1&&JSON.stringify([{role:'user',content:prompt}]).length>100000){
+  selected=selected.slice(0,-1);prompt=policyPrompt(selected,results,phase);
+ }
+ return {selected,prompt};
+}
 async function policyBatch(selected,results,phase){
  if(!selected.length)return [];
  const p=policyState();if(p.calls.turn!==turn)p.calls={turn,used:0};
  const ceiling=worldState.plannedPeriod&&/год|Год|лет|6 месяц/.test(worldState.plannedPeriod)?8:2;
  if(p.calls.used>=ceiling)return [];
- // Huge custom worlds reduce batch size, not the entire political round.
- let prepared=policyPrompt(selected,results,phase);
- while(selected.length>1&&JSON.stringify([{role:'user',content:prepared}]).length>105000){selected=selected.slice(0,-1);prepared=policyPrompt(selected,results,phase);}
+ const batch=policyPrepareBatch(selected,results,phase);selected=batch.selected;const prepared=batch.prompt;
  p.calls.used++;const acted=[];
  try{
   const raw=await askGemini(prepared,10000,0,{response_format:{type:'json_object'},reasoning_effort:'low'});

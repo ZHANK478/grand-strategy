@@ -62,10 +62,14 @@ try{
     check(gameDayNumber()===date0+7,'Calendar advances after interpretation failure');
     check(ensureOrders()[0]?.technicalError,'Technical failure is distinct from political refusal');
     const oid=ensureOrders()[0].id,dayBefore=gameDayNumber();
+    queueOrder('Новый заём, ещё не переданный на очередной ход.','finance',{debt_delta:7});
+    const newOrder=ensureOrders().at(-1).id;
     askGemini=async()=>JSON.stringify({orders:[{id:oid,kind:'political',status:'execute',reason:'Издано распоряжение',effects:{political_task:{goal:'Учредить земельную комиссию и определить её полномочия',executor:'Кабинет министров',days:0,cost:0,result:'Комиссия учреждена распоряжением правительства. Ей поручено рассмотреть земельные споры.',headline:'Правительство учредило земельную комиссию',body:'Правительство учредило земельную комиссию. Ей поручено рассмотреть земельные споры и подготовить предложения. Кабинет определил её полномочия.'}},article:{headline:'Правительство учредило земельную комиссию',body:'Правительство учредило земельную комиссию. Ей поручено рассмотреть земельные споры и подготовить предложения. Кабинет определил её полномочия.'}}],politics:[]});
     check(await retryOrders()===true,'Retry preserved order');
     check(gameDayNumber()===dayBefore,'Retry does not consume calendar time');
     check(worldState.orders.find(o=>o.id===oid).status==='executed','Retry applies real organisational act');
+    check(worldState.orders.find(o=>o.id===newOrder).status==='prepared','Retry excludes newly queued orders');
+    removeAction(ensureOrders().findIndex(o=>o.id===newOrder));
     const records=countries[playerCountry].politicalRecords.length;
     await retryOrders();
     check(countries[playerCountry].politicalRecords.length===records,'Retry never duplicates executed order');
@@ -79,7 +83,9 @@ try{
     check(worldState.orders.find(o=>o.id===pending[1].id).status==='blocked','Nonexistent fleet cannot be conjured');
     const edition=worldState.newspaperHistory.at(-1);
     check(pending.every(o=>edition.domestic.some(a=>a.sourceOrder===o.id)),'Every submitted order has newspaper coverage');
-    check(document.querySelectorAll('.map-obj .mo-label[display="none"]').length>0,'Port markers have no labels');
+    const ports=[...document.querySelectorAll('.map-obj')].filter(el=>el.__data__?.type==='port');
+    check(ports.length>0&&ports.every(el=>el.querySelector('.mo-label').getAttribute('display')==='none'),'Every port marker has no label');
+    check(ports.every(el=>el.querySelector('.mo-sym').getBoundingClientRect().width<=6),'Port anchors remain smaller than six screen pixels');
     check(!document.getElementById('economy-body').innerHTML.includes('maritime-fleet-form'),'No mandatory fleet controls');
     check(document.getElementById('treasury').title.includes('млн р.е.'),'Consistent money units');
     const oldSB=sb,oldUser=gsUser;let row;

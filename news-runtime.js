@@ -418,10 +418,14 @@ async function retryOrders(){
  try{
   if(window.testEnsureAIForTurn&&!await window.testEnsureAIForTurn({retry:true}))return false;
   worldState.retryingOrders=true;worldState.retryingOrderIds=pending.map(o=>o.id);
+  const cashBefore=countries[playerCountry].treasury;
   const plan=await generateOrderPlan();plan.politics=[];
   const results=applyOrderPlan(plan);reactToPlayerOrders(results);renderPlayerStats();renderActionsList();
   const edition=worldState.newspaperHistory?.at(-1);
-  if(edition){for(const o of results){const article=['executed','in_progress'].includes(o.status)?plan.articles?.[o.id]||newsFallbackArticle(o):newsFallbackArticle(o);edition.domestic=edition.domestic.filter(a=>a.sourceOrder!==o.id);edition.domestic.unshift({...article,sourceOrder:o.id,details:newsOrderDetails(o)});}renderNewspaper(edition);}
+  if(edition){
+   const receipts=new Map((edition.receipts||[]).map(o=>[o.id,o]));results.forEach(o=>receipts.set(o.id,{id:o.id,text:o.text,status:o.status,reason:o.reason,technical:!!o.technicalError}));edition.receipts=[...receipts.values()];
+   if(edition.summary){edition.summary.executed=edition.receipts.filter(o=>o.status==='executed').length;edition.summary.progress=edition.receipts.filter(o=>o.status==='in_progress').length;edition.summary.technical=ensureOrders().filter(o=>o.technicalError).length;edition.summary.cash+=countries[playerCountry].treasury-cashBefore;}
+   for(const o of results){const article=['executed','in_progress'].includes(o.status)?plan.articles?.[o.id]||newsFallbackArticle(o):newsFallbackArticle(o);edition.domestic=edition.domestic.filter(a=>a.sourceOrder!==o.id);edition.domestic.unshift({...article,sourceOrder:o.id,details:newsOrderDetails(o)});}renderNewspaper(edition);}
   delete worldState.retryingOrders;delete worldState.retryingOrderIds;
   saveGame();showNotif('Обработка поручений завершена. Дата не изменилась.');return true;
  }catch(error){showNotif('Не удалось повторить обработку. Поручения сохранены.');return false;}

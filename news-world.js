@@ -303,7 +303,7 @@ function renderPoliticalActions(box){
  const tasks=ensurePolitics().tasks.filter(t=>t.country===playerCountry&&t.status==='active');
  if(!tasks.length)return;
  const details=document.createElement('details'),label=document.createElement('summary');label.textContent='Текущие решения · '+tasks.length;details.append(label);
- tasks.forEach(t=>{const p=document.createElement('p');p.textContent=t.goal+' · '+t.executor+' · '+processDate(t.due);details.append(p);});box.append(details);
+ tasks.forEach(t=>{const p=document.createElement('p');p.textContent=t.goal+' · '+t.executor+' · до '+processDate(t.due)+' · оплачено '+economyFmt(t.cost||0)+' млн р.е.';details.append(p);});box.append(details);
 }
 function gdpRanking(){return ALL_COUNTRIES.filter(n=>countries[n]&&!countries[n].annexed).sort((a,b)=>(countries[b].gdp||0)-(countries[a].gdp||0)||a.localeCompare(b));}
 function renderGDPRank(){

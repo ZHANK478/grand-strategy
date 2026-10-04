@@ -71,15 +71,20 @@ renderActionsList=function(){
  pending.forEach((o,index)=>{
   const row=document.createElement('div');row.className='action-item order-card';
   const content=document.createElement('div'),label=document.createElement('strong'),status=document.createElement('small');
-  label.textContent=o.text;status.textContent=(o.technicalError?'Нужен повтор обработки':ORDER_STATUS[o.status])+(o.reason?' · '+o.reason:'')+(o.fixedEffects?' · готовое решение':' · проверка перед исполнением');
+  label.textContent=o.text;status.textContent=(o.technicalError?'Нужен повтор обработки':ORDER_STATUS[o.status])+(o.reason?' · '+o.reason:'')+(o.fixedEffects?' · готовое решение':' · срок и расходы определит исполнитель при обработке');
   content.append(label,status);const remove=document.createElement('button');remove.className='rm-btn';remove.textContent='✕';remove.disabled=turnRunning;remove.onclick=()=>removeAction(index);
   row.append(content,remove);box.appendChild(row);
  });
  const running=ensureExecutiveProcesses().filter(p=>p.status==='active');
- running.forEach(p=>{const row=document.createElement('div');row.className='order-result';row.textContent='В работе: '+p.summary+' · до '+processDate(p.due);box.appendChild(row);});
+ running.forEach(p=>{const row=document.createElement('div');row.className='order-result';row.textContent='В работе: '+p.summary+' · до '+processDate(p.due)+' · оплачено '+economyFmt(p.cost||0)+' млн р.е.';box.appendChild(row);});
  if(pending.some(o=>o.technicalError)){
   const retry=document.createElement('button');retry.type='button';retry.textContent='Повторить обработку без хода';retry.disabled=turnRunning;retry.onclick=()=>retryOrders();box.appendChild(retry);
  }
+ const economic=countries[playerCountry]?.econV3?.programs?.filter(p=>p.status==='active')||[];
+ if(economic.length){const details=document.createElement('details'),title=document.createElement('summary');title.textContent='Экономические программы · '+economic.length;details.append(title);
+  const labels={tax:'Налоги',spending:'Расходы',ownership:'Собственность',coordination:'Организация экономики',education:'образование',welfare:'помощь населению',infrastructure:'инфраструктура',agriculture:'сельское хозяйство',industry:'промышленность',resources:'добыча',services:'услуги',market:'рынок',regulated:'регулируемый рынок',planned:'плановая экономика'};
+  for(const p of economic){const row=document.createElement('p'),group=p.group?(ECON_GROUPS[p.group]||labels[p.group]||p.group):labels[p.sector]||'',target=typeof p.target==='number'?economyFmt(p.kind==='ownership'?p.target*100:p.target)+(p.kind==='spending'?' млн р.е./мес.':p.kind==='coordination'?'':'%'):labels[p.target]||p.target;
+   row.textContent=(labels[p.kind]||p.kind)+(group?' · '+group:'')+' · цель '+target+' · ещё '+Math.max(0,Math.ceil(p.days-p.elapsed))+' дней'+(p.cost?' · оплачено '+economyFmt(p.cost)+' млн р.е.':'');details.append(row);}box.append(details);}
  renderPoliticalActions(box);
  const legacy=ensureInitiatives().filter(i=>i.country===playerCountry&&i.status!=='closed');if(legacy.length){const details=document.createElement('details'),title=document.createElement('summary');title.textContent='Дополнительные материалы';details.append(title);renderInitiatives(details);box.append(details);}
  const recent=worldState.orders.filter(o=>!['prepared','deferred'].includes(o.status)).slice(-5).reverse();

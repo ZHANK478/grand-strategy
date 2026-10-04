@@ -22,7 +22,8 @@ try{
   const page=await context.newPage(),errors=[];
   page.on('pageerror',e=>{errors.push(e.stack);console.log(mode+' PAGE ERROR '+e.stack);});
   try{
-   await page.goto('http://127.0.0.1:8765/economy-world.html',{waitUntil:'load',timeout:60000});
+   await page.goto('http://127.0.0.1:8765/index.html',{waitUntil:'load',timeout:60000});
+   await page.waitForURL('**/economy-world.html',{timeout:10000});
    await page.waitForFunction(()=>window.GS_MAP_LOAD?.status==='ready',{},{timeout:30000});
    console.log(mode+' BEFORE '+JSON.stringify(await page.evaluate(()=>({status:window.GS_MAP_LOAD,start:typeof window.mobileStartGame,fullscreen:typeof window.mobileFullscreen,picker:document.getElementById('mobile-country-picker').value,disabled:document.getElementById('mobile-start-btn').disabled}))));
    if(mode==='phone'){
@@ -95,6 +96,10 @@ try{
     }finally{sb=oldSB;gsUser=oldUser;}
     return out;
    });
+   const calendarBefore=await page.evaluate(()=>gameDayNumber());
+   await page.locator('.next-btn').click({timeout:5000});
+   await page.waitForFunction(d=>!turnRunning&&gameDayNumber()>d,calendarBefore,{timeout:10000});
+   console.log(mode+' NEWSPAPER leaves turn button clickable');
    console.log(mode+' RELIABILITY '+JSON.stringify(failures));
    assert.equal(errors.length,0,'No uncaught errors during failure handling');
    console.log(mode+' PASSED start/fullscreen/country and failure isolation');

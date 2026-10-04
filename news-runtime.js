@@ -95,7 +95,7 @@ function parseOrderReply(raw){
  return plan;
 }
 async function generateOrderPlan(){
- const pending=ensureOrders(),free=pending.filter(o=>!o.fixedEffects),context=politicalContext();
+ const pending=ensureOrders().filter(o=>!worldState.retryingOrderIds||worldState.retryingOrderIds.includes(o.id)),free=pending.filter(o=>!o.fixedEffects),context=politicalContext();
  const prompt=`Ты управляешь политическим миром исторической стратегии, дата ${dateLabel()}, следующий период ${worldState.plannedPeriod||'месяц'}.
 Игрок — исполнительная власть страны ${playerCountry}. История только исходные условия, не запрет альтернативного курса.
 Твоя задача: понять решения игрока, одновременно принять самостоятельные решения иностранных правительств и внутренних участников. Они имеют интересы, память, ресурсы; действуют друг против друга, а не только вокруг игрока.
@@ -413,15 +413,17 @@ function applyCheckedDiplomacy(raw,targetCountry){
 
 async function retryOrders(){
  if(turnRunning||window.ordersCanStartTurn&&!window.ordersCanStartTurn())return false;
- const pending=ensureOrders();if(!pending.length)return false;
- if(window.testEnsureAIForTurn&&!await window.testEnsureAIForTurn({retry:true}))return false;
- turnRunning=true;worldState.retryingOrders=true;
+ const pending=ensureOrders().filter(o=>o.technicalError);if(!pending.length)return false;
+ turnRunning=true;
  try{
+  if(window.testEnsureAIForTurn&&!await window.testEnsureAIForTurn({retry:true}))return false;
+  worldState.retryingOrders=true;worldState.retryingOrderIds=pending.map(o=>o.id);
   const plan=await generateOrderPlan();plan.politics=[];
   const results=applyOrderPlan(plan);reactToPlayerOrders(results);renderPlayerStats();renderActionsList();
   const edition=worldState.newspaperHistory?.at(-1);
-  if(edition){for(const o of results){const article=plan.articles?.[o.id]||newsFallbackArticle(o);edition.domestic=edition.domestic.filter(a=>a.sourceOrder!==o.id);edition.domestic.unshift({...article,sourceOrder:o.id,details:newsOrderDetails(o)});}renderNewspaper(edition);}
+  if(edition){for(const o of results){const article=['executed','in_progress'].includes(o.status)?plan.articles?.[o.id]||newsFallbackArticle(o):newsFallbackArticle(o);edition.domestic=edition.domestic.filter(a=>a.sourceOrder!==o.id);edition.domestic.unshift({...article,sourceOrder:o.id,details:newsOrderDetails(o)});}renderNewspaper(edition);}
+  delete worldState.retryingOrders;delete worldState.retryingOrderIds;
   saveGame();showNotif('Обработка поручений завершена. Дата не изменилась.');return true;
  }catch(error){showNotif('Не удалось повторить обработку. Поручения сохранены.');return false;}
- finally{delete worldState.retryingOrders;turnRunning=false;renderActionsList();}
+ finally{delete worldState.retryingOrders;delete worldState.retryingOrderIds;turnRunning=false;renderActionsList();}
 }

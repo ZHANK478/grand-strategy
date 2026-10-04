@@ -119,7 +119,7 @@ applyOrderPlan=function(plan){
  for(const o of results){
   if(!['executed','in_progress','blocked','failed','rejected','deferred'].includes(o.status))continue;
   let event=worldState.periodEvents.slice(start).findLast(e=>e.sourceOrder===o.id&&!e.actor);
-  const article=plan.articles?.[o.id]||newsFallbackArticle(o);
+  const article=['executed','in_progress'].includes(o.status)?plan.articles?.[o.id]||newsFallbackArticle(o):newsFallbackArticle(o);
   if(!event){recordWorldEvent('domestic',article.headline,article.body,[playerCountry],newsOrderDetails(o));event=worldState.periodEvents.at(-1);}
   Object.assign(event,{sourceOrder:o.id,phase:'decision',coverage:true,details:newsOrderDetails(o),priority:10});
   o.newsHeadline=event.headline;o.newsBody=event.body;
@@ -238,7 +238,7 @@ writeNewspaper=async function(edition){
 const newsOldAsk=askGemini;
 askGemini=async function(prompt,...args){
  if(typeof prompt!=='string'||!prompt.includes('Свободные приказы:'))return newsOldAsk(prompt,...args);
- const pending=ensureOrders().filter(o=>!o.fixedEffects),aliases=new Map(pending.map((o,i)=>[o.id,'O'+(i+1)]));
+ const pending=ensureOrders().filter(o=>!o.fixedEffects&&(!worldState.retryingOrderIds||worldState.retryingOrderIds.includes(o.id))),aliases=new Map(pending.map((o,i)=>[o.id,'O'+(i+1)]));
  for(const [id,alias]of aliases)prompt=prompt.split(id).join(alias);
  prompt+='\nПРОЗРАЧНОСТЬ И ДИНАМИКА. Каждый приказ обязательно получает свой результат и газетную article, даже встреча, отправка послов, начало подготовки или незавершённая программа. Не пропускай приказы. Для каждого входящего issues оцени интересы адресата и дай ответ или конкретное собственное политическое действие с responds_to:ID вопроса. Ответы должны касаться конкретного обращения, а не общего улучшения отношений. Если новое решение другого участника в этом же JSON требует ответа, адресат может дать своё решение с condition_actor:точный ID инициатора; оно исполнится только после реального действия инициатора. Не утверждай чужое согласие. Выбранные правительства могут сопротивляться, торговаться, искать союзников или действовать самостоятельно. Не повторяй предупреждение/давление/переговоры против того же адресата без нового шага; lastSignals и previousHeadlines показывают прежнюю позицию. Продолжай кампанию следующим действием или сохраняй курс без новой статьи. Отдавай приоритет конкретным реакциям на действия других стран. Личные события главы государства, встречи с наследником, болезнь, семейные и придворные обстоятельства — часть игры. Используй kind:"narrative",effects:{court_scene:{description:"конкретное событие",participants:[{name:"имя",role:"роль"}],duration_days:0..3650,health:"ill|recovering|well если нужно"}}. Береги имена из court.people; если человек ещё не определён, выбери правдоподобного персонажа и сохрани его. Нарратив не создаёт войска, деньги, титулы или смерть по утверждению. Личные события должны влиять на темы разговоров и интересы кабинета; не превращай их только в отчёт. Смерть/назначения остаются отдельными проверяемыми эффектами.';
  

@@ -197,8 +197,8 @@ action всегда строка; amount и target — отдельные пол
  
  const rawOrders=pending.map(o=>o.fixedEffects?{id:o.id,kind:o.kind,status:'execute',reason:'Решение игрока',effects:o.fixedEffects}:byId.get(o.id));
  const technical=new Map(rawOrders.filter(o=>o?.technicalError).map(o=>[o.id,o.technicalError]));
- const checked=OrderRules.validatePlan({news:[],domestic:[],orders:rawOrders.map(({technicalError,...o})=>o),world_effects:{}},pending,orderContext());
- checked.orders.forEach(o=>{if(technical.has(o.id))o.technicalError=technical.get(o.id);});
+ const checked=OrderRules.validatePlan({news:[],domestic:[],orders:rawOrders.map(({technicalError,signal,...o})=>o),world_effects:{}},pending,orderContext());
+ checked.orders.forEach(o=>{if(technical.has(o.id))o.technicalError=technical.get(o.id);o.signal=rawOrders.find(r=>r.id===o.id)?.signal||null;});
  checked.articles=Object.fromEntries([...articles].filter(([,a])=>a&&typeof a.headline==='string'&&a.headline.length<=160&&typeof a.body==='string'&&a.body.length<=2000));checked.politics=valid;checked.politicalErrors=errors;pendingDirectives=[];return checked;
 }
 function orderStatSnapshot(c){

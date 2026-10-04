@@ -152,7 +152,7 @@ function policyValidate(raw,selected){
  raw=JSON.parse(JSON.stringify(raw));
  if(Object.hasOwn(raw,'responds_to')){politicalAssert(raw.decision&&(raw.decision.responds_to==null||raw.decision.responds_to===raw.responds_to),'Противоречивая ссылка ответа');raw.decision.responds_to=raw.responds_to;delete raw.responds_to;}
  raw.country=orderCountry(raw.country);for(const g of raw.goals||[])if(g.target)g.target=orderCountry(g.target);
- politicalKeys(raw,['country','assessment','goals','nextReviewDays','decision']);
+ politicalKeys(raw,['country','assessment','goals','nextReviewDays','decision','signal','actors']);
  politicalAssert(selected.includes(raw.country),'Кабинет вне выбранных участников');
  politicalText(raw.assessment,900);
  politicalAssert(Array.isArray(raw.goals)&&raw.goals.length<=12,'Допустим список целей');

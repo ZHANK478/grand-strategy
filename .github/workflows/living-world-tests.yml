@@ -20,7 +20,6 @@ jobs:
       - run: node tests/strategy-contracts.test.mjs
       - run: node tests/maritime-trade.test.mjs
       - run: node tests/political-subjects.test.mjs
-      - run: node tests/recorded-campaign-reliability.test.mjs
       - run: node tests/living-world.test.mjs
   browser:
     runs-on: ubuntu-latest
@@ -33,3 +32,4 @@ jobs:
       - run: npm install --no-save --package-lock=false playwright
       - run: npx playwright install --with-deps chromium
       - run: node tests/browser-startup.test.mjs
+      - run: node tests/recorded-campaign-reliability.test.mjs

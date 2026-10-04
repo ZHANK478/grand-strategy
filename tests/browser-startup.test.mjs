@@ -24,7 +24,7 @@ try{
   try{
    await page.goto('http://127.0.0.1:8765/index.html',{waitUntil:'load',timeout:60000});
    await page.waitForURL(url=>url.pathname.endsWith('/economy-world.html'),{timeout:10000});
-   assert.equal(new URL(page.url()).searchParams.get('v'),'17','Root entry uses current release');
+   assert.equal(new URL(page.url()).searchParams.get('v'),'18','Root entry uses current release');
    await page.waitForFunction(()=>window.GS_MAP_LOAD?.status==='ready',{},{timeout:30000});
    console.log(mode+' BEFORE '+JSON.stringify(await page.evaluate(()=>({status:window.GS_MAP_LOAD,start:typeof window.mobileStartGame,fullscreen:typeof window.mobileFullscreen,picker:document.getElementById('mobile-country-picker').value,disabled:document.getElementById('mobile-start-btn').disabled}))));
    if(mode==='phone'){
@@ -244,6 +244,32 @@ try{
     return {governmentTurn:true,seaTransportTurn:true,delivered:operation.delivered,paidRequests:0};
    });
    console.log(mode+' MARITIME_GOVERNMENT '+JSON.stringify(maritimeGovernment));
+
+   const conquest=await page.evaluate(async()=>{
+    if(!window.CONQUEST_WORLD_BALANCE)throw Error('Conquest module not loaded');
+    const check=(v,n)=>{if(!v)throw Error(n)};
+    window.testEnsureAIForTurn=async()=>true;window.politicalRunRound=undefined;
+    resetGame('Российская империя');for(const n of ALL_COUNTRIES)econV3(countries[n]);
+    const target='Кавказский имамат',province=scenarioProvinces.find(p=>strategyOwner(p)===target),army=countries[playerCountry].army;
+    declareEngineWar(playerCountry,target);strategyState().occupations[province.id]=playerCountry;
+    queueOrder('Установить своё управление и присоединить занятую землю имамата.');
+    const q=ensureOrders().find(o=>o.status==='prepared'),date=gameDayNumber();
+    askGemini=async()=>JSON.stringify({orders:[{id:q.id,kind:'policy',status:'execute',reason:'Учредить администрацию и присоединить контролируемую землю.',effects:{operations:[
+      {kind:'diplomacy',effects:{diplomatic_action:{action:'administer',target}}},
+      {kind:'diplomacy',effects:{diplomatic_action:{action:'annex',target}}}
+    ]}}],politics:[]});
+    check(await nextTurn('week')===true,'Conquest mandate does not stall calendar');
+    await window.causalWaitForNewspaper();
+    check(gameDayNumber()===date+7&&q.status==='executed'&&!q.technicalError,'Conquest applied through ordinary turn flow');
+    check(strategyOwner(province)===playerCountry&&countries[target].annexed,'Actual country and map ownership change');
+    check(countries[playerCountry].army===army,'Annexation does not award defeated national army');
+    check(conquestState().administrations[province.id].disputed,'Disputed recognition remains distinct');
+    const picture=policyContext(['Франция','Великобритания'],[],'browser');
+    check(picture.cabinets.every(c=>c.exposure.some(e=>e.expandingPower===playerCountry)),'Remote cabinets see the cumulative defeat');
+    return {annexed:true,calendar:true,sharedWorldPicture:true,paidRequests:0};
+   });
+   console.log(mode+' CONQUEST_WORLD '+JSON.stringify(conquest));
+
    assert.equal(errors.length,0,'Late browser errors: '+errors.join('\n'));
 
    console.log(mode+' PASSED start/fullscreen/country and failure isolation');

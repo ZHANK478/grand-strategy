@@ -46,8 +46,8 @@ const programs={
   ['Вернуть развёрнутые у Саксонии войска в собственные внутренние провинции и поручить дипломатам снять напряжённость, не гарантируя успех.']
  ]
 };
+const controls={'Франция':[0,1,2,4,8],'Пруссия':[0,1,3,7]};
 try{
- const controls={'Франция':[0,1,2,4,8],'Пруссия':[0,1,3,7]};
  for(const [country,fullProgram]of Object.entries(programs)){
   const program=controls[country].map(i=>fullProgram[i]);
   const campaign={country,goal:country==='Франция'?'Реформы и морская торговля без войны':'Германское влияние, сотрудничество и проверка бюджетных ограничений',turns:[],pageErrors:[],cloudWarnings:[]};report.campaigns.push(campaign);

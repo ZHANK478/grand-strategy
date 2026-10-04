@@ -51,7 +51,47 @@ try{
    await page.evaluate(()=>mobileSection('map'));
    await page.evaluate(()=>saveGame());
    assert.equal(errors.length,0,'Uncaught errors: '+errors.join('\n'));
-   console.log(mode+' PASSED start/fullscreen/country');
+   
+   const failures=await page.evaluate(async()=>{
+    window.testEnsureAIForTurn=async()=>true;window.politicalRunRound=undefined;
+    const out=[],check=(v,label)=>{if(!v)throw Error(label);out.push(label);};
+    const date0=gameDayNumber();
+    queueOrder('Учредить земельную комиссию и определить её полномочия.');
+    askGemini=async()=>'{invalid JSON';
+    check(await nextTurn('week')===true,'Malformed provider output does not stop calendar');
+    check(gameDayNumber()===date0+7,'Calendar advances after interpretation failure');
+    check(ensureOrders()[0]?.technicalError,'Technical failure is distinct from political refusal');
+    const oid=ensureOrders()[0].id,dayBefore=gameDayNumber();
+    askGemini=async()=>JSON.stringify({orders:[{id:oid,kind:'political',status:'execute',reason:'Издано распоряжение',effects:{political_task:{goal:'Учредить земельную комиссию и определить её полномочия',executor:'Кабинет министров',days:0,cost:0,result:'Комиссия учреждена распоряжением правительства. Ей поручено рассмотреть земельные споры.',headline:'Правительство учредило земельную комиссию',body:'Правительство учредило земельную комиссию. Ей поручено рассмотреть земельные споры и подготовить предложения. Кабинет определил её полномочия.'}},article:{headline:'Правительство учредило земельную комиссию',body:'Правительство учредило земельную комиссию. Ей поручено рассмотреть земельные споры и подготовить предложения. Кабинет определил её полномочия.'}}],politics:[]});
+    check(await retryOrders()===true,'Retry preserved order');
+    check(gameDayNumber()===dayBefore,'Retry does not consume calendar time');
+    check(worldState.orders.find(o=>o.id===oid).status==='executed','Retry applies real organisational act');
+    const records=countries[playerCountry].politicalRecords.length;
+    await retryOrders();
+    check(countries[playerCountry].politicalRecords.length===records,'Retry never duplicates executed order');
+    queueOrder('Взять заём 25 миллионов расчётных единиц.');
+    queueOrder('Комплексный приказ с ошибкой исполнения.');
+    const pending=ensureOrders(),debtBefore=countries[playerCountry].debt;
+    askGemini=async()=>JSON.stringify({orders:pending.map((o,i)=>({id:o.id,kind:i?'policy':'finance',status:'execute',reason:'Начать исполнение',effects:i?{operations:[{kind:'finance',effects:{debt_delta:20}},{kind:'naval',effects:{naval_order:{action:'hold',fleet_id:'missing-fleet'}}}]}:{debt_delta:25},article:{headline:'Правительство принимает финансовое решение',body:'Кабинет рассмотрел финансовое решение. Казначейству передано распоряжение. Исполнение зависит от доступных ресурсов.'}})),politics:[]});
+    check(await nextTurn('week')===true,'Bad material step does not cancel another order or turn');
+    check(countries[playerCountry].debt>=debtBefore+25&&countries[playerCountry].debt<debtBefore+45,'Failed compound order rolls back its partial borrowing');
+    check(worldState.orders.find(o=>o.id===pending[0].id).status==='executed','Independent valid order survives');
+    check(worldState.orders.find(o=>o.id===pending[1].id).status==='blocked','Nonexistent fleet cannot be conjured');
+    const edition=worldState.newspaperHistory.at(-1);
+    check(pending.every(o=>edition.domestic.some(a=>a.sourceOrder===o.id)),'Every submitted order has newspaper coverage');
+    check(document.querySelectorAll('.map-obj .mo-label[display="none"]').length>0,'Port markers have no labels');
+    check(!document.getElementById('economy-body').innerHTML.includes('maritime-fleet-form'),'No mandatory fleet controls');
+    check(document.getElementById('treasury').title.includes('млн р.е.'),'Consistent money units');
+    const oldSB=sb,oldUser=gsUser;let row;
+    try{gsUser={id:'00000000-0000-0000-0000-000000000001'};sb={from:()=>({upsert:async x=>{row=x;return {error:null};}})};
+     check(await cloudSave('fractional-test',{treasury:4077.606}, {test:true})===true,'Cloud save accepts fractional treasury');
+     check(row.treasury===4077.606,'Cloud save preserves precision');
+    }finally{sb=oldSB;gsUser=oldUser;}
+    return out;
+   });
+   console.log(mode+' RELIABILITY '+JSON.stringify(failures));
+   assert.equal(errors.length,0,'No uncaught errors during failure handling');
+   console.log(mode+' PASSED start/fullscreen/country and failure isolation');
   }catch(e){failures++;console.log(mode+' FAILED '+e.stack);console.log(mode+' DIAGNOSTICS '+JSON.stringify(await page.evaluate(()=>({load:window.GS_MAP_LOAD,start:typeof window.mobileStartGame,fullscreen:typeof window.mobileFullscreen,picker:document.getElementById('mobile-country-picker')?.value,disabled:document.getElementById('mobile-start-btn')?.disabled,menu:document.getElementById('main-menu')?.style.display}))));}
   await context.close();
  }

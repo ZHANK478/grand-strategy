@@ -113,7 +113,7 @@ create table if not exists public.saves (
   turn          integer,
   year          integer,
   month         integer,
-  treasury      bigint,
+  treasury numeric,
   state         jsonb not null,
   updated_at    timestamptz not null default now(),
   primary key (user_id, id)

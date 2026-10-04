@@ -226,7 +226,9 @@ async function cloudSave(id, meta, state) {
     scenario_ref: meta.scenarioRef, scenario_name: meta.scenarioName, country: meta.country,
     ruler: meta.ruler, turn: meta.turn, year: meta.year, month: meta.month, treasury: meta.treasury };
   const { error } = await sb.from('saves').upsert(row);
-  if (error) console.warn('cloudSave:', error.message);
+  const previous=window.GS_CLOUD_SAVE_STATUS;
+  window.GS_CLOUD_SAVE_STATUS={ok:!error,at:Date.now(),message:error?error.message:'Сохранено в облаке'};
+  if(error){console.warn('cloudSave:',error.message);if(previous?.ok!==false&&typeof showNotif==='function')showNotif('Облако не приняло сохранение. Локальная копия партии сохранена.');}
   return !error;
 }
 

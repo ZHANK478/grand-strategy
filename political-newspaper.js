@@ -155,6 +155,10 @@ function buildNewspaper(before,results,engineEvents,startDate){
 function renderNewspaper(edition){
  if(!edition)return;
  const date=document.getElementById('newspaper-date');if(date)date.textContent=edition.from+' — '+edition.to;
+ const container=document.getElementById('events-box');
+ let brief=document.getElementById('newspaper-brief');
+ if(!brief&&container){brief=document.createElement('div');brief.id='newspaper-brief';brief.className='newspaper-brief';container.prepend(brief);}
+ if(brief&&edition.summary){const s=edition.summary,number=n=>Number(n).toLocaleString('ru',{maximumFractionDigits:1});brief.textContent='Исполнено '+s.executed+' · в работе '+s.progress+(s.obstacles?' · препятствий '+s.obstacles:'')+(s.technical?' · требуется повтор '+s.technical:'')+' · казна '+(s.cash>=0?'+':'')+number(s.cash)+' млн р.е.'+(s.army?' · армия '+(s.army>=0?'+':'')+number(s.army):'');}
  const fill=(id,articles)=>{
   const box=document.getElementById(id);if(!box)return;box.replaceChildren();
   articles.forEach(item=>{const article=document.createElement('article');article.className='newspaper-article';

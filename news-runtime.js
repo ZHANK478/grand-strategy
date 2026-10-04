@@ -31,6 +31,7 @@ function canonicalEffects(e){
 }
 function orderBudgetPreview(){
  const c=countries[playerCountry];if(!c?.economy||!c.society)return null;
+ if(typeof econBudget==='function'&&c.econV3){const b=econBudget(c);return {gross:b.gross,net:b.net,upkeep:b.upkeep,interest:b.interest};}
  const gross=econMonthlyRevenue(c).gross,m=lawMods(c),era=getEra();
  const war=(worldState.atWarWith||[]).length>0;
  const upkeep=Math.round(c.army*era.armyUpkeep*(war?1.35:1));
@@ -64,18 +65,21 @@ renderActionsList=function(){
  const pending=ensureOrders(),box=document.getElementById('actions-list');if(!box)return;
  box.replaceChildren();const b=orderBudgetPreview();
  const summary=document.createElement('div');summary.className='order-summary';
- summary.textContent=b?'Прогноз месяца: доход '+b.gross.toLocaleString('ru')+', баланс '+(b.net>=0?'+':'')+b.net.toLocaleString('ru')+'. '+(b.net<0?'Нужно уменьшить дефицит.':'Можно направить избыток на развитие.')+' Прогноз при текущих показателях; рост и события могут изменить итог.':'Подготовьте решения на следующий месяц.';
+ summary.textContent=b?'Прогноз месяца: доход '+b.gross.toLocaleString('ru',{maximumFractionDigits:1})+' млн р.е./мес.'+', баланс '+(b.net>=0?'+':'')+b.net.toLocaleString('ru',{maximumFractionDigits:1})+' млн р.е./мес.'+'. '+(b.net<0?'Нужно уменьшить дефицит.':'Можно направить избыток на развитие.')+' Прогноз при текущих показателях; рост и события могут изменить итог.':'Подготовьте решения на следующий месяц.';
  box.appendChild(summary);
  if(!pending.length){const empty=document.createElement('p');empty.textContent='Нет подготовленных приказов. Напишите решение главы государства.';box.appendChild(empty);}
  pending.forEach((o,index)=>{
   const row=document.createElement('div');row.className='action-item order-card';
   const content=document.createElement('div'),label=document.createElement('strong'),status=document.createElement('small');
-  label.textContent=o.text;status.textContent=ORDER_STATUS[o.status]+(o.reason?' · '+o.reason:'')+(o.fixedEffects?' · готовое решение':' · проверка перед исполнением');
+  label.textContent=o.text;status.textContent=(o.technicalError?'Нужен повтор обработки':ORDER_STATUS[o.status])+(o.reason?' · '+o.reason:'')+(o.fixedEffects?' · готовое решение':' · проверка перед исполнением');
   content.append(label,status);const remove=document.createElement('button');remove.className='rm-btn';remove.textContent='✕';remove.disabled=turnRunning;remove.onclick=()=>removeAction(index);
   row.append(content,remove);box.appendChild(row);
  });
  const running=ensureExecutiveProcesses().filter(p=>p.status==='active');
  running.forEach(p=>{const row=document.createElement('div');row.className='order-result';row.textContent='В работе: '+p.summary+' · до '+processDate(p.due);box.appendChild(row);});
+ if(pending.some(o=>o.technicalError)){
+  const retry=document.createElement('button');retry.type='button';retry.textContent='Повторить обработку без хода';retry.disabled=turnRunning;retry.onclick=()=>retryOrders();box.appendChild(retry);
+ }
  renderPoliticalActions(box);
  const legacy=ensureInitiatives().filter(i=>i.country===playerCountry&&i.status!=='closed');if(legacy.length){const details=document.createElement('details'),title=document.createElement('summary');title.textContent='Дополнительные материалы';details.append(title);renderInitiatives(details);box.append(details);}
  const recent=worldState.orders.filter(o=>!['prepared','deferred'].includes(o.status)).slice(-5).reverse();
@@ -108,6 +112,7 @@ async function generateOrderPlan(){
 {"orders":[{"id":"ID","kind":"тип","status":"execute|reject|defer","reason":"до 150 символов","effects":{},"article":{"headline":"газетный заголовок","body":"3–5 предложений о принятом решении, без гарантированных исходов"}}],"politics":[{"actor_id":"ID::government или точный внутренний ID","goal":"сохраняемая политическая цель","action":"СТРОКА действия, например warn; НЕ объект","target":"ID страны если нужен","motive":"конкретная оценка интересов","headline":"газетный заголовок","body":"выразительная газетная заметка 3–5 предложений о собственном решении участника","condition_order":"только если зависит от принятия нового приказа","task":{}}]}
 orders: ровно один результат каждому приказу. Сверяй id и исходный текст: не переносить поручение другого приказа, не дублировать чужое решение. В political_task.goal включи смысл ИМЕННО этого исходного приказа, все его адресаты и условия.  reject/defer effects:{} допускается только физическая невозможность, отсутствие полномочий или ресурсов, не неизвестный вид поручения.
 Типы:
+policy: operations:[{kind:"поддерживаемый тип кроме policy/political/unsupported/administration",effects:{}}], до 8 последовательных шагов ОДНОГО поручения. Используй для сложного намерения, например выделить собственную часть, посадить на транспорт и начать переход. Каждый шаг проверяется при исполнении после предыдущего. Отсутствие кнопки не причина отказа. Не обещай прибытие раньше маршрута или чужое согласие. Для организационной цели political_task хранит цель, исполнителя и срок.
 tax: economy:{tax_noble, tax_burgher,tax_commons}, 0..100.
 spending: society:{education_spending,welfare_spending,infrastructure_spending}, каждый 0..${Math.round(countries[playerCountry].income*.25)} в месяц.
 finance: debt_delta, положительный заём одновременно увеличивает долг и казну.
@@ -125,7 +130,7 @@ politics: до 12 решений, один участник один раз. Д�
 Предложение союза или пакта в political_task ОБЯЗАТЕЛЬНО включает offer:"alliance" или offer:"nonaggression". Иначе текст result не создаёт предложение договора. task.offer — собственное согласие предложившей стороны, не согласие адресата. Для получения чужого согласия участник должен выбрать accept на существующее offers. Игрок отвечает на входящее предложение через political_task с target и answer:accept или reject. offer:peace предлагает мир; только согласие второй стороны завершает войну.
 action всегда строка; amount и target — отдельные поля. У внутренних групп target не нужен. Не указывай kind:political внутри task; kind там — только тип конкретных численных effects.
 Новости повествуют о принятых решениях, а не придуманных успехах. Не пиши технические статусы, эффекты, ID или «нет в движке». Не добавляй поля кроме перечисленных. Пиши компактно; максимум 12 politics, 8 orders.`;
- const raw=await askGemini(prompt,6500,1,{response_format:{type:'json_object'},reasoning_effort:'low'}),plan=parseOrderReply(raw);
+ const raw=await askGemini(prompt,6500,worldState.retryingOrders?0:1,{response_format:{type:'json_object'},reasoning_effort:'low'}),plan=parseOrderReply(raw);
  plan.orders=repairPlannerOrders(plan.orders,free);
  const decisions=Array.isArray(plan.politics)?plan.politics:[];
  if(window.POLITICAL_SUBJECTS){for(let i=decisions.length-1;i>=0;i--){if(ensureWorldActors()[decisions[i]?.actor_id]?.kind==='government')decisions.splice(i,1);}}
@@ -149,16 +154,19 @@ action всегда строка; amount и target — отдельные пол
  });
  
  free.forEach(original=>{
-  try{OrderRules.validatePlan({news:[],domestic:[],orders:[byId.get(original.id)],world_effects:{}},[{id:original.id}],orderContext());}
+  try{OrderRules.validatePlan({news:[],domestic:[],orders:[(({technicalError,...o})=>o)(byId.get(original.id))],world_effects:{}},[{id:original.id}],orderContext());}
   catch(error){
    const reason='Исполнитель не смог подготовить однозначное изменение по этому указу. Указ сохранён для следующего хода.';
-   byId.set(original.id,{id:original.id,kind:'unsupported',status:'defer',reason,effects:{}});
+   byId.set(original.id,{id:original.id,kind:'unsupported',status:'defer',reason,effects:{},technicalError:error.message});
    articles.set(original.id,{headline:'Исполнитель продолжит подготовку решения',body:'Поручение «'+original.text+'» остаётся на рассмотрении. Кабинет должен уточнить способ исполнения; изменения ещё не вступили в силу.'});
    errors.push({order:original.id,error:error.message});
   }
  });
  
- const checked=OrderRules.validatePlan({news:[],domestic:[],orders:pending.map(o=>o.fixedEffects?{id:o.id,kind:o.kind,status:'execute',reason:'Решение игрока',effects:o.fixedEffects}:byId.get(o.id)),world_effects:{}},pending,orderContext());
+ const rawOrders=pending.map(o=>o.fixedEffects?{id:o.id,kind:o.kind,status:'execute',reason:'Решение игрока',effects:o.fixedEffects}:byId.get(o.id));
+ const technical=new Map(rawOrders.filter(o=>o?.technicalError).map(o=>[o.id,o.technicalError]));
+ const checked=OrderRules.validatePlan({news:[],domestic:[],orders:rawOrders.map(({technicalError,...o})=>o),world_effects:{}},pending,orderContext());
+ checked.orders.forEach(o=>{if(technical.has(o.id))o.technicalError=technical.get(o.id);});
  checked.articles=Object.fromEntries([...articles].filter(([,a])=>a&&typeof a.headline==='string'&&a.headline.length<=160&&typeof a.body==='string'&&a.body.length<=2000));checked.politics=valid;checked.politicalErrors=errors;pendingDirectives=[];return checked;
 }
 function orderStatSnapshot(c){
@@ -174,7 +182,36 @@ function reconcileOrderArmies(){
  });
  worldState.mapObjects=(worldState.mapObjects||[]).filter(o=>o.type!=='army'||o.troops>0);
 }
+// An invalid model operation cannot leak half an order or veto the calendar.
+function captureOrderExecution(){
+ return {data:JSON.parse(JSON.stringify({countries,worldState,provinceOwners,territoryOwners,provinceEcon,ALL_COUNTRIES,playerCountryDisplayName,pendingDirectives})),orders:worldState.orders.slice()};
+}
+function restoreOrderExecution(snapshot){
+ const s=snapshot.data;
+ for(const key of Object.keys(countries))if(!s.countries[key])delete countries[key];
+ for(const [key,value]of Object.entries(s.countries)){
+  const target=countries[key]||(countries[key]={});Object.keys(target).forEach(k=>delete target[k]);Object.assign(target,value);
+ }
+ const orderById=new Map(snapshot.orders.map(o=>[o.id,o]));
+ s.worldState.orders=s.worldState.orders.map(o=>{const target=orderById.get(o.id)||{};Object.keys(target).forEach(k=>delete target[k]);return Object.assign(target,o);});
+ Object.keys(worldState).forEach(k=>delete worldState[k]);Object.assign(worldState,s.worldState);
+ ({provinceOwners,territoryOwners,provinceEcon,ALL_COUNTRIES,playerCountryDisplayName,pendingDirectives}=s);
+ countryCentroids=null;
+ if(typeof maritimeTouch==='function')maritimeTouch();
+}
+function executePolicySteps(owner,operations){
+ const log=[];
+ for(const step of operations){
+  const ctx={...orderContext(),player:owner};
+  const effects=OrderRules.validateEffects(canonicalEffects(step.effects),ctx,'order',step.kind);
+  const result=applyCountryPoliticalEffects(owner,step.kind,effects);
+  if(result?.status==='blocked'||result?.status==='failed'||result?.status==='rejected')throw new StrategyActionError(result.reason||'Исполнитель встретил препятствие');
+  log.push(result?.reason||'Распоряжение передано исполнителю');
+ }
+ return {status:'executed',reason:log.join('; ')};
+}
 function executeOrderEffects(e){
+ if(e.operations)return executePolicySteps(playerCountry,e.operations);
  const copy=JSON.parse(JSON.stringify(e)),c=countries[playerCountry];
  if(copy.peace_made?.length)throw Error('Мир требует согласия противника; направьте предложение');
  if(copy.treaties){copy.treaties.filter(t=>t.action==='sign').forEach(t=>createPoliticalOffer(playerCountry,t.a===playerCountry?t.b:t.a,t.type));copy.treaties=copy.treaties.filter(t=>t.action!=='sign');}
@@ -235,7 +272,9 @@ function executedOrderDescription(e){
 function applyOrderPlan(plan){
  const results=[];
  plan.orders.forEach(proposal=>{
-  const order=worldState.orders.find(o=>o.id===proposal.id);if(!order)throw Error('Приказ потерян');
+  const order=worldState.orders.find(o=>o.id===proposal.id);if(!order)return;
+  if(!['prepared','deferred'].includes(order.status))return;
+  const transaction=captureOrderExecution();
   const c=countries[playerCountry],before=orderStatSnapshot(c),verdict=proposal.process||proposal.effects.army_delta>0?{status:proposal.status==='execute'?'executed':proposal.status==='reject'?'rejected':'deferred',reason:proposal.reason}:OrderRules.authority(proposal,c);
   const relationsBefore=Object.fromEntries(Object.keys(proposal.effects.relations||{}).map(n=>[n,getRelation(playerCountry,n)]));
   if(verdict.status==='executed'){
@@ -256,10 +295,23 @@ function applyOrderPlan(plan){
     let started=false;
     try {if(e.political_task){const v=startPoliticalTask(playerCountry,e.political_task,order.id);verdict.status=v.status;verdict.reason=v.reason;started=true;if(v.task)order.politicalTask=v.task.id;}else started=startExecutiveProcess(order,proposal);if(started&&!e.political_task){verdict.status='in_progress';verdict.reason=order.reason;}}
     catch(error){verdict.status='blocked';verdict.reason=error.message;}
-    if(!started&&verdict.status==='executed'){const applied=executeOrderEffects(e);if(applied?.status==='blocked'){verdict.status='blocked';verdict.reason=applied.reason;}}
+    if(!started&&verdict.status==='executed'){
+     try{
+      const applied=executeOrderEffects(e);
+      if(applied?.status==='blocked'){restoreOrderExecution(transaction);verdict.status='blocked';verdict.reason=applied.reason;}
+     }catch(error){
+      restoreOrderExecution(transaction);
+      const mechanical=typeof StrategyActionError!=='undefined'&&error instanceof StrategyActionError;
+      verdict.status=mechanical?'blocked':'deferred';
+      verdict.reason=mechanical?error.message:'Не удалось обработать исполнение. Поручение сохранено; можно повторить без продвижения даты.';
+      order.technicalError=mechanical?null:String(error.message||error).slice(0,400);
+     }
+    }
    }
   }
   if(verdict.penalty)changeCountryStat(playerCountry,'stability',-verdict.penalty);
+  if(proposal.technicalError)order.technicalError=proposal.technicalError;
+  else if(verdict.status==='executed'||verdict.status==='in_progress')delete order.technicalError;
   order.status=verdict.status;order.kind=proposal.kind;order.effects=verdict.status==='executed'?JSON.parse(JSON.stringify(proposal.effects)):{};
   order.relationsBefore=relationsBefore;order.relationsAfter=Object.fromEntries(Object.keys(relationsBefore).map(n=>[n,getRelation(playerCountry,n)]));
   order.reason=verdict.status==='executed'&&!proposal.effects.political_task?executedOrderDescription(proposal.effects):verdict.reason;order.resolvedTurn=turn;order.before=before;order.after=orderStatSnapshot(c);
@@ -310,7 +362,7 @@ onTurnEnd=async function(){
   worldState.plannerFailure={turn,date:dateLabel(),message:String(error.message||error).slice(0,500)};
   plan={orders:pending.map(o=>o.fixedEffects?
    {id:o.id,kind:o.kind,status:'execute',reason:'Решение игрока',effects:o.fixedEffects}:
-   {id:o.id,kind:'unsupported',status:'defer',reason:'Ответ ИИ не удалось обработать. Приказ сохранён; это техническая задержка, а не отказ власти или исполнителя.',effects:{}}),
+   {id:o.id,kind:'unsupported',status:'defer',technicalError:String(error.message||error).slice(0,400),reason:'Ответ ИИ не удалось обработать. Приказ сохранён; это техническая задержка, а не отказ власти или исполнителя.',effects:{}}),
    world_effects:{},politics:[],articles:Object.fromEntries(pending.filter(o=>!o.fixedEffects).map(o=>[o.id,{headline:'Распоряжение ожидает подтверждения исполнения',body:(countries[playerCountry].ruler||'Глава государства')+' отдал распоряжение: «'+o.text+'». Подтверждённых сведений о его исполнении пока нет. Изменения по этому распоряжению не объявлены состоявшимися; оно остаётся в списке действующих поручений.'}])),politicalErrors:[]};
   showNotif('Ответ ИИ не обработан. Время продолжится; неподтверждённые приказы сохранены, их эффекты не выдумываются.');
  }
@@ -357,4 +409,19 @@ function applyCheckedDiplomacy(raw,targetCountry){
   }
   if(effects.war_start&&!isAtWar(target,playerCountry))declareEngineWar(target,playerCountry);
  }catch(error){({countries,worldState}=snapshot);renderPlayerStats();throw error;}
+}
+
+async function retryOrders(){
+ if(turnRunning||window.ordersCanStartTurn&&!window.ordersCanStartTurn())return false;
+ const pending=ensureOrders();if(!pending.length)return false;
+ if(window.testEnsureAIForTurn&&!await window.testEnsureAIForTurn({retry:true}))return false;
+ turnRunning=true;worldState.retryingOrders=true;
+ try{
+  const plan=await generateOrderPlan();plan.politics=[];
+  const results=applyOrderPlan(plan);reactToPlayerOrders(results);renderPlayerStats();renderActionsList();
+  const edition=worldState.newspaperHistory?.at(-1);
+  if(edition){for(const o of results){const article=plan.articles?.[o.id]||newsFallbackArticle(o);edition.domestic=edition.domestic.filter(a=>a.sourceOrder!==o.id);edition.domestic.unshift({...article,sourceOrder:o.id,details:newsOrderDetails(o)});}renderNewspaper(edition);}
+  saveGame();showNotif('Обработка поручений завершена. Дата не изменилась.');return true;
+ }catch(error){showNotif('Не удалось повторить обработку. Поручения сохранены.');return false;}
+ finally{delete worldState.retryingOrders;turnRunning=false;renderActionsList();}
 }

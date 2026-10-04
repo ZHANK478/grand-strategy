@@ -149,6 +149,7 @@ function startPoliticalTask(owner,task,source){
 }
 function applyCountryPoliticalEffects(owner,kind,effects){
  const c=countries[owner],ctx=orderContext();ctx.player=owner;
+ if(kind==='policy')return executePolicySteps(owner,effects.operations);
  const e=OrderRules.validateEffects(JSON.parse(JSON.stringify(effects)),ctx,'order',kind);
  const verdict=OrderRules.authority({kind,status:'execute',effects:e,reason:'Исполнение решения'},c);
  if(verdict.status!=='executed')return verdict;
@@ -156,7 +157,7 @@ function applyCountryPoliticalEffects(owner,kind,effects){
  if(e.treaties?.some(t=>t.action==='sign')){e.treaties.filter(t=>t.action==='sign').forEach(t=>createPoliticalOffer(owner,t.a===owner?t.b:t.a,t.type));e.treaties=e.treaties.filter(t=>t.action!=='sign');}
  if(owner===playerCountry){
   if(e.army_delta>0){const order={id:crypto.randomUUID(),text:'Пополнение армии',status:'prepared'};worldState.orders.push(order);startExecutiveProcess(order,{kind:'army',effects:e});return {status:'in_progress',reason:order.reason};}
-  executeOrderEffects(e);return verdict;
+  const result=executeOrderEffects(e);return result?.status?result:verdict;
  }
  if(kind==='tax')Object.entries(e.economy).forEach(([k,v])=>{const key=k.replace('tax_',''),g=c.economy.classes[key],delta=v-g.tax;g.tax=v;g.loyalty=actorClamp(g.loyalty-delta*.5);});
  else if(kind==='spending')Object.entries(e.society).forEach(([k,v])=>{c.society.spending[k.replace('_spending','')]=v;});
@@ -216,7 +217,16 @@ function finishPoliticalTask(t){
   t.status==='executed'?t.result:t.goal+'. '+t.reason,'Процесс: '+t.id+'. Статус: '+t.status+'. Проверенные эффекты: '+JSON.stringify(t.effects||{}),t.target?[t.target]:[]);
 }
 function tickPoliticalTasks(){
- ensurePolitics().tasks.filter(t=>t.status==='active'&&t.due<=gameDayNumber()).forEach(finishPoliticalTask);
+ ensurePolitics().tasks.filter(t=>t.status==='active'&&t.due<=gameDayNumber()).forEach(t=>{
+  const snapshot=captureOrderExecution();
+  try{finishPoliticalTask(t);}
+  catch(error){
+   restoreOrderExecution(snapshot);const task=ensurePolitics().tasks.find(x=>x.id===t.id);
+   task.status='deferred';task.finished=gameDayNumber();task.reason='Исполнитель должен повторить обработку результата.';
+   const order=worldState.orders.find(o=>o.id===task.source);if(order){order.status='deferred';order.technicalError=String(error.message||error).slice(0,400);order.reason='Техническая ошибка исполнения. Поручение сохранено для повтора без хода.';}
+   politicalEvent(task.country,'Исполнение поручения ожидает уточнения',task.goal+'. Поручение сохраняется у исполнителя.',task.reason,task.target?[task.target]:[]);
+  }
+ });
  ensurePolitics().tasks=ensurePolitics().tasks.filter(t=>t.status==='active'||t.finished>=gameDayNumber()-365);
 }
 function answerPoliticalOffer(owner,target,answer,type){

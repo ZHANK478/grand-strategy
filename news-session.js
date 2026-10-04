@@ -248,13 +248,14 @@
    return url;
   }catch(error){showNotif(error.message);return null;}
  };
- window.testEnsureAIForTurn=async()=>{
+ window.testEnsureAIForTurn=async(options={})=>{
   if(!await initAuth()){testOpenAIConnection();showNotif(connection.message);return false;}
   if(connection.mode==='guest'){
+   if(options.retry&&worldState.aiTurnId&&worldState.aiTurnUser===gsUser?.id){window.GS_GUEST_TURN_ID=worldState.aiTurnId;return true;}
    if(!guestModels.includes(MODEL)){testOpenAIConnection();showNotif('Выбранная модель пока не разрешена гостевым сервером.');return false;}
    try{
     const data=await serverRequest('guest-ai',{operation:'begin_turn',request_id:crypto.randomUUID()});
-    window.GS_GUEST_TURN_ID=data.turn_id;
+    window.GS_GUEST_TURN_ID=data.turn_id;worldState.aiTurnId=data.turn_id;worldState.aiTurnUser=gsUser?.id;
    }catch(error){set('offline',error.message);testOpenAIConnection();return false;}
   }
   return true;
@@ -266,7 +267,7 @@
   running=true;const button=document.querySelector('.next-btn');button.disabled=true;
   try{
    if(!await testEnsureAIForTurn())return;
-   mobileSection('map');await originalNextTurn(kind);
+   mobileSection('map');return await originalNextTurn(kind);
   }finally{running=false;button.disabled=false;button.textContent='Следующий ход ▶';}
  };
  // Settings must stay stable while the active request is using the selected route.

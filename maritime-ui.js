@@ -20,18 +20,17 @@ function maritimeTradeHTML(owner){
 }
 function maritimeSeaHTML(owner){
  const m=maritimeState(),f=economyFmt,esc=economyEscape,row=(a,b)=>'<div class="economy-row"><span>'+esc(a)+'</span><strong>'+esc(b)+'</strong></div>';
- let body='<h3>Флот и порты</h3>'+row('Содержание / месяц',f(maritimeUpkeep(owner))+' млн р.е.')+'<p>Море разделено на районы, которые нельзя присоединить как землю. Флот движется между ними по дням. Все задачи ставятся в очередь и начинают исполняться при следующем ходе.</p>';
+ let body='<h3>Флот и порты</h3>'+row('Содержание / месяц',f(maritimeUpkeep(owner))+' млн р.е.')+'<p>Море разделено на районы, которые нельзя присоединить как землю. Флот движется между ними по дням. Напишите цель обычным приказом. Военное ведомство выберет эскадру и маршрут; казна, вместимость и сроки определяют возможное исполнение.</p>';
  const missions={hold:'На позиции',move:'Переход в порт',patrol:'Патруль',escort:'Сопровождение',blockade:'Блокада',land:'Высадка',repair:'Ремонт'};
  for(const fleet of m.fleets.filter(f=>f.owner===owner)){
   body+='<article><h4>'+esc(fleet.name)+'</h4>'+row('Корабли',Object.entries(fleet.ships).map(([k,n])=>MARITIME_SHIPS[k].name+': '+n).join(' · '))+row('Положение',fleet.port?maritimePort(fleet.port)?.name:maritimeGeo().areas[fleet.region]?.name)+row('Задача',missions[fleet.mission]||fleet.mission)+row('Состояние / снабжение',f(fleet.condition)+'% / '+f(fleet.supply)+'%')+
   row('Вместимость транспорта',f(fleet.ships.transport*1500)+' солдат')+row('Войска на борту',f(fleet.cargo.reduce((s,u)=>s+u.troops,0)))+row('Сезонные условия',maritimeWeather(fleet.region)<1?'Зимнее море: переходы медленнее':'Обычные')+
   (fleet.path.length?row('Маршрут',fleet.path.map(id=>maritimeGeo().areas[id]?.name||id).join(' → ')):'')+
-  '<div class="maritime-fleet-form"><select id="sea-destination-'+esc(fleet.id)+'">'+m.ports.map(p=>'<option value="'+esc(p.id)+'">'+esc(p.name+' · '+(countries[maritimePortOwner(p)]?.displayName||maritimePortOwner(p)))+'</option>').join('')+'</select>'+
-  '<button type="button" onclick="maritimeQueueFleet('+esc(JSON.stringify(fleet.id))+',\'move\')">Перейти в порт</button><button type="button" onclick="maritimeQueueFleet('+esc(JSON.stringify(fleet.id))+',\'blockade\')">Блокада</button><button type="button" onclick="maritimeQueueFleet('+esc(JSON.stringify(fleet.id))+',\'land\')">Высадить войска</button><button type="button" onclick="maritimeQueueFleet('+esc(JSON.stringify(fleet.id))+',\'repair\')">Ремонт</button></div>'+
-  '<div class="maritime-fleet-form"><select id="sea-area-'+esc(fleet.id)+'">'+Object.values(maritimeGeo().areas).map(a=>'<option value="'+esc(a.id)+'">'+esc(a.name)+'</option>').join('')+'</select><button type="button" onclick="maritimeQueueArea('+esc(JSON.stringify(fleet.id))+',\'patrol\')">Патрулировать</button><button type="button" onclick="maritimeQueueArea('+esc(JSON.stringify(fleet.id))+',\'escort\')">Сопровождать торговлю</button></div><small>Разделение эскадры и посадку части можно приказать текстом.</small></article>';
+  '</article>';
  }
  const ports=m.ports.filter(p=>maritimePortOwner(p)===owner);
- body+='<h3>Порты</h3>'+ports.map(p=>'<article><h4>'+esc(p.name)+'</h4>'+row('Район',maritimeGeo().areas[p.region]?.name)+row('Гавань / верфь',p.level+' / '+p.shipyard)+row('Пропускная способность',f(p.level*180)+' млн р.е. грузов / мес')+row('Эффективность вражеской блокады',f(maritimeBlockade(p)*100)+'%')+'</article>').join('');
+ body+='<details><summary>Порты и верфи</summary>'+ports.map(p=>'<article><h4>'+esc(p.name)+'</h4>'+row('Район',maritimeGeo().areas[p.region]?.name)+row('Гавань / верфь',p.level+' / '+p.shipyard)+row('Пропускная способность',f(p.level*180)+' млн р.е. грузов / мес')+row('Эффективность вражеской блокады',f(maritimeBlockade(p)*100)+'%')+'</article>').join('');
+ body+='</details>';
  if(!ports.length)body+='<p>У страны нет морского порта. На внутренней территории построить его нельзя.</p>';
  body+='<h3>Строительство</h3>'+m.builds.filter(x=>x.owner===owner&&x.status==='active').map(x=>row(x.type==='ship'?MARITIME_SHIPS[x.shipType].name+' · '+x.count:'Развитие порта','ещё '+Math.max(0,x.due-gameDayNumber())+' дней · '+f(x.cost)+' млн оплачено')).join('');
  body+='<p>Пример приказа: «Заказать в Бресте четыре транспорта», «Выделить лёгкие корабли для сопровождения торговли в Ла-Манше», «Погрузить корпус в порту и доставить к разрешённому берегу». Корабли требуют верфи, денег, экипажей и времени; десант встречает реальное сопротивление.</p>';
@@ -48,8 +47,6 @@ function maritimeQueueFleet(id,action){
 }
 function maritimeQueueTradeAnswer(id,accept){const effect={action:accept?'accept':'reject',offer_id:id};try{validateTradePolicy(effect,playerCountry);queueOrder((accept?'Принять':'Отклонить')+' торговое предложение','trade',{trade_policy:effect});}catch(e){showNotif(e.message);}}
 function maritimeQueueTradeBreak(id){queueOrder('Прекратить торговое соглашение','trade',{trade_policy:{action:'break',agreement_id:id}});}
-const maritimeOldActions=renderPoliticalActions;
-renderPoliticalActions=function(box){maritimeOldActions(box);const button=document.createElement('button');button.type='button';button.textContent='Флот, порты и торговля';button.onclick=()=>{economySetTab('sea');openEconomyPanel();};box.append(button);};
 
 function maritimeQueueArea(id,action){
  const region=document.getElementById('sea-area-'+id)?.value,effect={action,fleet_id:id,region};

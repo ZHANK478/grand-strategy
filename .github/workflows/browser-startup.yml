@@ -1,7 +1,7 @@
 name: Browser startup integration
 on:
   push:
-    branches: [main, fix/browser-startup]
+    branches: [main, fix/browser-startup, fix/text-politics-reliability]
 permissions:
   contents: read
 jobs:

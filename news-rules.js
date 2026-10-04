@@ -2,7 +2,7 @@
 (function(root){
 'use strict';
 const KIND_FIELDS={
- narrative:['court_scene'],economic:['economic_policy'],tax:['economy'],spending:['society'],law:['law_slots','laws','institutions'],
+ policy:['operations'],narrative:['court_scene'],economic:['economic_policy'],tax:['economy'],spending:['society'],law:['law_slots','laws','institutions'],
  power:['country_name','transition','government','ruler_name','ruler_age','ruler_title','pm_name','pm_title','parliament'],
  army:['army_delta','map_objects'],map:['map_objects'],finance:['debt_delta'],
  naval:['naval_order'],trade:['trade_policy'],military:['military_order'],diplomacy:['diplomatic_action','relations','treaties','war_declared','peace_made','province_transfer'],
@@ -23,6 +23,13 @@ function leader(e){LEADERS.forEach(k=>{if(e[k]!=null){if(k==='ruler_age')number(
 function validateEffects(raw,ctx,scope,kind){
  keys(raw,scope==='world'?WORLD_FIELDS:(KIND_FIELDS[kind]||[]));
  const e=clean(raw),mine=ctx.countries[ctx.player];
+ if(e.operations){
+  list(e.operations,8);check(e.operations.length>0,'Поручению нужны действия');
+  e.operations.forEach(step=>{
+   keys(step,['kind','effects']);check(Object.hasOwn(KIND_FIELDS,step.kind)&&!['policy','unsupported','political','administration'].includes(step.kind),'Недопустимый вложенный приказ');
+   keys(step.effects,KIND_FIELDS[step.kind]);check(Object.keys(step.effects).length>0,'Пустой шаг поручения');
+  });
+ }
  if(e.transition!=null){check(['appoint','resign','succession','reform'].includes(e.transition),'Неверный переход власти');if(['resign','succession'].includes(e.transition))check(e.ruler_name&&e.ruler_name!==mine.ruler,'При смене главы нужен преемник');}
  if(e.naval_order){check(typeof ctx.validateNavalOrder==='function','Нет морского исполнителя');ctx.validateNavalOrder(e.naval_order,ctx.player);}
  if(e.trade_policy){check(typeof ctx.validateTradePolicy==='function','Нет торгового исполнителя');ctx.validateTradePolicy(e.trade_policy,ctx.player);}

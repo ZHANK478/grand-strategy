@@ -645,7 +645,7 @@ const OWNER_COLORS = { rebel: '#7a1a1a', foreign: '#8a1a1a' };
 // и по-разному выглядели на разных ОС.
 const MAP_SYMBOLS = {
   army:     'M-2.6,-2.6 L2.6,2.6 M2.6,-2.6 L-2.6,2.6',
-  port:     'M-3,2 H3 M-2,2 V-1 H2 V2 M-3,-1 L0,-3 L3,-1',
+  port:     'M0,-2.7 A.6,.6 0 1 1 -.01,-2.7 M0,-2 V2.5 M-1.3,-.8 H1.3 M-2.2,.4 Q-2,2.5 0,2.5 Q2,2.5 2.2,.4 M-2.2,.4 L-1.5,.9 M2.2,.4 L1.5,.9',
   naval:    'M0,-3 L0,2.4 M-2,0.4 A2,2 0 0 0 2,0.4 M-1.5,-2.2 L1.5,-2.2',
   hq:       'M-2.4,-2.4 h4.8 v4.8 h-4.8 Z',
   diplomat: 'M0,-3 L2.6,0 L0,3 L-2.6,0 Z',
@@ -750,11 +750,12 @@ function renderMapObjects() {
   if (motion) enter.attr('opacity', 0).transition('map-appearance').duration(180).attr('opacity', 1);
   const merged = enter.merge(sel);
   merged.each(function(d) {
-    const loc = resolveLocationLonLat(d.location);
+    const loc = d.mapCoordinates || resolveLocationLonLat(d.location);
     if (!loc) return;
     const xy = proj(loc);
     if (!xy || !xy.every(Number.isFinite)) return;
-    const k = objectScale / zoom;
+    const quiet = d.type==='port'||d.maritimeMarker;
+    const k = quiet ? (d.type==='port'?.48:.7)/zoom : objectScale / zoom;
     const node = this, g = d3.select(node);
     if(node.__gsLeaving){g.interrupt('map-appearance').attr('opacity',1);node.__gsLeaving=false;}
     const changed = node.__gsLocation != null && node.__gsLocation !== d.location;
@@ -779,15 +780,17 @@ function renderMapObjects() {
       node.__gsXY=xy.slice();g.attr('transform','translate('+xy.join(',')+')');
     }
     g.select('.mo-dot').attr('cx', 0).attr('cy', 0).attr('r', 4*k)
-      .attr('fill', ownerColor(d.owner)).attr('stroke','rgba(10,14,22,0.85)').attr('stroke-width',.8*k);
+      .attr('fill', ownerColor(d.owner)).attr('stroke','rgba(10,14,22,0.85)').attr('stroke-width',.8*k)
+      .attr('display',d.type==='port'?'none':null);
     g.select('.mo-sym').attr('transform','scale('+k+')')
       .attr('d', MAP_SYMBOLS[d.type]||MAP_SYMBOLS.other)
-      .attr('fill',d.type==='hq'?'#f5f2e8':'none').attr('stroke','#f5f2e8').attr('stroke-width',.9)
+      .attr('fill',d.type==='hq'?'#f5f2e8':'none').attr('stroke',d.type==='port'?'#ddd2b9':'#f5f2e8').attr('stroke-width',d.type==='port'?1.3:.9)
       .attr('stroke-linejoin','round').attr('stroke-linecap','round');
     g.select('.mo-label').attr('x',0).attr('y',9*objectScale/zoom)
       .attr('font-size',5.5*objectScale/zoom).attr('fill','#f5f2e8')
       .attr('font-family','Georgia,serif').attr('paint-order','stroke')
       .attr('stroke','rgba(12,16,26,0.85)').attr('stroke-width',1.4/zoom)
+      .attr('display',quiet?'none':null)
       .text(d.label+(d.troops?' «'+d.troops.toLocaleString('ru')+'»':''));
     g.style('cursor','default')
       .on('mouseover',()=>{tooltip.style.display='block';document.getElementById('t-name').textContent=d.label;document.getElementById('t-info').textContent=(d.troops?'👥 '+d.troops.toLocaleString('ru')+' чел. · ':'')+d.location;})

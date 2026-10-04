@@ -16,6 +16,8 @@ function repairPlannerOrders(raw,pending){
   }
   if(!item)item={id:p.id,kind:'unsupported',status:'defer',reason:distinct.length?'Исполнитель прислал противоречивые варианты. Указ сохранён для уточнения на следующем ходе.':'Исполнитель не подготовил ответ на этот указ. Он сохранён для следующего хода.',effects:{},
    article:{headline:'Кабинет продолжит подготовку решения',body:'Поручение главы государства «'+p.text+'» остаётся на рассмотрении исполнителей. Изменения по этому поручению пока не вступили в силу. Указ сохранён и будет рассмотрен при следующем ходе.'}};
+  if(item.status==='defer'&&item.kind==='unsupported')item.technicalError=item.reason;
+  if(item.status!=='execute'&&/нет (?:механик|движк)|не (?:реализован|поддержива)|не предусмотрен|not implemented/i.test(item.reason||'')){item.status='defer';item.kind='unsupported';item.effects={};item.technicalError=item.reason;item.reason='Исполнитель должен уточнить способ исполнения. Это ошибка обработки, а не запрет государственного действия.';}
   out.push(item);
  });return out;
 }
@@ -204,6 +206,8 @@ function newsUnique(list){
 const newsOldBuild=buildNewspaper;
 buildNewspaper=function(before,results,events,start){
  const edition=newsOldBuild(before,results,events,start);
+ const previous=before[playerCountry],current=countries[playerCountry];
+ edition.summary={executed:results.filter(o=>o.status==='executed').length,progress:results.filter(o=>o.status==='in_progress').length,obstacles:results.filter(o=>['blocked','failed','rejected'].includes(o.status)&&!o.technicalError).length,technical:results.filter(o=>o.technicalError).length,cash:current.treasury-previous.treasury,army:current.army-previous.army};
  edition.receipts=results.map(o=>({id:o.id,text:o.text,status:o.status,reason:o.reason}));
  edition.orderCoverage=results.map(o=>{const a=o.newsHeadline?{headline:o.newsHeadline,body:o.newsBody}:newsFallbackArticle(o);return {...a,sourceOrder:o.id,phase:'decision',coverage:true,actors:[playerCountry],details:newsOrderDetails(o),priority:10};});
  return edition;
@@ -212,7 +216,12 @@ writeNewspaper=async function(edition){
  const flow=ensureNewsFlow(),all=worldState.periodEvents||[],own=[...all.filter(e=>e.section==='domestic'),...(edition.orderCoverage||[]).filter(e=>!all.some(a=>a.sourceOrder===e.sourceOrder&&a.phase==='decision'))],abroad=all.filter(e=>e.section==='foreign');
  let cover=[...new Map(own.filter(e=>e.coverage).map(e=>[newsKey(e),e])).values()];
  cover=cover.filter(e=>!e.phase?.startsWith('progress-')||(!cover.some(x=>x.sourceOrder===e.sourceOrder&&x.phase==='completion')&&!cover.some(x=>x.sourceOrder===e.sourceOrder&&x.phase?.startsWith('progress-')&&x.phase>e.phase)));
- const reaction=own.filter(e=>!e.coverage&&e.decisionActor),other=own.filter(e=>!e.coverage&&!e.decisionActor);
+ const grouped=new Set();
+ for(const primary of cover){
+  const reactions=own.filter(e=>!e.coverage&&e.sourceOrder===primary.sourceOrder);
+  if(reactions.length){primary.body+='\n\n'+[...new Set(reactions.map(e=>e.body))].join(' ');primary.details+='\n'+reactions.map(e=>e.details||'').filter(Boolean).join('\n');reactions.forEach(e=>grouped.add(e));}
+ }
+ const reaction=own.filter(e=>!e.coverage&&e.decisionActor&&!grouped.has(e)),other=own.filter(e=>!e.coverage&&!e.decisionActor&&!grouped.has(e));
  const protectedKeys=new Set(cover.map(e=>e.sourceOrder));
  const fallback=edition.domestic.filter(e=>!own.some(a=>a.headline===e.headline&&a.body===e.body)&&/Образование даёт|Бедность |Власть теряет|Положение власти|Общественное недовольство|Военные известия|Дипломатические известия|Смена главы государства/.test(e.headline));
  edition.domestic=newsUnique([...cover,...reaction,...other.filter(e=>!cover.length||!/Началась кампания набора|Правительство приступило к исполнению решения/.test(e.headline)),...fallback]);
@@ -261,7 +270,7 @@ askGemini=async function(prompt,...args){
 const newsOldActorNotice=actorNotice;
 actorNotice=function(a,headline,body,details='',priority=3){
  const start=(worldState.periodEvents||[]).length,result=newsOldActorNotice(a,headline,body,details,priority);
- worldState.periodEvents.slice(start).forEach(e=>{if(a.country!==playerCountry)e.headline=(countries[a.country].displayName||a.country)+': '+headline;});
+ worldState.periodEvents.slice(start).forEach(e=>{if(a.country===playerCountry&&a.issue?.orderId)e.sourceOrder=a.issue.orderId;if(a.country!==playerCountry)e.headline=(countries[a.country].displayName||a.country)+': '+headline;});
  return result;
 };
 const newsOldActorReactions=recordActorReactions;

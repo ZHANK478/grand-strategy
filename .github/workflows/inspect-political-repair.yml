@@ -1,24 +1,10 @@
-name: Inspect diagnostic replies without paid calls
+name: Archived diagnostic artifact inspection
 on:
-  push:
-    branches: [fix/autonomous-politics-20261004]
-    paths: [tests/inspect-political-repair.mjs]
+  workflow_dispatch:
 permissions:
   contents: read
-  actions: read
 jobs:
-  inspect:
+  archived:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-      - uses: actions/download-artifact@v4
-        with:
-          github-token: ${{ github.token }}
-          repository: ZHANK478/grand-strategy
-          run-id: '37189392428'
-          name: political-repair-check
-          path: repair-seed
-      - run: node tests/inspect-political-repair.mjs
+      - run: echo 'Permanent browser fixtures cover these regressions without expiring artifacts.'

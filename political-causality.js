@@ -18,17 +18,16 @@ function causalValidateSignal(raw,owner){
  affected:(Array.isArray(raw.affected)?raw.affected:[]).filter(a=>registry[a.actor_id]?.country===owner&&actorAvailable(registry[a.actor_id])&&registry[a.actor_id].kind!=='government'&&Number.isFinite(a.stance)&&Number.isFinite(a.intensity)&&typeof a.reason==='string').slice(0,8).map(a=>({actor_id:a.actor_id,stance:Math.max(-1,Math.min(1,a.stance)),intensity:Math.max(0,Math.min(100,a.intensity)),reason:a.reason.slice(0,400)}))};
 }
 function causalRecipients(owner,signal){
- if(signal.visibility!=='public')return [];
+ if(signal.visibility!=='public')return signal.targets.filter(n=>n!==owner&&countries[n]&&!countries[n].annexed);
  const geo=politicalGeography(),powers=policyLive().slice().sort((a,b)=>countries[b].gdp-countries[a].gdp).slice(0,8);
  const partners=strategyState().contracts.filter(t=>t.status==='active'&&[t.a,t.b].includes(owner)).flatMap(t=>[t.a,t.b]);
  const watch=policyLive().filter(n=>policyCabinet(n).goals.some(g=>g.status==='active'&&g.target===owner));
  const reach=[...signal.targets,...(signal.salience>=40?[...(geo.neighbors[owner]||[]),...partners,...watch]:[]),...(signal.salience>=65&&(signal.scope==='international'||powers.includes(owner))?powers:[])];
  if(signal.scope==='international'&&signal.targets.length===0)reach.push(...powers);
- return [...new Set(reach)].filter(n=>n!==owner&&n!==playerCountry&&countries[n]&&!countries[n].annexed);
+ return [...new Set(reach)].filter(n=>n!==owner&&countries[n]&&!countries[n].annexed);
 }
 function causalPublish(owner,key,signal,fact,sourceOrder=null){
  const s=causalState();if(s.seen.includes(key))return null;
- if(signal.visibility!=='public'&&!sourceOrder)return null;
  const e={id:crypto.randomUUID(),key,owner,day:gameDayNumber(),turn,domain:signal.domain,visibility:signal.visibility,
  summary:signal.summary,fact:String(fact).slice(0,1200),salience:signal.salience,targets:signal.targets,sourceOrder,
  status:'active',reviewDay:gameDayNumber()+30,observedBy:[],affected:signal.affected||[]};
@@ -130,7 +129,7 @@ executePoliticalDecision=function(d,results=[]){
   changeCountryStat(a.country,'stability',-1);material='Отказ сотрудничать; сопротивление увеличивает риск задержки политических поручений';
  }else if(d.action==='resign'){
   if(a.grievance<55)return false;
-  const previous=c.pm;setCountryLeader(a.country,{pm:'Временный кабинет',pmTitle:c.pmTitle||'Глава правительства'});
+  const previous=c.pm;setCountryLeader(a.country,{pm:'Временный кабинет',pmTitle:'Глава временного правительства'});
   a.stance='resigned';a.organization=0;a.grievance=25;changeCountryStat(a.country,'stability',-3);
   material='Глава правительства '+previous+' ушёл в отставку; действует временный кабинет';
  }else{
@@ -179,7 +178,8 @@ policyApply=function(raw,selected,results){
  const eventStart=(worldState.periodEvents||[]).length;
  const applied=causalOldApply(raw,selected,results);if(!applied)return false;
  const impact=causalValidateSignal(raw.signal,orderCountry(raw.country));
- if(impact)for(const e of worldState.periodEvents.slice(eventStart))if(e.policyAction)e.policySignal=impact;
+ if(impact)for(const e of worldState.periodEvents.slice(eventStart))if(e.policyAction){e.policySignal=impact;e.visibility=impact.visibility;}
+ causalScan();
  for(const decision of (raw.actors||[]).slice(0,2)){
   try{const d=canonicalPoliticalDecision(decision),a=ensureWorldActors()[d.actor_id];politicalAssert(a?.country===orderCountry(raw.country)&&a.kind!=='government','Внутренняя позиция другого государства');validatePoliticalDecision(d);executePoliticalDecision(d,[]);}catch(error){policyState().audit.push({country:raw.country,error:'Позиция внутреннего участника: '+String(error.message).slice(0,300),day:gameDayNumber()});}
  }
@@ -242,7 +242,8 @@ function causalCaptureAlerts(before){
  }
  const c=countries[playerCountry];if(c.stability<=30&&before?.stability>30)
   causalAlert('crisis:'+playerCountry+':'+gameDayNumber(),'Политический кризис','Устойчивость власти резко ослабла. Проверьте требования общественных участников и поддержку государственных институтов.');
- const capital=scenarioProvinces.find(p=>strategyOwner(p)===playerCountry&&(p.isCapital||p.capital));
+ const capitalName=c.capital||activeScenario.countryProfiles?.[playerCountry]?.capital;
+ const capital=capitalName?strategyLocationProvince(capitalName):scenarioProvinces.find(p=>strategyOwner(p)===playerCountry&&(p.isCapital||p.capital));
  if(capital&&strategyState().occupations[capital.id]&&strategyState().occupations[capital.id]!==playerCountry)
   causalAlert('capital:'+capital.id+':'+strategyState().occupations[capital.id],'Столица занята противником',capital.name+' находится под контролем противника.');
  s.alerts=s.alerts.slice(-20);
@@ -252,11 +253,12 @@ function causalAlert(key,title,body){
  s.alerts.push({key,title,body,day:gameDayNumber(),turn});
 }
 let causalTurnBefore=null;
-function causalBeginTurn(){causalTurnBefore={...policySnapshot(),stability:countries[playerCountry].stability};closeBreakingNews();}
+function causalBeginTurn(){causalTurnBefore={...policySnapshot(),stability:countries[playerCountry].stability};}
 function causalCommitTurn(edition){
  causalCaptureAlerts(causalTurnBefore);saveGame();causalQueueEdition(edition);saveGame();causalShowAlert();
 }
 function closeBreakingNews(){
+ const legacy=document.getElementById('breaking-news');if(legacy)legacy.style.display='none';
  const box=document.getElementById('political-breaking-news');if(box)box.remove();
 }
 function causalShowAlert(){
@@ -272,7 +274,10 @@ function causalShowAlert(){
 }
 const causalOldRender=renderNewspaper;
 renderNewspaper=function(edition){
- causalOldRender(edition);const box=document.getElementById('newspaper-date');if(!box||!edition)return;
+ causalOldRender(edition);
+ const mail=document.getElementById('events-list');
+ if(mail&&edition?.privateDispatches?.length){const details=document.createElement('details');details.className='newspaper-details';const label=document.createElement('summary');label.textContent='Закрытая дипломатическая почта · '+edition.privateDispatches.length;details.append(label);for(const item of edition.privateDispatches){const text=document.createElement('p');text.textContent=item.headline+'\n'+item.body;details.append(text);}mail.append(details);}
+ const box=document.getElementById('newspaper-date');if(!box||!edition)return;
  const job=edition.editorJob;
  if(job&&['queued','editing'].includes(job.status)&&!causalEditorialWorker&&!causalEditorialQueue.some(j=>j.edition===edition))job.status='interrupted';
  if(job&&!['complete'].includes(job.status)){
@@ -286,3 +291,9 @@ function causalDeathAlerts(deaths){
  for(const d of deaths)if(d.country===playerCountry||politicalGeography().neighbors[playerCountry]?.has(d.country))
   causalAlert('death:'+d.country+':'+gameDayNumber(),'Умер глава государства',d.ruler+' ('+(countries[d.country]?.displayName||d.country)+') скончался. Власть переходит преемнику; существующие обязательства сохраняются.');
 }
+
+showBreakingNews=function(title,text){
+ // Called by existing executors only after actual changes. Publication waits for commit.
+ causalAlert('execution:'+gameDayNumber()+':'+newsHash(String(title)+'|'+String(text)),newspaperText(title),newspaperText(text));
+ if(!turnRunning){saveGame();causalShowAlert();}
+};

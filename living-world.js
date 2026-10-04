@@ -6,6 +6,7 @@ function livingPrivateResponse(e){
  return !!(o?.response&&(!o.effects||Object.keys(o.effects).every(k=>k==='political_task'&&(!o.effects[k].effects||!Object.keys(o.effects[k].effects).length))));
 }
 function livingStoryKey(e){
+ if(e.section==='foreign'&&e.policyTarget&&e.decisionActor){const owner=e.decisionActor.split('::')[0];return 'politics:'+([owner,e.policyTarget].sort().join('|'))+':'+(e.policySignal?.domain||(['war','mobilize','deploy'].includes(e.policyAction)?'security':'foreign'));}
  if(e.condition&&worldState.orders.some(o=>o.id===e.condition))return 'order:'+e.condition;
  if(e.sourceOrder)return 'order:'+e.sourceOrder;
  if(e.storyId)return 'story:'+e.storyId;
@@ -30,7 +31,7 @@ function livingGroupStories(list){
  return [...stories.values()].map(s=>({...s,body:s.facts.join('\n\n')}));
 }
 function livingInternational(e){
- if(e.respondsTo||e.policyTarget||e.salience>=55||e.causalEvent)return true;
+ if(e.respondsTo||e.policyTarget||e.salience>=55)return true;
  if(['war','mobilize','deploy','negotiate','warn','condemn','offer_alliance','offer_nonaggression','offer_peace','accept','reject_offer'].includes(e.policyAction))return true;
  if(['diplomacy','military','naval','trade','power'].includes(e.policyKind))return true;
  const text=e.headline+' '+e.body;
@@ -73,7 +74,9 @@ async function livingEditStories(edition,stories,frozen=null){
 writeNewspaper=async function(edition){
  await collectNewspaperFacts(edition);
  // Include all foreign sources before the old seven-item clipping, then rank real politics.
- const international=livingGroupStories((worldState.periodEvents||[]).filter(e=>e.section==='foreign'));
+ const foreignSources=(worldState.periodEvents||[]).filter(e=>e.section==='foreign');
+ edition.privateDispatches=foreignSources.filter(e=>e.visibility&&e.visibility!=='public'&&(e.policyTarget===playerCountry||e.actors?.includes(playerCountry))).map(e=>({headline:e.headline,body:e.body}));
+ const international=livingGroupStories(foreignSources.filter(e=>!e.visibility||e.visibility==='public'));
  const own=livingGroupStories(edition.domestic);
  const ranked=international.sort((a,b)=>foreignNewsWeight(b)-foreignNewsWeight(a));
  const important=ranked.filter(livingInternational);

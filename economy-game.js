@@ -1310,7 +1310,7 @@ function runMonthlyBoundary() {
 function announceDeaths(deaths) {
   deaths.forEach(d => {
     worldState.pastEvents.push(`${months[month]} ${year}: скончался ${d.title} ${d.ruler} (${d.country}) в возрасте ${d.age} лет.`);
-    if (typeof showBreakingNews === 'function') {
+    if (typeof causalDeathAlerts !== 'function' && typeof showBreakingNews === 'function') {
       showBreakingNews('УМЕР ' + (d.title || 'ПРАВИТЕЛЬ').toUpperCase(),
         `${d.ruler} (${d.country}) скончался в возрасте ${d.age} лет. Страна ждёт преемника.`);
     }

@@ -185,6 +185,7 @@ try{
    const reading=await page.evaluate(async()=>{
     const text='Правительство открыло школы девочкам. Решение меняет доступ к образованию и вызывает спор о будущем страны.';
     renderNewspaper({from:dateLabel(),to:dateLabel(),domestic:[{headline:'Школьная реформа',body:text,details:'Права изменены.'}],foreign:[],archive:{domestic:[],foreign:[]}});
+    mobileSection('news');
     const article=document.querySelector('#domestic-list .newspaper-article'),paragraph=article.querySelector('p');
     const range=document.createRange();range.selectNodeContents(paragraph);const selection=window.getSelection();selection.removeAllRanges();selection.addRange(range);
     const selected=selection.toString(),userSelect=getComputedStyle(paragraph).userSelect;selection.removeAllRanges();

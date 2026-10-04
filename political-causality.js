@@ -221,15 +221,26 @@ function causalQueueEdition(edition){
 async function causalWorkEditions(){
  try{
   while(causalEditorialQueue.length){
-   const job=causalEditorialQueue.shift(),{edition,stories,source,world}=job;
-   if(world!==worldState||!world.newspaperHistory?.includes(edition))continue;
-   edition.editorJob.status='editing';
-   if(world.newspaperHistory.at(-1)===edition)renderNewspaper(edition);
+   const {edition,stories,source,world}=causalEditorialQueue.shift();
+   const current=()=>world===worldState?world.newspaperHistory?.find(e=>e.id===edition.id):null;
+   let target=current();if(!target)continue;
+   target.editorJob.status='editing';
+   if(world.newspaperHistory.at(-1)===target)renderNewspaper(target);
    await livingEditStories(edition,stories,source);
-   if(world!==worldState||!world.newspaperHistory?.includes(edition))continue;
-   edition.editorJob={...edition.editorJob,status:edition.editorError?'error':'complete',completedAt:Date.now()};
+   target=current();if(!target)continue;
+   // An isolated failed order can restore cloned history in the SAME session.
+   // Match stable edition/story IDs; only edited prose may cross that boundary.
+   if(target!==edition){
+    for(const section of ['domestic','foreign'])for(const story of edition[section]){
+     const existing=target[section]?.find(e=>e.storyKey&&e.storyKey===story.storyKey);
+     if(existing&&story.edited){existing.headline=story.headline;existing.body=story.body;existing.edited=true;}
+    }
+    target.editor=edition.editor;
+    if(edition.editorError)target.editorError=edition.editorError;else delete target.editorError;
+   }
+   target.editorJob={...target.editorJob,status:edition.editorError?'error':'complete',completedAt:Date.now()};
    if(!turnRunning)saveGame();
-   if(world.newspaperHistory.at(-1)===edition)renderNewspaper(edition);
+   if(world.newspaperHistory.at(-1)===target)renderNewspaper(target);
   }
  }finally{causalEditorialWorker=null;}
 }

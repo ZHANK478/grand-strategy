@@ -14,7 +14,7 @@ const browser=await chromium.launch({headless:true});
 try{
  for(const [mode,options]of [['desktop',{viewport:{width:1440,height:900}}],['phone',{viewport:{width:844,height:390},isMobile:true,hasTouch:true}]]){
   const context=await browser.newContext(options),errors=[];
-  await context.route(/supabase\\.co|openrouter\\.ai|generativelanguage\\.googleapis\\.com/,r=>r.abort());
+  await context.route(/supabase\.co|openrouter\.ai|generativelanguage\.googleapis\.com/,r=>r.abort());
   const page=await context.newPage();page.on('pageerror',e=>errors.push(e.message));
   await page.goto(url+'?release=20261004-v12',{waitUntil:'load',timeout:90000});
   await page.waitForFunction(()=>window.GS_MAP_LOAD?.status==='ready',{},{timeout:60000});

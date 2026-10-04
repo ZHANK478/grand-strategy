@@ -44,7 +44,7 @@ function econEducation(c){
  const provision=({church:.75,partial:.9,universal:1})[c.lawSlots?.education]??.9;
  const access=(.5+.5*girls)*provision;
  const perChild=c.society.spending.education*12*v.paidRatio*1e6/Math.max(1,c.population*1000*.28)/v.prices;
- return {girlsAccess:girls,access,perChild,annualLiteracyGain:Math.min(1.5,perChild/100)*Math.max(0,access*100-c.society.literacy)/100};
+ return {girlsAccess:girls,access,perChild,annualLiteracyGain:Math.min(4,Math.sqrt(Math.max(0,perChild)/25)*2)*(100-c.society.literacy)/100*(.6+.4*access)};
 }
 function econDemography(c){const v=econV3(c),deaths=v.deaths+(econWar(c)?4:0)+Math.max(0,c.society.poverty-65)*.08+(v.paidRatio<.8?2:0);return {births:v.births,deaths,migration:v.migration,annualRate:(v.births-deaths+v.migration)/1000};}
 function econWar(c){return typeof isAtWar==='function'&&ALL_COUNTRIES.some(n=>countries[n]!==c&&!countries[n].annexed&&isAtWar(c.displayName,n));}

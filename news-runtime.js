@@ -149,7 +149,10 @@ action всегда строка; amount и target — отдельные пол
  for(let i=1;i<decisions.length-1;i++){if(decisions[i]==='condition_order'&&typeof decisions[i+1]==='string'&&decisions[i-1]&&typeof decisions[i-1]==='object'&&!decisions[i-1].condition_order){decisions[i-1].condition_order=decisions[i+1];decisions.splice(i,2);i--;}}
  if(decisions.length>12)decisions.splice(12);
  const valid=[],errors=[];const seen=new Set();
- decisions.forEach(rawDecision=>{let d;try{d=canonicalPoliticalDecision(rawDecision);validatePoliticalDecision(d);politicalAssert(!seen.has(d.actor_id),'Повтор участника');seen.add(d.actor_id);valid.push(d);}catch(e){errors.push({actor:rawDecision.actor_id,error:e.message});}});
+ decisions.forEach(rawDecision=>{let d;try{
+ const reference=String(rawDecision.condition_order||'').match(/^O([1-8])$/);
+ if(reference&&free[Number(reference[1])-1])rawDecision.condition_order=free[Number(reference[1])-1].id;
+ d=canonicalPoliticalDecision(rawDecision);validatePoliticalDecision(d);politicalAssert(!seen.has(d.actor_id),'Повтор участника');seen.add(d.actor_id);valid.push(d);}catch(e){errors.push({actor:rawDecision.actor_id,error:e.message});}});
  plan.orders.forEach(o=>{if(o.effects?.political_task){const source=free.find(x=>x.id===o.id);if(source)bindPoliticalMandate(o.effects.political_task,source.text,o.article);}});
  const articles=new Map(plan.orders.map(o=>[o.id,o.article]));
  const byId=new Map(plan.orders.map(o=>{const {article,...rest}=o;

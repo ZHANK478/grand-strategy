@@ -140,6 +140,7 @@ try{
     ok(await nextTurn('week')===true,'Actual recorded recruitment reply advances calendar');
     const order=worldState.orders.find(o=>o.text===fixtures.recruitment.text);
     ok(order.status==='in_progress'&&!order.technicalError,'Nested process metadata starts actual recruitment');
+    ok(ensurePolitics().decisions.some(d=>d.actor_id===playerCountry+'::military'&&d.condition_order===order.id),'Internal reaction stays attached to the aliased recorded order');
     ok(countries[playerCountry].army<army+30000,'Recruitment retains training duration rather than instant soldiers');
     return checks;
    },protocolFixtures);

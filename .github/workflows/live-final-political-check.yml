@@ -1,0 +1,33 @@
+name: Authorised final two political requests — one time
+on:
+  push:
+    branches: [fix/autonomous-politics-20261004]
+    paths: [tests/live-final-political-check.mjs]
+permissions:
+  contents: read
+  actions: read
+jobs:
+  final:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ github.token }}
+          repository: ZHANK478/grand-strategy
+          run-id: '37187363653'
+          pattern: political-campaign-*
+          path: political-seed
+      - run: npm install --no-save --package-lock=false playwright
+      - run: npx playwright install --with-deps chromium
+      - run: node tests/live-final-political-check.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: political-final-check
+          path: political-final-output/
+          retention-days: 7

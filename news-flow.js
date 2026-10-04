@@ -14,7 +14,9 @@ function repairPlannerOrders(raw,pending){
     const days=item.effects.days;
     politicalAssert(Number.isInteger(days)&&days>=1&&days<=3650,'Неверный срок исполнения');
     politicalAssert(!item.process||item.process.days===days,'Противоречивые сроки исполнения');
-    item.process||={mode:item.kind==='army'?'recruitment':'implementation',days,summary:p.text.slice(0,300)};
+    const timed=item.effects.political_task||item.effects.economic_policy;
+    if(timed){politicalAssert(timed.days==null||timed.days===days,'Противоречивые сроки исполнения');timed.days=days;}
+    else item.process||={mode:item.kind==='army'?'recruitment':'implementation',days,summary:p.text.slice(0,300)};
     delete item.effects.days;
    }
    if(item.effects&&item.effects.cost!=null&&!OrderRules.KIND_FIELDS[item.kind]?.includes('cost')){

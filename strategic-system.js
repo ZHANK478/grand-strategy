@@ -384,7 +384,10 @@ function strategyEndWar(a,b){
  if(a===playerCountry||b===playerCountry)worldState.atWarWith=worldState.atWarWith.filter(n=>n!==(a===playerCountry?b:a));
  else worldState.aiWars=worldState.aiWars.filter(w=>!(w.includes(a)&&w.includes(b)));
  delete worldState.warGoals[warKey(a,b)];
- const s=strategyState();s.campaigns.filter(c=>[c.a,c.b].includes(a)&&[c.a,c.b].includes(b)).forEach(c=>c.status='ended');
+ const s=strategyState();
+ for(const offer of s.offers.filter(o=>o.type==='peace'&&o.status==='open'&&[a,b].includes(o.a)&&[a,b].includes(o.b))){offer.status='superseded';policyResolveProposal(offer.id,offer.b);}
+ for(const offer of worldState.politics?.offers||[])if(offer.type==='peace'&&offer.status==='open'&&[a,b].includes(offer.a)&&[a,b].includes(offer.b))offer.status='superseded';
+ s.campaigns.filter(c=>[c.a,c.b].includes(a)&&[c.a,c.b].includes(b)).forEach(c=>c.status='ended');
  for(const [id,controller]of Object.entries(s.occupations)){const own=strategyOwner(strategyProvince(id));if([a,b].includes(own)&&[a,b].includes(controller))delete s.occupations[id];}
  s.routes=s.routes.filter(r=>{const u=worldState.mapObjects.find(x=>x.id===r.unit);return u&&!([a,b].includes(u.owner)&&r.path.some(id=>[a,b].includes(strategyOwner(strategyProvince(id)))&&strategyOwner(strategyProvince(id))!==u.owner));});
  for(const u of worldState.mapObjects.filter(x=>x.type==='army'&&[a,b].includes(x.owner))){const p=strategyProvince(strategyUnitProvince(u));if(p&&strategyOwner(p)!==u.owner){const home=scenarioProvinces.find(x=>strategyOwner(x)===u.owner);if(home){u.province=home.id;u.location=home.name;}}}

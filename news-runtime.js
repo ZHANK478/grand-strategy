@@ -155,28 +155,44 @@ action всегда строка; amount и target — отдельные пол
  d=canonicalPoliticalDecision(rawDecision);validatePoliticalDecision(d);politicalAssert(!seen.has(d.actor_id),'Повтор участника');seen.add(d.actor_id);valid.push(d);}catch(e){errors.push({actor:rawDecision.actor_id,error:e.message});}});
  plan.orders.forEach(o=>{if(o.effects?.political_task){const source=free.find(x=>x.id===o.id);if(source)bindPoliticalMandate(o.effects.political_task,source.text,o.article);}});
  const articles=new Map(plan.orders.map(o=>[o.id,o.article]));
- const byId=new Map(plan.orders.map(o=>{const {article,...rest}=o;
- if(rest.kind==='tax'&&Object.keys(rest.effects||{}).length&&Object.keys(rest.effects).every(k=>['tax_noble','tax_burgher','tax_commons','tax_peasants','tax_middle'].includes(k)))rest.effects={economy:rest.effects};
- if(rest.kind==='spending'&&Object.keys(rest.effects||{}).length&&Object.keys(rest.effects).every(k=>['education_spending','welfare_spending','infrastructure_spending'].includes(k)))rest.effects={society:rest.effects};
- if(!rest.process&&rest.effects?.process){rest.process=rest.effects.process;delete rest.effects.process;}return [o.id,{...rest,effects:canonicalEffects(rest.effects)}];}));
- plan.orders.forEach(o=>{
-  if(o.kind==='political'&&o.status==='execute'&&o.effects&&Object.keys(o.effects).length===0){
-   const original=free.find(x=>x.id===o.id),article=o.article;
-   politicalAssert(original&&article?.headline&&article?.body,'Не хватает содержания государственного поручения');
-   const duration=politicalDuration(original.text);
-   byId.set(o.id,{id:o.id,kind:'political',status:'execute',reason:o.reason,effects:{political_task:{goal:original.text,executor:countries[playerCountry].pm||'Кабинет министров',days:duration,cost:0,result:article.body,headline:article.headline,body:article.body}}});
+ const packet=(proposal,original)=>{
+  const {article,technicalError,...rest}=proposal;
+  if(rest.effects?.political_task)bindPoliticalMandate(rest.effects.political_task,original.text,article);
+  if(rest.kind==='tax'&&Object.keys(rest.effects||{}).length&&Object.keys(rest.effects).every(k=>['tax_noble','tax_burgher','tax_commons','tax_peasants','tax_middle'].includes(k)))rest.effects={economy:rest.effects};
+  if(rest.kind==='spending'&&Object.keys(rest.effects||{}).length&&Object.keys(rest.effects).every(k=>['education_spending','welfare_spending','infrastructure_spending'].includes(k)))rest.effects={society:rest.effects};
+  if(!rest.process&&rest.effects?.process){rest.process=rest.effects.process;delete rest.effects.process;}
+  rest.effects=canonicalEffects(rest.effects);
+  if(rest.kind==='political'&&rest.status==='execute'&&Object.keys(rest.effects).length===0){
+   politicalAssert(article?.headline&&article?.body,'Не хватает содержания государственного поручения');
+   rest.effects={political_task:{goal:original.text,executor:countries[playerCountry].pm||'Кабинет министров',days:politicalDuration(original.text),cost:0,result:article.body,headline:article.headline,body:article.body}};
   }
- });
- 
- free.forEach(original=>{
-  try{OrderRules.validatePlan({news:[],domestic:[],orders:[(({technicalError,...o})=>o)(byId.get(original.id))],world_effects:{}},[{id:original.id}],orderContext());}
-  catch(error){
-   const reason='Исполнитель не смог подготовить однозначное изменение по этому указу. Указ сохранён для следующего хода.';
-   byId.set(original.id,{id:original.id,kind:'unsupported',status:'defer',reason,effects:{},technicalError:error.message});
-   articles.set(original.id,{headline:'Исполнитель продолжит подготовку решения',body:'Поручение «'+original.text+'» остаётся на рассмотрении. Кабинет должен уточнить способ исполнения; изменения ещё не вступили в силу.'});
-   errors.push({order:original.id,error:error.message});
-  }
- });
+  OrderRules.validatePlan({news:[],domestic:[],orders:[rest],world_effects:{}},[{id:original.id}],orderContext());
+  return rest;
+ };
+ const byId=new Map(),invalid=[];
+ for(const original of free){
+  try{
+   const proposal=plan.orders.find(o=>o.id===original.id);
+   politicalAssert(proposal,'Пропущен результат приказа');
+   byId.set(original.id,packet(proposal,original));
+  }catch(error){invalid.push({id:original.id,text:original.text,error:error.message,reply:plan.orders.find(o=>o.id===original.id)});}
+ }
+ // One bounded repair before execution. Valid orders are untouched; unknown effects are never discarded.
+ if(invalid.length){
+  try{
+   const repair=parseOrderReply(await askGemini(prompt+"\nВОССТАНОВЛЕНИЕ ФОРМАТА. Исполнение ещё не началось. Исправь ТОЛЬКО приказы ниже по указанной схеме, сохранив смысл, условия и адресатов игрока. Не заменяй техническую ошибку политическим отказом. Не выдумывай поля effects; повествование остаётся в article. Изменение власти должно иметь поддерживаемый power-эффект. Верни JSON {orders:[...]} с исходными id, без politics.\nОшибки: "+JSON.stringify(invalid),9000,0,{response_format:{type:'json_object'},reasoning_effort:'low'}));
+   politicalAssert(Array.isArray(repair.orders),'Нет исправленного списка');
+   for(const original of free.filter(o=>invalid.some(x=>x.id===o.id))){
+    const candidates=repair.orders.filter(o=>o.id===original.id);
+    try{politicalAssert(candidates.length===1,'Нет однозначного исправления');byId.set(original.id,packet(candidates[0],original));articles.set(original.id,candidates[0].article);}
+    catch(error){errors.push({order:original.id,error:error.message,phase:'format-repair'});}
+   }
+  }catch(error){errors.push({error:String(error.message||error),phase:'format-repair'});}
+ }
+ for(const failure of invalid)if(!byId.has(failure.id)){
+  byId.set(failure.id,{id:failure.id,kind:'unsupported',status:'defer',reason:'Техническая обработка поручения задержалась. Оно сохранено; можно повторить без продвижения даты.',effects:{},technicalError:failure.error});
+  articles.delete(failure.id);errors.push({order:failure.id,error:failure.error});
+ }
  
  const rawOrders=pending.map(o=>o.fixedEffects?{id:o.id,kind:o.kind,status:'execute',reason:'Решение игрока',effects:o.fixedEffects}:byId.get(o.id));
  const technical=new Map(rawOrders.filter(o=>o?.technicalError).map(o=>[o.id,o.technicalError]));
@@ -289,7 +305,7 @@ function applyOrderPlan(plan){
  plan.orders.forEach(proposal=>{
   const order=worldState.orders.find(o=>o.id===proposal.id);if(!order)return;
   if(!['prepared','deferred'].includes(order.status))return;
-  const transaction=captureOrderExecution();
+  const transaction=captureOrderExecution(),eventStart=(worldState.periodEvents||[]).length;
   const c=countries[playerCountry],before=orderStatSnapshot(c),verdict=proposal.process||proposal.effects.army_delta>0?{status:proposal.status==='execute'?'executed':proposal.status==='reject'?'rejected':'deferred',reason:proposal.reason}:OrderRules.authority(proposal,c);
   const relationsBefore=Object.fromEntries(Object.keys(proposal.effects.relations||{}).map(n=>[n,getRelation(playerCountry,n)]));
   if(verdict.status==='executed'){
@@ -331,6 +347,7 @@ function applyOrderPlan(plan){
   order.relationsBefore=relationsBefore;order.relationsAfter=Object.fromEntries(Object.keys(relationsBefore).map(n=>[n,getRelation(playerCountry,n)]));
   order.reason=verdict.status==='executed'&&!proposal.effects.political_task?executedOrderDescription(proposal.effects):verdict.reason;order.resolvedTurn=turn;order.before=before;order.after=orderStatSnapshot(c);
   if(verdict.chance!=null)order.chance=verdict.chance;
+  if(['executed','in_progress'].includes(order.status))for(const event of (worldState.periodEvents||[]).slice(eventStart))if(event.section==='domestic')event.sourceOrder||=order.id;
   results.push(order);
  });
  results.filter(o=>['executed','in_progress'].includes(o.status)).forEach(o=>{const article=plan.articles?.[o.id];if(article){politicalEvent(playerCountry,article.headline,article.body,ORDER_STATUS[o.status]+': '+o.reason);worldState.periodEvents.at(-1).sourceOrder=o.id;}});

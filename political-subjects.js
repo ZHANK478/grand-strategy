@@ -120,8 +120,8 @@ function policyContext(selected,results,phase){
  interests.implementation.lastSignals=(interests.implementation.lastSignals||[]).map(t=>policyBrief(t,250));
  return {id,actor:id+'::government',interests,
  goals:a.goals.map(g=>({...g,goal:policyBrief(g.goal,250),success:policyBrief(g.success,200)})),
- memory:a.memory.slice(-4).map(m=>({day:m.day,text:policyBrief(m.text,400)})),
- inbox:a.inbox.filter(i=>i.status==='open').slice(-6).map(i=>({id:i.id,source:i.source,kind:i.kind,text:policyBrief(i.text,400),day:i.day})),
+ memory:a.memory.slice(-3).map(m=>({day:m.day,text:policyBrief(m.text,280)})),
+ inbox:a.inbox.filter(i=>i.status==='open').slice(-6).map(i=>({id:i.id,source:i.source,kind:i.kind,text:policyBrief(i.text,320),day:i.day})),
  assessment:policyBrief(a.assessment,350)||null,lastOutcome:a.lastOutcome?{...a.lastOutcome,material:policyBrief(a.lastOutcome.material,300)}:null,
  issues:ensureNewsFlow().issues.filter(i=>i.status==='open'&&i.recipient===id).slice(-5).map(i=>({id:i.id,sender:i.sender,recipient:i.recipient,text:policyBrief(i.text,400),action:i.action,status:i.status,created:i.created,lastUpdate:i.lastUpdate})),
  offers:strategyState().offers.filter(o=>o.status==='open'&&o.b===id).slice(-5).map(offer),
@@ -130,7 +130,7 @@ function policyContext(selected,results,phase){
  countries:relevant.map(policyPublicFacts),worldPowers:all.slice().sort((a,b)=>countries[b].gdp-countries[a].gdp).slice(0,8).map(policyPublicFacts),
  confirmedDecisions:results.slice(-12).map(o=>({text:policyBrief(o.text,500),status:o.status,outcome:policyBrief(o.reason,400)})),
  events:(worldState.periodEvents||[]).slice(-8).map(e=>({headline:e.headline,body:policyBrief(e.body,350),actors:e.actors})),
- locations:selected.flatMap(owner=>{const owned=scenarioProvinces.filter(x=>strategyOwner(x)===owner),border=owned.filter(x=>[...(strategyGeometry().graph[x.id]||[])].some(id=>strategyOwner(strategyProvince(id))!==owner));return [...new Map([...border,...owned].map(x=>[x.id,x])).values()].slice(0,18);}).map(x=>({id:x.id,name:x.name,owner:strategyOwner(x),neighbors:[...(strategyGeometry().graph[x.id]||[])].map(id=>({id,owner:strategyOwner(strategyProvince(id))}))}))};
+ locations:selected.flatMap(owner=>{const owned=scenarioProvinces.filter(x=>strategyOwner(x)===owner),border=owned.filter(x=>[...(strategyGeometry().graph[x.id]||[])].some(id=>strategyOwner(strategyProvince(id))!==owner));return [...new Map([...border,...owned].map(x=>[x.id,x])).values()].slice(0,12);}).map(x=>({id:x.id,name:x.name,owner:strategyOwner(x),neighbors:[...(strategyGeometry().graph[x.id]||[])].sort((a,b)=>(strategyOwner(strategyProvince(a))===owner)-(strategyOwner(strategyProvince(b))===owner)).slice(0,8).map(id=>({id,owner:strategyOwner(strategyProvince(id))}))}))};
 }
 function policyPrompt(selected,results,phase){
  return 'POLITICAL_CABINETS_V1\nТы играешь за самостоятельные правительства политической стратегии. Игрок не центр мира. Для КАЖДОГО кабинета выбери следующий собственный шаг по его интересам, ресурсам, обязательствам, памяти и ответам других. История задаёт старт, не предопределяет решения. Не действуй случайно и не делай всех одинаковыми.\n'+
@@ -209,9 +209,12 @@ async function policyBatch(selected,results,phase){
  const p=policyState();if(p.calls.turn!==turn)p.calls={turn,used:0};
  const ceiling=worldState.plannedPeriod&&/год|Год|лет|6 месяц/.test(worldState.plannedPeriod)?8:2;
  if(p.calls.used>=ceiling)return [];
+ // Huge custom worlds reduce batch size, not the entire political round.
+ let prepared=policyPrompt(selected,results,phase);
+ while(selected.length>1&&JSON.stringify([{role:'user',content:prepared}]).length>105000){selected=selected.slice(0,-1);prepared=policyPrompt(selected,results,phase);}
  p.calls.used++;const acted=[];
  try{
-  const raw=await askGemini(policyPrompt(selected,results,phase),10000,0,{response_format:{type:'json_object'},reasoning_effort:'low'});
+  const raw=await askGemini(prepared,10000,0,{response_format:{type:'json_object'},reasoning_effort:'low'});
   const data=parseOrderReply(raw);politicalAssert(Array.isArray(data.cabinets)&&data.cabinets.length<=selected.length,'Неверный список кабинетов');
   const seen=new Set();
   for(const item of data.cabinets){try{politicalAssert(!seen.has(item.country),'Повтор кабинета');seen.add(item.country);if(policyApply(item,selected,results))acted.push(item.country);}catch(error){policyState().audit.push({day:gameDayNumber(),country:item.country,error:String(error.message).slice(0,400)});}}

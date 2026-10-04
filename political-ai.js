@@ -517,6 +517,13 @@ function normalizeCountryName(name) {
   const short=live.filter(n=>(' '+fold(n)+' ').includes(' '+needle+' ')||(' '+fold(countries[n].displayName||n)+' ').includes(' '+needle+' '));
   if(short.length===1)return short[0];
  }
+ const tokens=v=>fold(v).split(' ').filter(t=>t.length>=4&&!['королевство','империя','империи','республика','конфедерация','султанат','область','земли','союзе','русская','британская'].includes(t)).map(t=>t.replace(/(?:ийская|ийский|ская|ский|ия)$/,''));
+ const needleTokens=tokens(name);
+ const stem=live.filter(n=>{const parts=tokens(n);return needleTokens.length&&needleTokens.every(t=>parts.includes(t));});
+ if(stem.length===1)return stem[0];
+ const distance=(a,b)=>{const row=Array.from({length:b.length+1},(_,i)=>i);for(let i=1;i<=a.length;i++){let old=row[0];row[0]=i;for(let j=1;j<=b.length;j++){const x=row[j];row[j]=Math.min(row[j]+1,row[j-1]+1,old+(a[i-1]===b[j-1]?0:1));old=x;}}return row[b.length];};
+ const ranked=live.map(n=>({n,score:1-distance(fold(n),needle)/Math.max(fold(n).length,needle.length)})).sort((a,b)=>b.score-a.score);
+ if(ranked[0]?.score>=.88&&(!ranked[1]||ranked[0].score-ranked[1].score>.08))return ranked[0].n;
  return name;
 }
 

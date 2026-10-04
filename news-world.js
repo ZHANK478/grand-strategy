@@ -96,7 +96,8 @@ function validatePoliticalTask(t,owner){
  }
 
  if(t.process){politicalKeys(t.process,['mode','days','summary']);politicalAssert(t.process.mode==='implementation'&&t.process.days===t.days,'Противоречивый срок поручения');delete t.process;}
- politicalKeys(t,['goal','executor','target','days','cost','result','headline','body','effects','kind','offer','sourceMandate','targets','interpretationCorrected','answer']);
+ politicalKeys(t,['goal','executor','target','days','cost','result','headline','body','effects','kind','offer','sourceMandate','targets','interpretationCorrected','answer','instructions']);
+ if(t.instructions!=null)politicalAssert(t.instructions&&typeof t.instructions==='object'&&JSON.stringify(t.instructions).length<=4000,'Слишком длинное содержание поручения');
  ['goal','executor','result','headline','body'].forEach(k=>politicalText(t[k],k==='body'?2000:k==='headline'?160:1200));
  politicalAssert(Number.isInteger(t.days)&&t.days>=0&&t.days<=3650,'Неверный срок политического действия');
  politicalAssert(typeof t.cost==='number'&&Number.isFinite(t.cost)&&t.cost>=0&&t.cost<=Math.max(1,countries[owner].income),'Неверная цена организации');
@@ -180,8 +181,10 @@ function canonicalPoliticalDecision(raw){
  }
  if(d.task?.political_task){
   const {political_task,...siblings}=d.task;
-  for(const [key,value]of Object.entries(siblings))politicalAssert(political_task[key]==null||JSON.stringify(political_task[key])===JSON.stringify(value),'Противоречивое поле поручения: '+key);
-  d.task={...political_task,...siblings};
+  if(political_task.goal||political_task.executor||political_task.result){
+   for(const [key,value]of Object.entries(siblings))politicalAssert(political_task[key]==null||JSON.stringify(political_task[key])===JSON.stringify(value),'Противоречивое поле поручения: '+key);
+   d.task={...political_task,...siblings};
+  }else d.task={...siblings,instructions:political_task};
  }
  if(d.target)d.target=orderCountry(d.target);
  if(d.task?.target)d.task.target=orderCountry(d.task.target);

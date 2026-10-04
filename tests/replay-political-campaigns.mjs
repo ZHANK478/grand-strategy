@@ -31,7 +31,7 @@ try{
    const selected=policySelect(6),ctx=policyContext(selected,[],'offline'),raw=policyPrompt(selected,[],'offline'),prompt=raw+'\n'+MARITIME_INSTRUCTIONS;
    return {country:playerCountry,selected,wire:JSON.stringify([{role:'user',content:prompt}]).length,sections:Object.fromEntries(Object.entries(ctx).map(([k,v])=>[k,JSON.stringify(v).length])),cabinetSections:ctx.cabinets.map(c=>({id:c.id,sections:Object.fromEntries(Object.entries(c.interests).map(([k,v])=>[k,JSON.stringify(v).length]))}))};
   },saved);
-  sizes.push({name,...metrics});console.log('REPLAY_SIZE_DETAIL '+JSON.stringify({name,...metrics}));
+  sizes.push({name,...metrics});assert.ok(metrics.wire<110000,'Late cabinet context must fit with margin');console.log('REPLAY_SIZE_DETAIL '+JSON.stringify({name,...metrics}));
  }
  for(const fixture of fixtures){
   const result=await page.evaluate(f=>{

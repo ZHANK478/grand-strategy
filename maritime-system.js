@@ -531,7 +531,7 @@ validateMilitaryOrder=function(o,owner,execution=false){
 const maritimeOldCanonical=canonicalEffects;
 canonicalEffects=function(e){
  const out=maritimeOldCanonical(e);
- if(out.naval_order){const n=out.naval_order;if(n.port_id)n.port_id=maritimePort(n.port_id)?.id||n.port_id;if(n.region)n.region=Object.values(maritimeGeo().areas).find(r=>r.id===n.region||r.name.toLowerCase()===String(n.region).toLowerCase())?.id||n.region;if(n.province)n.province=strategyProvince(n.province)?.id||n.province;}
+ if(out.naval_order){const n=out.naval_order;if(n.fleet_id?.startsWith('fleet:'))n.fleet_id='fleet:'+orderCountry(n.fleet_id.slice(6));if(n.port_id)n.port_id=maritimePort(n.port_id)?.id||n.port_id;if(n.region)n.region=Object.values(maritimeGeo().areas).find(r=>r.id===n.region||r.name.toLowerCase()===String(n.region).toLowerCase())?.id||n.region;if(n.province)n.province=strategyProvince(n.province)?.id||n.province;}
  if(out.trade_policy?.target)out.trade_policy.target=orderCountry(out.trade_policy.target);
  return out;
 };

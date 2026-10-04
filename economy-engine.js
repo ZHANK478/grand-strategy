@@ -108,9 +108,11 @@ function econStep(c,days=1){
   v.collection=econClamp(.55+c.society.literacy/300+c.infrastructure/500-(1-v.paidRatio)*.1,.35,.95);
   v.unemployment=econClamp(v.unemployment+((c.stability<40?.5:0)+(war?.5:0)-(privateInvest+invest)*2)*dt,1,35);
   const sectorCapital=Object.values(v.sectors).reduce((s,x)=>s+x.capital,0);
+  v.privateInvestmentShare=privateInvest;v.publicInvestmentShare=invest;
+  v.disruptionSources={stability:-(100-c.stability)*.015,war:war?-4:0,mobilization:-mobilization*12,nonpayment:-(1-v.paidRatio)*4};
   v.drivers={capital:(sectorCapital/Math.max(1,c.gdp)-2)*.25,employment:-(v.unemployment-5)*.08,productivity:.5+c.society.literacy*.012,investment:(privateInvest+invest-.1)*12,
    labor:actualLaborGrowth*100*.35,infrastructure:(c.infrastructure-35)*.015,
-   disruption:-(100-c.stability)*.015-(war?4:0)-mobilization*12-(1-v.paidRatio)*4,coordination};
+   disruption:Object.values(v.disruptionSources).reduce((sum,n)=>sum+n,0),coordination};
   if(typeof maritimeTrade==='function'){const owner=ALL_COUNTRIES.find(id=>countries[id]===c),trade=maritimeTrade().result[owner];if(trade)v.drivers.trade=seaClamp(trade.exports/Math.max(1,c.gdp*v.prices/12),0,.3)*2-trade.shortage*1.5;}
   const growth=econClamp(Object.values(v.drivers).reduce((s,x)=>s+x,0),-20,10);
   c.gdpGrowth=econRound(growth);c.gdp=Math.max(.001,c.gdp*(1+growth/100*dt));

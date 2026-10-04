@@ -482,7 +482,7 @@ function orderPlanningContext(){
  c.court={[playerCountry]:source.court?.[playerCountry]};
  c.tasks=(source.tasks||[]).filter(t=>t.country===playerCountry);
  c.allCountries=(source.allCountries||[]).filter(x=>relevant.has(x.id)||source.allCountries.length<=60);
- c.player={...source.player,moneyUnit:'млн расчётных единиц',ruler:own.ruler,rulerTitle:own.rulerTitle,pm:own.pm,pmTitle:own.pmTitle,government:own.government,budget:{forecast:true,...(typeof econBudget==='function'?econBudget(own):orderBudgetPreview())},economic:typeof econV3==='function'?{drivers:econV3(own).drivers,education:econEducation(own),demography:econDemography(own)}:undefined};
+ c.player={...source.player,moneyUnit:'млн расчётных единиц',ruler:own.ruler,rulerTitle:own.rulerTitle,pm:own.pm,pmTitle:own.pmTitle,government:own.government,budget:{forecast:true,...(typeof econBudget==='function'?econBudget(own):orderBudgetPreview())},economic:typeof econV3==='function'?{growthAnnualPercent:own.gdpGrowth,driversAnnualPoints:econV3(own).drivers,disruptionSourcesAnnualPoints:econV3(own).disruptionSources,education:econEducation(own),demography:econDemography(own)}:undefined};
  if(source.strategy){
   const st=source.strategy,locations=(st.militaryLocations||[]);
   c.strategy={...st,units:st.units.filter(u=>relevant.has(u.owner)),routes:st.routes.filter(x=>st.units.some(u=>u.id===x.unit&&u.owner===playerCountry)),

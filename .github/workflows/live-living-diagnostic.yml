@@ -1,25 +1,10 @@
-name: One-shot final living world diagnostic
+name: Archived final living world diagnostic
 on:
-  push:
-    branches: [fix/living-newspapers-20261004]
-    paths: ['tests/live-living-diagnostic.mjs', '.github/workflows/live-living-diagnostic.yml']
+  workflow_dispatch:
 permissions:
   contents: read
 jobs:
-  diagnostic:
-    if: github.run_attempt == 1 && contains(github.event.head_commit.message, '[paid-living-10-extra-once]')
+  archived:
     runs-on: ubuntu-latest
-    timeout-minutes: 18
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-      - run: npm install --no-save --package-lock=false playwright
-      - run: npx playwright install --with-deps chromium
-      - run: node tests/live-living-diagnostic.mjs
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: living-final-diagnostic
-          path: living-diagnostic/
+      - run: echo "Paid diagnostic 37200463847 completed. No provider calls. All 20 auxiliary requests have been used."

@@ -1,36 +1,10 @@
-name: One-shot living world campaigns
+name: Archived living world campaigns
 on:
-  push:
-    branches: [fix/living-newspapers-20261004]
-    paths: ['tests/live-living-campaign.mjs', '.github/workflows/live-living-campaigns.yml']
+  workflow_dispatch:
 permissions:
   contents: read
-concurrency:
-  group: living-campaigns-20261004
-  cancel-in-progress: false
 jobs:
-  campaign:
-    if: github.run_attempt == 1 && contains(github.event.head_commit.message, '[paid-living-45-turns-once]')
-    strategy:
-      fail-fast: false
-      matrix:
-        case: [prussia, france, austria]
+  archived:
     runs-on: ubuntu-latest
-    timeout-minutes: 50
-    env:
-      CAMPAIGN: ${{ matrix.case }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-      - run: npm install --no-save --package-lock=false playwright
-      - run: npx playwright install --with-deps chromium
-      - run: node tests/live-living-campaign.mjs
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: living-campaign-${{ matrix.case }}
-          path: playtest-output-${{ matrix.case }}/
-
-# Authorised one-shot batch: 45 complete turns and no more than 20 auxiliary requests.
+      - run: echo "Paid run 37198763363 completed. This workflow makes no model requests. A new run requires new scoped authorization and a new guarded test."

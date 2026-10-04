@@ -13,7 +13,7 @@ function ensureOrders(){
 }
 function orderCountry(name){return normalizeCountryName(name);}
 function orderContext(){
- return {validatePoliticalTask,player:playerCountry,countries,actors:ensureWorldActors(),initiatives:JSON.parse(JSON.stringify(ensureInitiatives())),objects:JSON.parse(JSON.stringify(worldState.mapObjects||[])),
+ return {validatePoliticalTask,year,player:playerCountry,countries,actors:ensureWorldActors(),initiatives:JSON.parse(JSON.stringify(ensureInitiatives())),objects:JSON.parse(JSON.stringify(worldState.mapObjects||[])),
   lawSlots:LAW_SLOTS,lawOption,governments:activeScenario.rules?.governments||null,relation:getRelation,atWar:isAtWar,location:resolveLocationLonLat,
   provinceOwner:key=>{const p=scenarioProvinces.find(p=>p.id===key||p.name===key);return p?(provinceOwners[p.id]||p.owner):null;}};
 }

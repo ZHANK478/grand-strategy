@@ -17,7 +17,7 @@ const MARITIME_REGIONS=[
  ['pacificsouth','Южная часть Тихого океана',-135,-20],['chile','Побережье Чили',-77,-25],['horn','Мыс Горн',-68,-57],
  ['indianocean','Индийский океан',80,-25],['australiawest','Запад Австралии',112,-25],['australiaeast','Восток Австралии',155,-25],
  ['indonesia','Индонезийские моря',120,-7],['bering','Берингово море',-170,58],['white','Белое море',40,66]
-].map(([id,name,x,y])=>({id,name,coordinates:[x,y]}));
+].map(([id,name,x,y])=>({id,name,coordinates:[x,y],...(['bosporus','gibraltar'].includes(id)?{kind:'strait',coastRadiusKm:id==='bosporus'?75:120}:{})}));
 const MARITIME_LINKS=[
  ['channel','north'],['channel','biscay'],['north','baltic'],['north','norwegian'],['biscay','iberia'],['iberia','gibraltar'],
  ['gibraltar','medwest'],['medwest','tyrrhenian'],['tyrrhenian','ionian'],['ionian','adriatic'],['ionian','aegean'],['aegean','bosporus'],['bosporus','black'],

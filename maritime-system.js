@@ -23,7 +23,7 @@ function maritimeGeo(){
  for(const entries of edges.values()){
   if(entries.length!==1)continue;const e=entries[0],q=[(e.a[0]+e.b[0])/2,(e.a[1]+e.b[1])/2];
   if(Math.abs(q[1])>78||Math.abs(e.a[0]-e.b[0])>180)continue;
-  let nearest=null,least=Infinity;const scale=Math.cos(q[1]*Math.PI/180);for(const r of regions){const dx=((r.coordinates[0]-q[0]+540)%360-180)*scale,dy=r.coordinates[1]-q[1],d=dx*dx+dy*dy;if(d<least){least=d;nearest=r;}}
+  let nearest=null,least=Infinity;const scale=Math.cos(q[1]*Math.PI/180);for(const r of regions){if(r.kind==='strait'&&strategyDistance(q,r.coordinates)>(r.coastRadiusKm||100))continue;const dx=((r.coordinates[0]-q[0]+540)%360-180)*scale,dy=r.coordinates[1]-q[1],d=dx*dx+dy*dy;if(d<least){least=d;nearest=r;}}
   if(!nearest||strategyDistance(q,nearest.coordinates)>1100)continue;
   const vec=[nearest.coordinates[0]-q[0],nearest.coordinates[1]-q[1]],length=Math.hypot(...vec)||1;
   const offshore=[q[0]+vec[0]/length*.15,q[1]+vec[1]/length*.15];
@@ -68,6 +68,7 @@ function maritimeInitialize(m){
   if(Object.values(ships).some(n=>n>0))m.fleets.push({id:'fleet:'+owner,owner,name:'Основная эскадра',ships:{heavy:Math.max(0,Math.floor(ships.heavy||0)),light:Math.max(0,Math.floor(ships.light||0)),transport:Math.max(0,Math.floor(ships.transport||0))},
    port:base.id,region:base.region,home:base.id,condition:100,morale:70,supply:100,propulsion:seed?.propulsion||(year>=1807?'mixed':'sail'),mission:'hold',cargo:[],path:[],progress:0});
  }
+ if(typeof amphibiousDistributeSeed==='function')amphibiousDistributeSeed(m);
  maritimeTradeCache=null;maritimePathCache.clear();
 }
 function maritimePort(id){if(id==null)return undefined;const m=maritimeState(),key=String(id).trim().toLocaleLowerCase('ru').replace(/^port:/,'');return m.ports.find(p=>p.id===id||p.name.toLocaleLowerCase('ru')===key);}
@@ -228,7 +229,7 @@ function maritimeLandTroops(f,p){
   u.province=p.province;u.location=strategyProvince(p.province).name;u.supply=Math.min(u.supply??100,60);landed+=u.troops;worldState.mapObjects.push(u);f.cargo=f.cargo.filter(x=>x!==u);
  }
  f.cargo=f.cargo.filter(u=>u.troops>0);strategySyncOccupations();
- strategyEvent(f.owner,landed?'Высадка у порта '+p.name:'Десант отбит у порта '+p.name,landed+' солдат закрепились на берегу. '+(repelled?'Оставшиеся '+repelled+' солдат отходят на транспортах после сопротивления гарнизона. ':'')+'Юридическое владение землёй не изменилось.',[control]);
+ strategyEvent(f.owner,landed?'Десант закрепился: '+p.name:'Десант отбит: '+p.name,landed+' солдат закрепились на берегу. '+(repelled?'Оставшиеся '+repelled+' солдат отходят на транспортах после сопротивления гарнизона. ':'')+'Юридическое владение землёй не изменилось.',[control]);
  if(repelled)maritimeRetreat(f);return !repelled;
 }
 function maritimeCompleteBuilds(){
@@ -254,7 +255,7 @@ function maritimeTick(){
   const paid=countries[f.owner]?.econV3?.paidRatio??1;
   if(f.mission==='blockade'){const target=maritimePort(f.targetPort);if(!target||!isAtWar(f.owner,maritimePortOwner(target))){f.mission='hold';f.path=[];f.atDestination=true;strategyEvent(f.owner,'Блокада прекращена','Военное основание блокады исчезло. Торговые ограничения этой эскадры сняты.');maritimeTouch();}}
   if(f.port){const p=maritimePort(f.port);if(!p||!maritimeAccessiblePort(f.owner,p)){f.port=null;maritimeRetreat(f);strategyEvent(f.owner,'Флот потерял доступ к базе',f.name+' покидает недоступный порт и ищет другую базу.');}
-   else {f.supply=seaClamp(f.supply+4*paid,0,100);if(f.mission==='repair'||f.condition<100)f.condition=seaClamp(f.condition+Math.max(.1,p.shipyard*.6)*paid,0,100);}}
+   else {f.supply=seaClamp(f.supply+(p.beach?.5:4)*paid,0,100);if(f.mission==='repair'||f.condition<100)f.condition=seaClamp(f.condition+Math.max(.1,p.shipyard*.6)*paid,0,100);}}
   else {f.supply=seaClamp(f.supply-(f.propulsion==='steam'?.5:.25)-(paid<.8?.5:0),0,100);if(f.supply<10&&gameDayNumber()%7===0){f.condition=seaClamp(f.condition-2,0,100);maritimeDropCargo(f,.005);if(f.condition<15)maritimeDamage(f,.03);}}
   if(f.supply<8&&f.mission!=='repair')maritimeRetreat(f);
   if(f.path.length){
@@ -537,7 +538,7 @@ validateMilitaryOrder=function(o,owner,execution=false){
 const maritimeOldCanonical=canonicalEffects;
 canonicalEffects=function(e){
  const out=maritimeOldCanonical(e);
- if(out.naval_order){const n=out.naval_order;if(n.fleet_id?.startsWith('fleet:'))n.fleet_id='fleet:'+orderCountry(n.fleet_id.slice(6));if(n.port_id)n.port_id=maritimePort(n.port_id)?.id||n.port_id;if(n.region)n.region=Object.values(maritimeGeo().areas).find(r=>r.id===n.region||r.name.toLowerCase()===String(n.region).toLowerCase())?.id||n.region;if(n.province)n.province=strategyProvince(n.province)?.id||n.province;}
+ if(out.naval_order){const n=out.naval_order;if(n.fleet_id?.startsWith('fleet:')&&!maritimeFleet(n.fleet_id))n.fleet_id='fleet:'+orderCountry(n.fleet_id.slice(6));if(n.port_id)n.port_id=maritimePort(n.port_id)?.id||n.port_id;if(n.region)n.region=Object.values(maritimeGeo().areas).find(r=>r.id===n.region||r.name.toLowerCase()===String(n.region).toLowerCase())?.id||n.region;if(n.province)n.province=strategyProvince(n.province)?.id||n.province;}
  if(out.trade_policy?.target)out.trade_policy.target=orderCountry(out.trade_policy.target);
  return out;
 };

@@ -107,6 +107,9 @@ function institutionApplyExtras(owner,e){
  if(!c.society)initSociety(c);
  if(p&&c.parliament){
   if(p.name)c.parliament.name=p.name;
+  if(p.electorate)c.parliament.electorate=[...p.electorate];
+  if(p.next_election_year)c.parliament.nextElection=p.next_election_year;
+  if(p.term_years&&!p.election&&!p.next_election_year)c.parliament.nextElection=year+p.term_years;
   if(p.election)c.parliament.nextElection=year;
  }
  if(i){
@@ -219,7 +222,8 @@ function institutionElect(owner){
  const c=countries[owner],p=c.parliament;if(!p)return;
  const s=institutionState(c),eligible=p.factions.filter(f=>!p.banned.includes(f.name));
  if(!eligible.length){p.nextElection=year+1;return;}
- const groups=Object.values(c.economy?.classes||{}),loyalty=groups.reduce((n,g)=>n+(g.loyalty||50)*(g.share||0)/100,0)||50;
+ const groups=Object.entries(c.economy?.classes||{}).filter(([key])=>!p.electorate||p.electorate.includes(key)).map(([,g])=>g),
+  voters=groups.reduce((n,g)=>n+(g.share||0),0),loyalty=groups.reduce((n,g)=>n+(g.loyalty??50)*(g.share||0),0)/Math.max(1,voters);
  const before=eligible.map(f=>({name:f.name,pct:f.pct}));
  const weights=eligible.map(f=>{
   const row=s.factions[f.name],a=worldState.actors?.[institutionId(owner,'faction',f.name)];
@@ -321,7 +325,7 @@ econEducation=function(c){
 };
 function institutionFacts(owner){
  const c=countries[owner],s=institutionState(c),p=c.parliament;
- return {assembly:p?{name:p.name,power:p.power,support:p.support,seatsSupporting:institutionMajority(c),nextElection:p.nextElection,factions:Object.values(s.factions).filter(f=>f.active).map(f=>({id:institutionId(owner,'faction',f.name),name:f.name,seats:f.seats,support:f.support,interest:f.interest}))}:null,
+ return {assembly:p?{name:p.name,power:p.power,support:p.support,seatsSupporting:institutionMajority(c),nextElection:p.nextElection,electorate:p.electorate||null,factions:Object.values(s.factions).filter(f=>f.active).map(f=>({id:institutionId(owner,'faction',f.name),name:f.name,seats:f.seats,support:f.support,interest:f.interest}))}:null,
   pendingBills:s.bills.filter(b=>['debate','contested'].includes(b.status)).map(b=>({id:b.id,text:b.text,status:b.status,nextVote:processDate(b.voteDay),deadline:processDate(b.deadline)})),
   clergy:c.church?{id:owner+'::church',name:c.church.name,policy:s.churchPolicy,influence:s.clergyInfluence,cooperation:s.cooperation??65,schoolShare:econEducation(c).clergyProvision}:null,
   religion:{ruler:c.rulerReligion||null,freedom:c.society?.religiousFreedom??null,communities:Object.values(s.communities).filter(r=>r.share>0).map(r=>({id:institutionId(owner,'faith',r.name),name:r.name,share:r.share}))}};
@@ -333,7 +337,7 @@ policyContext=function(...args){const c=institutionsOldPolicyContext(...args);fo
 const institutionsOldAsk=askGemini;
 askGemini=async function(prompt,...args){
  if(typeof prompt==='string'&&(prompt.includes('Свободные приказы:')||prompt.startsWith('POLITICAL_CABINETS_V1'))){
-  prompt+='\nИНСТИТУТЫ. institutions — реальные полномочия, фракции, обсуждаемые проекты, общины и положение духовенства. Сначала оцени конкретно затронутые интересы, затем affected и самостоятельные actors/politics. Фракции могут поддерживать, торговаться, организовать оппозицию и отказывать в сотрудничестве; общины и духовенство — защищать права, мобилизовать сторонников или поддерживать компромисс. Их позиции не равны позиции кабинета. Не реагируй всеми актёрами на каждую мелочь и не дублируй один спор палаты каждым депутатом. Не считай название партии гарантией позиции. Религия населения не исчезает от светского закона и не меняется приказом; вера правителя меняется отдельно. Светский строй, признание общин и подавление учреждений — разные решения. Законодательная мера при сильной палате без большинства вносится как проект, а не запрещается заранее. Для явно выбранного правления указами допустим parliament:{route:"decree"} — цена обхода палаты считается движком. Обычное поручение министру, посольство, речь, отчёт и назначение не становятся законопроектами. Изменения: power parliament:{name,power_delta:-30..30,term_years:1..15,election:true}; law institutions:{church:"abolish|restore",church_policy:"recognized|separated|suppressed",church_name,church_influence_delta:-20..20,religious_freedom_delta:-20..20,ruler_religion}; law_slots.religion сохраняет действующие варианты. Не выдумывай собственность или расходы духовенства: денежные изменения только через бюджет/экономические operations. При секуляризации church:abolish означает отделение от государства, не исчезновение верующих. Газета пишет о конфликте интересов, людях и цене решения; технические статусы проекта остаются в деталях.';
+  prompt+='\nИНСТИТУТЫ. institutions — реальные полномочия, фракции, обсуждаемые проекты, общины и положение духовенства. Сначала оцени конкретно затронутые интересы, затем affected и самостоятельные actors/politics. Фракции могут поддерживать, торговаться, организовать оппозицию и отказывать в сотрудничестве; общины и духовенство — защищать права, мобилизовать сторонников или поддерживать компромисс. Их позиции не равны позиции кабинета. Не реагируй всеми актёрами на каждую мелочь и не дублируй один спор палаты каждым депутатом. Не считай название партии гарантией позиции. Религия населения не исчезает от светского закона и не меняется приказом; вера правителя меняется отдельно. Светский строй, признание общин и подавление учреждений — разные решения. Законодательная мера при сильной палате без большинства вносится как проект, а не запрещается заранее. Для явно выбранного правления указами допустим parliament:{route:"decree"} — цена обхода палаты считается движком. Обычное поручение министру, посольство, речь, отчёт и назначение не становятся законопроектами. Изменения: power parliament:{restore:true,name,power_delta:-30..30,term_years:1..15,election:true только для немедленных выборов,next_election_year:год, electorate:["noble|burgher|commons|peasants|middle"],factions:[{name,pct}]} при учреждении новой палаты. Начальный назначенный состав можно задать, будущий исход выборов не гарантируется. Ежегодные выборы — term_years:1, не обязательно election:true. Создание палаты и назначение её выборов разрешены одним решением; law institutions:{church:"abolish|restore",church_policy:"recognized|separated|suppressed",church_name,church_influence_delta:-20..20,religious_freedom_delta:-20..20,ruler_religion}; law_slots.religion сохраняет действующие варианты. Не выдумывай собственность или расходы духовенства: денежные изменения только через бюджет/экономические operations. При секуляризации church:abolish означает отделение от государства, не исчезновение верующих. Газета пишет о конфликте интересов, людях и цене решения; технические статусы проекта остаются в деталях.';
  }
  return institutionsOldAsk(prompt,...args);
 };
@@ -343,7 +347,7 @@ renderParliamentPanel=function(){
  const box=document.getElementById('parliament-box'),c=countries[playerCountry];if(!box||!c)return;const s=institutionState(c),p=c.parliament;
  box.innerHTML=p?institutionRow('Представительный орган',p.name)+institutionRow('Полномочия',Math.round(p.power||0)+'/100')+institutionRow('Места сторонников курса',Math.round(institutionMajority(c))+'%')+
   Object.values(s.factions).filter(f=>f.active).map(f=>institutionRow(f.name,Math.round(f.seats)+'% мест · поддержка '+Math.round(f.support)+'/100')).join('')+
-  institutionRow('Следующие выборы',p.nextElection+' г.'):'<p>Представительного органа нет. Политические движения и бывшие депутаты сохраняют свои интересы.</p>';
+  institutionRow('Следующие выборы',p.nextElection+' г.')+(p.electorate?institutionRow('Право голоса',p.electorate.map(k=>c.economy?.classes[k]?.label||k).join(', ')):''):'<p>Представительного органа нет. Политические движения и бывшие депутаты сохраняют свои интересы.</p>';
  box.innerHTML+=s.bills.filter(b=>['debate','contested'].includes(b.status)).map(b=>'<p>'+institutionEsc(b.text)+'<br><small>Обсуждение · ближайшее голосование '+institutionEsc(processDate(b.voteDay))+'</small></p>').join('')+
   '<small>Проекты, переговоры с фракциями, выборы и правление указами — через обычные приказы. Сильная палата рассматривает спорные законы; исполнительные поручения не требуют её голосования.</small>';
 };

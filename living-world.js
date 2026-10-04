@@ -7,6 +7,12 @@ function livingPrivateResponse(e){
 }
 function livingStoryKey(e){
  if(e.section==='foreign'&&e.policyTarget&&e.decisionActor){const owner=e.decisionActor.split('::')[0];return 'politics:'+([owner,e.policyTarget].sort().join('|'))+':'+(e.policySignal?.domain||(['war','mobilize','deploy'].includes(e.policyAction)?'security':'foreign'));}
+ if(e.section==='foreign'&&e.sourceTask){
+  const task=ensurePolitics().tasks.find(t=>t.id===e.sourceTask);
+  const linked=(worldState.periodEvents||[]).find(x=>x!==e&&x.policyTarget&&x.decisionActor&&(x.sourceTask===e.sourceTask||x.storyId===e.sourceTask));
+  if(linked)return 'politics:'+([linked.decisionActor.split('::')[0],linked.policyTarget].sort().join('|'))+':'+(linked.policySignal?.domain||(['war','mobilize','deploy'].includes(linked.policyAction)?'security':'foreign'));
+  if(task?.target&&task.target!==task.country)return 'politics:'+([task.country,task.target].sort().join('|'))+':foreign';
+ }
  if(e.condition&&worldState.orders.some(o=>o.id===e.condition))return 'order:'+e.condition;
  if(e.sourceOrder)return 'order:'+e.sourceOrder;
  if(e.storyId)return 'story:'+e.storyId;
@@ -111,7 +117,11 @@ function livingCopyButton(text){
 }
 const livingOldRender=renderNewspaper;
 renderNewspaper=function(edition){
- livingOldRender(edition);if(!edition)return;
+ if(!edition)return;
+ // Provider/execution errors are service notices, including when reopening an older saved edition.
+ const visible=a=>!worldState.orders.find(o=>o.id===a.sourceOrder)?.technicalError&&!/Подтверждение исполнения пока не получено|Распоряжение ожидает подтверждения/.test(a.headline||'');
+ for(const key of ['domestic','foreign']){edition[key]=(edition[key]||[]).filter(visible);if(edition.archive?.[key])edition.archive[key]=edition.archive[key].filter(visible);}
+ livingOldRender(edition);
  for(const [section,id]of [['domestic','domestic-list'],['foreign','events-list']]){
   const box=document.getElementById(id);if(!box)continue;
   const rows=box.querySelectorAll('.newspaper-article');

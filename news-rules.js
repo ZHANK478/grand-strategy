@@ -90,12 +90,14 @@ function validateEffects(raw,ctx,scope,kind){
   ['church_influence_delta','religious_freedom_delta'].forEach(k=>{if(i[k]!=null)number(i[k],-20,20);});
  }
  if(e.parliament){
-  keys(e.parliament,scope==='world'?['support_delta','factions','veto']:['dissolve','restore','ban_party','veto','name','power_delta','term_years','election','route']);
+  keys(e.parliament,scope==='world'?['support_delta','factions','veto']:['dissolve','restore','ban_party','veto','name','power_delta','term_years','election','route','factions','electorate','next_election_year']);
   const p=clean(e.parliament);
   if(p.name!=null)text(p.name,120);
   if(p.power_delta!=null)number(p.power_delta,-30,30);
+  if(p.electorate!=null){list(p.electorate,5);check(p.electorate.length>0&&new Set(p.electorate).size===p.electorate.length,'Нужны разные группы избирателей');p.electorate.forEach(g=>check(Object.hasOwn(mine.economy?.classes||{},g),'Неизвестная группа избирателей'));}
+  if(p.next_election_year!=null){number(p.next_election_year,(ctx.year??1852), (ctx.year??1852)+15);check(Number.isInteger(p.next_election_year),'Год должен быть целым');}
   if(p.term_years!=null){number(p.term_years,1,15);check(Number.isInteger(p.term_years),'Срок должен быть целым');}
-  if(p.election!=null)check(p.election===true&&mine.parliament,'Выборы требуют представительного органа');
+  if(p.election!=null)check(p.election===true&&(mine.parliament||p.restore===true),'Выборы требуют представительного органа');
   if(p.route!=null)check(['bill','decree'].includes(p.route),'Неверный способ принятия решения');
   if(p.route==='decree')check(!p.veto,'Указ не может одновременно содержать вето');
   if(p.support_delta!=null)number(p.support_delta,-10,10);
@@ -103,7 +105,7 @@ function validateEffects(raw,ctx,scope,kind){
   check(!(p.dissolve&&p.restore),'Нельзя одновременно распустить и созвать парламент');
   if(p.ban_party!=null)text(p.ban_party,100);
   if(p.veto!=null){text(p.veto,300);if(scope==='world')check(mine.parliament&&(mine.parliament.power??50)>=50&&mine.parliament.support<50,'Нет оснований для парламентского вето');}
-  if(p.factions){check(mine.electionPending,'Нет назначенных выборов');list(p.factions,12);let sum=0;p.factions.forEach(f=>{keys(f,['name','pct']);text(f.name,100);number(f.pct,0,100);sum+=f.pct;});check(Math.abs(sum-100)<.01,'Доли фракций должны дать 100%');}
+  if(p.factions){check(mine.electionPending||p.restore===true&&!mine.parliament,'Состав определяется на выборах или при учреждении новой палаты');list(p.factions,12);let sum=0;p.factions.forEach(f=>{keys(f,['name','pct']);text(f.name,100);number(f.pct,0,100);sum+=f.pct;});check(Math.abs(sum-100)<.01,'Доли фракций должны дать 100%');}
   e.parliament=p;
  }
  if(e.relations){keys(e.relations,Object.keys(ctx.countries).filter(n=>n!==ctx.player));Object.entries(e.relations).forEach(([n,v])=>{country(n);number(v,-40,20);});}

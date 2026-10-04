@@ -24,7 +24,7 @@ try{
   try{
    await page.goto('http://127.0.0.1:8765/index.html',{waitUntil:'load',timeout:60000});
    await page.waitForURL(url=>url.pathname.endsWith('/economy-world.html'),{timeout:10000});
-   assert.equal(new URL(page.url()).searchParams.get('v'),'16','Root entry uses current release');
+   assert.equal(new URL(page.url()).searchParams.get('v'),'17','Root entry uses current release');
    await page.waitForFunction(()=>window.GS_MAP_LOAD?.status==='ready',{},{timeout:30000});
    console.log(mode+' BEFORE '+JSON.stringify(await page.evaluate(()=>({status:window.GS_MAP_LOAD,start:typeof window.mobileStartGame,fullscreen:typeof window.mobileFullscreen,picker:document.getElementById('mobile-country-picker').value,disabled:document.getElementById('mobile-start-btn').disabled}))));
    if(mode==='phone'){
@@ -215,6 +215,36 @@ try{
    assert.match(reading.selected,/школы девочкам/,'Text can be selected');
    assert.match(reading.copied,/Права изменены/,'Copy includes precise effects for sharing');
    assert.match(reading.economy,/Доступ девочек|Грамотность/,'Education causes visible in actual UI');
+
+
+   const maritimeGovernment=await page.evaluate(async()=>{
+    if(!window.AMPHIBIOUS_OPERATIONS)throw Error('Amphibious module not loaded');
+    const check=(v,n)=>{if(!v)throw Error(n)};
+    window.testEnsureAIForTurn=async()=>true;window.politicalRunRound=undefined;
+    resetGame('Османская Империя');for(const n of ALL_COUNTRIES)econV3(countries[n]);
+    queueOrder('сультан заявил о созыве парламаента где 99 процентов мест у монархистов, выборы каждый год где ценз только у землевалдельцев');
+    const o=ensureOrders().find(o=>o.status==='prepared'),date=gameDayNumber();
+    askGemini=async()=>JSON.stringify({orders:[{id:o.id,kind:'policy',status:'execute',reason:'Созвать палату.',effects:{operations:[{kind:'power',effects:{parliament:{restore:true,name:'Меджлис',term_years:1,electorate:['noble'],factions:[{name:'Монархисты',pct:99},{name:'Независимые',pct:1}]}}}]}}],politics:[]});
+    check(await nextTurn('week')===true,'Compound government turn does not stall');
+    await window.causalWaitForNewspaper();
+    const assembly=countries[playerCountry].parliament;
+    check(assembly?.factions[0].pct===99&&assembly.electorate[0]==='noble','Created chamber visible in live country state');
+    check(gameDayNumber()===date+7&&!o.technicalError,'Real turn advances without parliament error');
+    renderParliamentPanel(playerCountry);
+    resetGame('Российская империя');for(const n of ALL_COUNTRIES)econV3(countries[n]);
+    const source=maritimePort('Севастополь'),target=maritimePort('Одесса'),army=countries[playerCountry].army;
+    queueOrder('Доставить 50000 солдат из Севастополя в Одессу морем.');
+    const q=ensureOrders().find(o=>o.status==='prepared');
+    askGemini=async()=>JSON.stringify({orders:[{id:q.id,kind:'naval',status:'execute',reason:'Перевозка.',effects:{naval_order:{action:'transport',from_port_id:source.id,port_id:target.id,troops:50000}}}],politics:[]});
+    check(await nextTurn('month')===true,'Transport uses ordinary turn button');
+    await window.causalWaitForNewspaper();
+    const operation=maritimeState().transports.find(t=>t.orderId===q.id);
+    check(operation?.status==='completed'&&operation.delivered===50000,'All actual waves land during full month');
+    check(q.status==='executed'&&countries[playerCountry].army===army,'Live browser preserves soldiers and order status');
+    return {governmentTurn:true,seaTransportTurn:true,delivered:operation.delivered,paidRequests:0};
+   });
+   console.log(mode+' MARITIME_GOVERNMENT '+JSON.stringify(maritimeGovernment));
+   assert.equal(errors.length,0,'Late browser errors: '+errors.join('\n'));
 
    console.log(mode+' PASSED start/fullscreen/country and failure isolation');
   }catch(e){failures++;console.log(mode+' FAILED '+e.stack);console.log(mode+' DIAGNOSTICS '+JSON.stringify(await page.evaluate(()=>({load:window.GS_MAP_LOAD,start:typeof window.mobileStartGame,fullscreen:typeof window.mobileFullscreen,picker:document.getElementById('mobile-country-picker')?.value,disabled:document.getElementById('mobile-start-btn')?.disabled,menu:document.getElementById('main-menu')?.style.display}))));}

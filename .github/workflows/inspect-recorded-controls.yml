@@ -1,23 +1,10 @@
-name: Inspect recorded controls without AI
+name: Archived recorded-control inspection
 on:
-  push:
-    branches: [fix/text-politics-reliability]
-    paths: [tests/inspect-recorded-controls.mjs]
+  workflow_dispatch:
 permissions:
   contents: read
-  actions: read
 jobs:
-  inspect:
+  archived:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-      - uses: actions/download-artifact@v4
-        with:
-          name: text-controls-20261004
-          run-id: '37184167326'
-          github-token: ${{ github.token }}
-          path: control-seed/
-      - run: node tests/inspect-recorded-controls.mjs
+      - run: echo 'Permanent recorded fixtures replace this temporary artifact inspection.'

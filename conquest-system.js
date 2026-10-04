@@ -38,6 +38,7 @@ function conquestProvinces(owner,d){
 const conquestOldValidateDiplomacy=validateDiplomaticAction;
 validateDiplomaticAction=function(d,owner){
  if(['administer','annex'].includes(d.action)){conquestProvinces(owner,d);return d;}
+ if(d.action==='aid'){strategyKeys(d,['action','target','amount','message']);strategyCountry(d.target);strategyAssert(d.target!==owner,'Нужен иностранный получатель');strategyNum(d.amount,1,1e7);strategyAssert(countries[owner].treasury>=d.amount,'Казна не обеспечивает сумму помощи');if(d.message)strategyText(d.message,900);return d;}
  return conquestOldValidateDiplomacy(d,owner);
 };
 function conquestApply(owner,d){
@@ -74,7 +75,13 @@ function conquestApply(owner,d){
  return {status:'executed',reason:d.action==='annex'?'Контролируемая территория присоединена; спор о признании сохраняется.':'На контролируемой территории установлена своя администрация.'};
 }
 const conquestOldDiplomacy=executeDiplomaticAction;
-executeDiplomaticAction=function(owner,d){return ['administer','annex'].includes(d.action)?conquestApply(owner,d):conquestOldDiplomacy(owner,d);};
+executeDiplomaticAction=function(owner,d){
+ if(d.action==='aid'){validateDiplomaticAction(d,owner);countries[owner].treasury-=d.amount;countries[d.target].treasury+=d.amount;
+  strategyEvent(owner,'Предоставлена государственная финансовая помощь',owner+' передала '+d.target+' '+economyFmt(d.amount)+' млн р.е. Казна отправителя уменьшилась, казна получателя увеличилась. Это средства, а не мгновенно созданные войска или оружие.',[d.target]);
+  conquestState().history.push({id:crypto.randomUUID(),owner,formerOwner:d.target,action:'aid',amount:d.amount,provinces:[],day:gameDayNumber()});return {status:'executed',reason:'Финансовая помощь реально перечислена получателю.'};
+ }
+ return ['administer','annex'].includes(d.action)?conquestApply(owner,d):conquestOldDiplomacy(owner,d);
+};
 const conquestOldRevenue=econMonthlyRevenue;
 econMonthlyRevenue=function(c){
  const result=conquestOldRevenue(c),owner=ALL_COUNTRIES.find(n=>countries[n]===c);
@@ -115,7 +122,7 @@ function conquestWorldFacts(){
   for(const p of captured){const former=s.baseline[p.id].owner;victims[former]||={country:former,provinces:0,gdp:0,population:0};victims[former].provinces++;victims[former].gdp+=s.baseline[p.id].gdp||0;victims[former].population+=s.baseline[p.id].population||0;}
   for(const v of Object.values(victims)){const total=Object.values(s.baseline).filter(p=>p.owner===v.country).reduce((n,p)=>n+p.gdp,0);v.shareOfInitialGDP=Math.round(v.gdp/Math.max(1,total)*1000)/1000;v.gdp=Math.round(v.gdp);v.population=Math.round(v.population);}
   const abroad=worldState.mapObjects.filter(u=>u.type==='army'&&u.owner===owner&&s.baseline[strategyUnitProvince(u)]?.owner!==owner);
-  rows.push({country:owner,wars,territory,victims:Object.values(victims),army:countries[owner].army,
+  rows.push({country:owner,gdp:Math.round(countries[owner].gdp),wars,territory,victims:Object.values(victims),army:countries[owner].army,
    abroadTroops:abroad.reduce((n,u)=>n+u.troops,0),losses:losses[owner]||0,
    disputedAnnexations:Object.values(s.administrations).filter(a=>a.controller===owner&&a.active&&a.mode==='annexation').length});
  }
@@ -161,11 +168,19 @@ policyContext=function(...args){
  return c;
 };
 const conquestOldPlanning=orderPlanningContext;
-orderPlanningContext=function(...args){const c=conquestOldPlanning(...args);c.worldSituation=conquestWorldFacts();c.occupiedLand=scenarioProvinces.filter(p=>strategyControl(p)===playerCountry&&strategyOwner(p)!==playerCountry).map(p=>({id:p.id,name:p.name,owner:strategyOwner(p)}));return c;};
+orderPlanningContext=function(...args){const c=conquestOldPlanning(...args);
+ // Existing finance, military and social fields remain authoritative. Drop only repeated prose and generated geographic labels.
+ const generic=p=>{const original=strategyProvince(p.id||p.province);return /\\s+\\d+$/.test(p.name||'')&&(p.name||'').replace(/\\s+\\d+$/,'').toLowerCase()===String(original?.owner||p.owner).toLowerCase();};
+ for(const rows of [c.strategy?.militaryLocations,c.landingCoasts])if(rows)for(const p of rows)if(generic(p))delete p.name;
+ if(c.playerObservation?.facts){const f=c.playerObservation.facts;c.playerObservation.facts=Object.fromEntries(['agenda','posture','warPreparation','stability','relations','economics'].filter(k=>f[k]!=null).map(k=>[k,f[k]]));}
+ c.worldSituation=conquestWorldFacts();c.occupiedLand=scenarioProvinces.filter(p=>strategyControl(p)===playerCountry&&strategyOwner(p)!==playerCountry).map(p=>({id:p.id,name:p.name,owner:strategyOwner(p)}));return c;};
 const conquestOldAsk=askGemini;
 askGemini=async function(prompt,...args){
  if(typeof prompt==='string'&&(prompt.includes('Свободные приказы:')||prompt.startsWith('POLITICAL_CABINETS_V1'))){
-  prompt+='\nЗАВОЕВАНИЕ И ОБЩАЯ КАРТИНА. worldSituation показывает всю кампанию, оккупации, долю потерянного производства, находящиеся за рубежом войска и потери; exposure связывает угрозу с твоими соседями и договорами. История не предписывает готовую коалицию. Оцени цену окончательной победы расширяющейся державы, возможности сдерживания и цену бездействия. Речь о помощи не означает реальной поставки. Для материального шага используй проверяемые effects; для совместного сдерживания — конкретное предложение другой стороне, для приготовления — настоящую мобилизацию, размещение или флот, для вмешательства — собственное решение war. Пассивность допустима с причиной, условием и сроком пересмотра. Не заменяй растущую угрозу бесконечным повтором протестов. Полностью оккупированное правительство territory.status:displaced не распоряжается занятыми учреждениями: оно может просить помощь, вести переговоры, сопротивляться доступными силами, но не отменяет контроль словами.\nПриказ установить свою администрацию, распустить местное управление или присоединить уже контролируемую землю исполняй kind:diplomacy effects:{diplomatic_action:{action:"administer" для фактического управления ИЛИ "annex" для присоединения,target:"ID прежнего владельца",terms:{provinces:["ID реально контролируемых провинций"]}}}. Без terms исполнитель выбирает всю фактически контролируемую землю указанного владельца. Не требуй согласия прежней власти или третьих держав для этих односторонних действий; мирный договор и чужое признание — отдельные решения. Не обещай присоединение ещё не захваченной земли: такую цель выполняет армия. Нельзя словами вернуть контроль потерявшему территорию кабинету, автоматически передать победителю чужих солдат или объявить подавленным сопротивление без фактов. Газета различает заявление прежней власти, реальное управление и действия других держав; не изображай письмо правительства в изгнании как восстановление его контроля.';
+  prompt+='\nЗАНЯТАЯ ЗЕМЛЯ: kind:diplomacy effects:{diplomatic_action:{action:"administer" для управления ИЛИ "annex" для присоединения,target:"прежний владелец",terms:{provinces:["ID фактически контролируемой земли"]}}}. Без terms выбирается вся контролируемая земля target. Подпись побеждённого и третьих держав для этих действий не нужна; чужое признание и договорной мир отдельно. Не передавай ещё не занятую землю или чужую армию текстом. Финансовая помощь: kind:diplomacy effects:{diplomatic_action:{action:"aid",target:"получатель",amount:сумма млн р.е. из собственной казны}}; это деньги, не готовое оружие/солдаты. territory.status:displaced — кабинет утратил внутреннее управление, но может искать помощь и возвращение власти. Газета не подменяет заявление восстановлением контроля.';
+ }
+ if(typeof prompt==='string'&&prompt.startsWith('POLITICAL_CABINETS_V1')){
+  prompt+='\nОЦЕНКА МИРА: worldSituation — все войны, накопленные захваты, доля потерянного производства, армии за рубежом и потери; exposure — твои соседи, договоры и силы у границы. Оцени цену окончательной победы расширяющейся державы для своих интересов и цену бездействия. Коалиция не предписана историей. Нейтралитет обоснуй с условием/сроком пересмотра; при растущей угрозе выбирай предметную помощь, совместное сдерживание, мобилизацию, размещение, флот или вмешательство через реальные effects. Не повторяй протест вместо продолжения политики. Обещание помощи не является поставкой.';
  }
  return conquestOldAsk(prompt,...args);
 };

@@ -99,6 +99,7 @@ function institutionProposeBill(owner,kind,effects,text,source=null,signal=null)
 }
 function institutionApplyExtras(owner,e){
  const c=countries[owner],s=institutionState(c),p=e.parliament,i=e.institutions;
+ if(!c.society)initSociety(c);
  if(p&&c.parliament){
   if(p.name)c.parliament.name=p.name;
   if(p.election)c.parliament.nextElection=year;

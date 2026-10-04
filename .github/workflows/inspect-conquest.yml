@@ -1,0 +1,20 @@
+name: Inspect conquest records without paid requests
+on:
+  push:
+    branches: [feature/conquest-world-balance-20261004]
+    paths: ['.github/workflows/inspect-conquest.yml']
+permissions:
+  contents: read
+  actions: read
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: conquest-expansion
+          run-id: 37222561482
+          github-token: ${{ github.token }}
+          path: inspect
+      - run: node tests/inspect-conquest-records.mjs

@@ -8,6 +8,8 @@ const campaignId=process.env.CAMPAIGN,runId=process.env.GITHUB_RUN_ID;
 assert.ok(campaignId&&runId,'Requires a deliberately scheduled campaign job');
 const definition=JSON.parse(await readFile('tests/fixtures/political-causality-mandates-20261004.json','utf8')).find(c=>c.id===campaignId);
 assert.ok(definition&&definition.plan.length===10);
+const resumeData=JSON.parse(await readFile('tests/fixtures/political-causality-resume-20261004.json','utf8'))[campaignId]||null;
+const completedBefore=resumeData?.completed||0;
 const output='playtest-output-'+campaignId;await mkdir(output,{recursive:true});
 const root=process.cwd();
 const server=createServer(async(req,res)=>{
@@ -69,8 +71,10 @@ try{
  }
  assert.ok(quotaReady,'Ten available guest turns required before paid generation');
  await page.selectOption('#mobile-country-picker',definition.country);await page.click('#mobile-start-btn');
+ if(resumeData)await page.evaluate(async saved=>{const slot='resume-'+Date.now();localStorage.setItem(SAVE_PREFIX+slot,JSON.stringify(saved));if(!await loadGameSlot(slot))throw Error('Cannot load authorised campaign continuation');},resumeData.state);
+ report.completedBefore=completedBefore;
  report.initial=await page.evaluate(()=>({date:dateLabel(),day:gameDayNumber(),cash:countries[playerCountry].treasury,debt:countries[playerCountry].debt,army:countries[playerCountry].army,gdp:countries[playerCountry].gdp,ruler:countries[playerCountry].ruler,budget:econBudget(countries[playerCountry])}));
- for(let i=0;i<10;i++){
+ for(let i=completedBefore;i<10;i++){
   step=i+1;ordinary={planner:0,cabinets:0,editor:0};extraPhase=false;
   const current=await page.evaluate(()=>({cash:countries[playerCountry].treasury,budget:econBudget(countries[playerCountry]),offers:strategyState().offers.filter(o=>o.b===playerCountry&&o.status==='open'),trade:(maritimeState().tradeOffers||[]).filter(o=>o.b===playerCountry&&o.status==='open'),paper:worldState.newspaperHistory?.at(-1)}));
   const orders=definition.plan[i].slice(),incoming=current.trade[0]||current.offers.find(o=>o.type!=='dependency');
@@ -81,7 +85,7 @@ try{
   }
   if(i===11&&campaignId==='peace'&&current.budget.net<0)orders.push('Уменьшить расход на инфраструктуру на десять процентов от текущего уровня, чтобы сократить дефицит, сохранив образование и помощь населению.');
   const pendingBefore=await page.evaluate(()=>ensureOrders().length),start=await page.evaluate(()=>gameDayNumber());
-  await page.evaluate(list=>{for(const text of list)queueOrder(text);},orders);
+  await page.evaluate(list=>{for(const text of list)if(!ensureOrders().some(o=>o.text===text))queueOrder(text);},orders);
   const started=Date.now(),completed=await page.evaluate(()=>nextTurn('m1'));
   const turnMs=Date.now()-started;
   await page.evaluate(()=>window.causalWaitForNewspaper());
@@ -112,7 +116,7 @@ try{
  await persist();console.log('LIVE_SUMMARY '+JSON.stringify({id:campaignId,turns:report.turns.length,completed:report.turns.filter(t=>t.completed).length,attempts:report.usage.length,extras:report.extras,cost:report.cost,blocked:report.blocked,pageErrors:report.pageErrors,cloudWarnings:report.cloudWarnings,cloud:report.cloud,failure:report.failure}));
  await context.close();await browser.close();await new Promise(r=>server.close(r));
 }
-assert.equal(report.turns.length,10,'All ten turns attempted');
+assert.equal(report.turns.length+completedBefore,10,'Campaign contains exactly ten completed turns across both attempts');
 assert.ok(report.turns.every(t=>t.completed),'All calendars advanced');
 assert.equal(report.pageErrors.length,0,'No browser exceptions');
 assert.equal(report.blocked.length,0,'Real gameplay not truncated by auxiliary guard');

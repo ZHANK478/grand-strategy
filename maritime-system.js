@@ -70,7 +70,7 @@ function maritimeInitialize(m){
  }
  maritimeTradeCache=null;maritimePathCache.clear();
 }
-function maritimePort(id){const m=maritimeState();return m.ports.find(p=>p.id===id||p.name===id);}
+function maritimePort(id){if(id==null)return undefined;const m=maritimeState(),key=String(id).trim().toLocaleLowerCase('ru').replace(/^port:/,'');return m.ports.find(p=>p.id===id||p.name.toLocaleLowerCase('ru')===key);}
 function maritimeResolveOrderPort(o,owner){
  let p=maritimePort(o.port_id);
  if(!p&&o.port_id)p=maritimeState().ports.find(x=>x.province===o.port_id&&maritimePortOwner(x)===owner);

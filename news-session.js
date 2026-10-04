@@ -220,7 +220,8 @@
   if(kind==='text'&&JSON.stringify(payload.messages).length>140000)throw Error(errorMessage('payload_too_large'));
   if(!await initAuth())throw Error(connection.message);
   if(connection.mode==='direct'){
-   const {cost,...providerPayload}=payload;
+   const {cost,reasoning_effort,...providerPayload}=payload;
+   if(reasoning_effort==='low'&&/^(openai\/gpt-6-|z-ai\/glm-5\.3$)/.test(payload.model))providerPayload.reasoning={effort:'low'};
    return directRequest(providerPayload);
   }
   if(connection.mode==='guest'){

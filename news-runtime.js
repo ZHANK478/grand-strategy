@@ -100,7 +100,7 @@ function parseOrderReply(raw){
  return plan;
 }
 async function generateOrderPlan(){
- const pending=ensureOrders().filter(o=>!worldState.retryingOrderIds||worldState.retryingOrderIds.includes(o.id)),free=pending.filter(o=>!o.fixedEffects),context=politicalContext();
+ const pending=ensureOrders().filter(o=>!worldState.retryingOrderIds||worldState.retryingOrderIds.includes(o.id)),free=pending.filter(o=>!o.fixedEffects),context=orderPlanningContext();
  const prompt=`Ты управляешь политическим миром исторической стратегии, дата ${dateLabel()}, следующий период ${worldState.plannedPeriod||'месяц'}.
 Игрок — исполнительная власть страны ${playerCountry}. История только исходные условия, не запрет альтернативного курса.
 Твоя задача: понять решения игрока, одновременно принять самостоятельные решения иностранных правительств и внутренних участников. Они имеют интересы, память, ресурсы; действуют друг против друга, а не только вокруг игрока.
@@ -440,4 +440,31 @@ async function retryOrders(){
 function compactPoliticalJSON(data){
  // Precision for reasoning, not a mutation of the economic simulation.
  return JSON.stringify(data,(_key,value)=>typeof value==='number'&&Number.isFinite(value)?Number(value.toPrecision(7)):value);
+}
+
+function orderPlanningContext(){
+ // The order interpreter operates the player's government; foreign cabinets have their own context.
+ const source=politicalContext(),own=countries[playerCountry],targets=mentionedPoliticalCountries(ensureOrders().map(o=>o.text).join(' '));
+ const relevant=new Set([playerCountry,...targets,...selectPoliticalCountries(playerCountry,6)]);
+ const c={...source};
+ c.countries=(source.countries||[]).filter(x=>relevant.has(x.facts?.id)).map(x=>({facts:{id:x.facts.id,ruler:x.facts.ruler,government:x.facts.government,agenda:x.facts.agenda,gdp:x.facts.gdp,army:x.facts.army,neighbors:x.facts.neighbors,relations:x.facts.relations},changes:x.changes}));
+ c.actors=(source.actors||[]).filter(a=>a.country===playerCountry);
+ c.court={[playerCountry]:source.court?.[playerCountry]};
+ c.tasks=(source.tasks||[]).filter(t=>t.country===playerCountry);
+ c.allCountries=(source.allCountries||[]).filter(x=>relevant.has(x.id)||source.allCountries.length<=60);
+ c.player={...source.player,moneyUnit:'млн расчётных единиц',ruler:own.ruler,rulerTitle:own.rulerTitle,pm:own.pm,pmTitle:own.pmTitle,government:own.government};
+ if(source.strategy){
+  const st=source.strategy,locations=(st.militaryLocations||[]);
+  c.strategy={...st,units:st.units.filter(u=>relevant.has(u.owner)),routes:st.routes.filter(x=>st.units.some(u=>u.id===x.unit&&u.owner===playerCountry)),
+   militaryLocations:locations.filter(p=>relevant.has(p.owner)).map(p=>({...p,neighbors:p.neighbors.filter(n=>n.owner!==p.owner)})),
+   contracts:st.contracts.filter(x=>[x.a,x.b].includes(playerCountry)),offers:st.offers.filter(x=>[x.a,x.b].includes(playerCountry))};
+ }
+ if(source.maritime)c.maritime={...source.maritime,countries:source.maritime.countries.filter(x=>x.id===playerCountry)};
+ const copy=JSON.parse(compactPoliticalJSON(c));
+ // Histories describe trends; repeating their full numeric series is not needed to execute an order.
+ for(const part of [copy.player?.society,copy.player?.economic]){
+  if(part&&typeof part==='object')for(const key of Object.keys(part))if(/history|previous|log/i.test(key)&&Array.isArray(part[key]))part[key]=part[key].slice(-2);
+ }
+ copy.contextScope='Собственное исполнение. Иностранные кабинеты получают собственные сведения отдельно; отсутствие их частной казны не означает отсутствие страны.';
+ return copy;
 }

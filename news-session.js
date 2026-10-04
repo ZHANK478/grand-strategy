@@ -27,6 +27,8 @@
  function errorMessage(code,http){
   const messages={
    server_no_key:'На сервере не настроен OpenRouter-ключ.',
+   payload_too_large:'Сведения партии превысили предел запроса. Поручения сохранены; это техническая ошибка подготовки данных.',
+   bad_payload:'Сервер не принял формат запроса. Поручения сохранены; это техническая ошибка подключения.',
    guest_setup_required:'Гостевые таблицы или функции Supabase ещё не настроены.',
    guest_required:'Сессия не гостевая. Повторите подключение.',
    no_auth:'Сессия входа недоступна. Повторите подключение или используйте свой ключ.',
@@ -215,6 +217,7 @@
   }finally{clearTimeout(timer);}
  }
  async function request(kind,payload){
+  if(kind==='text'&&JSON.stringify(payload.messages).length>140000)throw Error(errorMessage('payload_too_large'));
   if(!await initAuth())throw Error(connection.message);
   if(connection.mode==='direct'){
    const {cost,...providerPayload}=payload;

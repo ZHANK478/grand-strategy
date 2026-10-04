@@ -1,0 +1,30 @@
+name: Recorded campaigns — free regression checks
+on:
+  push:
+    branches: [fix/text-politics-reliability, main]
+    paths:
+      - 'news-*.js'
+      - 'political-subjects.js'
+      - 'tests/recorded-campaign-reliability.test.mjs'
+      - '.github/workflows/recorded-campaign-reliability.yml'
+permissions:
+  contents: read
+  actions: read
+jobs:
+  recorded:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm install --no-save --package-lock=false playwright
+      - run: npx playwright install --with-deps chromium
+      - uses: actions/download-artifact@v4
+        with:
+          name: text-campaigns-20261004
+          run-id: '37182811731'
+          github-token: ${{ github.token }}
+          path: playtest-seed/
+      - run: node tests/recorded-campaign-reliability.test.mjs

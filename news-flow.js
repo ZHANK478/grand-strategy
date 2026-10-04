@@ -49,6 +49,7 @@ function newsOrderDetails(o){
 }
 function newsFallbackArticle(o,phase='decision'){
  const ruler=countries[playerCountry].ruler;
+ if(o.technicalError)return {headline:'Подтверждение исполнения пока не получено',body:(ruler||'Глава государства')+' отдал распоряжение: «'+o.text+'». Из-за технической задержки подтверждение исполнения не получено. Это не политический отказ; поручение сохранено. Повторить обработку можно в списке приказов без продвижения даты.'};
  const progress=o.status==='in_progress',ok=o.status==='executed';
  return {headline:phase==='completion'?'Завершено распоряжение главы государства':progress?'Правительство приступило к исполнению решения':ok?'Новое решение главы государства':'Кабинет сообщил о препятствии',
  body:(ruler||'Глава государства')+' распорядился: «'+o.text+'». '+(phase==='completion'?'Исполнители завершили предусмотренную работу.':progress?'Исполнение началось; предусмотренные изменения будут происходить по установленному сроку.':ok?'Распоряжение вступило в силу.':'Поручение пока не исполнено; кабинет сообщил об обстоятельствах, мешающих его реализации.')+
@@ -226,7 +227,7 @@ writeNewspaper=async function(edition){
  const fallback=edition.domestic.filter(e=>!own.some(a=>a.headline===e.headline&&a.body===e.body)&&/Образование даёт|Бедность |Власть теряет|Положение власти|Общественное недовольство|Военные известия|Дипломатические известия|Смена главы государства/.test(e.headline));
  edition.domestic=newsUnique([...cover,...reaction,...other.filter(e=>!cover.length||!/Началась кампания набора|Правительство приступило к исполнению решения/.test(e.headline)),...fallback]);
  // Preserve every player's decision and lifecycle event; no three-article cap.
- const foreignFallback=edition.foreign.filter(e=>!abroad.some(a=>a.body===e.body)&&(!abroad.length||/Военные известия|Дипломатические известия|Политические известия|Смена главы государства/.test(e.headline)));
+ const foreignFallback=abroad.length?[]:edition.foreign;
  const ranked=newsUnique([...abroad,...foreignFallback]).filter(e=>!flow.published.some(p=>p.key===newsKey(e)&&!e.coverage));
  ranked.sort((a,b)=>Number(!!b.respondsTo)-Number(!!a.respondsTo)+(b.priority||0)-(a.priority||0)+foreignNewsWeight(b)-foreignNewsWeight(a));
  edition.foreign=ranked.slice(0,7);
@@ -248,9 +249,9 @@ askGemini=async function(prompt,...args){
  const missing=pending.filter(o=>!known.some(x=>x.id===o.id||x.id===aliases.get(o.id)));
  const selected=politicalActorsForTurn(),politics=Array.isArray(data.politics)?data.politics.filter(x=>x&&typeof x==='object'):[];
  if(missing.length||(!window.POLITICAL_SUBJECTS&&!politics.length&&selected.length)){
-  const context=politicalContext();
+  const context=orderPlanningContext();
   const repair='Исправь неполный ответ исполнителя. Верни только JSON {orders:[],politics:[]}. Не повторяй уже подготовленные приказы. Для каждого из перечисленных ниже недостающих приказов нужен результат с тем же id, kind,status,reason,effects,article. Для выбранных правительств нужен собственный политический шаг или осмысленное ожидание. Не выдумывай согласие другой страны. Схема типов и правила из предыдущего задания действуют.\\n'+
-   'Недостающие приказы: '+JSON.stringify(missing.map(o=>({id:aliases.get(o.id),text:o.text})))+'\\nВыбранные правительства: '+JSON.stringify(selected)+'\\nОбстановка: '+JSON.stringify(context)+
+   'Недостающие приказы: '+JSON.stringify(missing.map(o=>({id:aliases.get(o.id),text:o.text})))+'\\nВыбранные правительства: '+JSON.stringify(selected)+'\\nОбстановка: '+compactPoliticalJSON(context)+
    '\\nДопустимые типы: tax:{economy:{tax_noble,tax_burgher,tax_commons,tax_peasants,tax_middle}}, army:{army_delta} с process:{mode:"recruitment",days,summary}, law:{law_slots:{women:"none|partial|equal",education:"church|partial|universal"}}, political:{political_task:{goal,executor,target?,days,cost,result,headline,body,kind?,effects?}}, narrative:{court_scene:{description,participants:[{name,role}],duration_days,health:"ill|recovering|well"}}. Иные политические и экономические виды разрешены по первоначальной схеме. Правительствам: actor_id точный ID::government,goal,action строка wait|warn|condemn|pursue|mobilize|negotiate|offer_alliance|offer_nonaggression|offer_peace|accept|reject_offer|war|deploy|tax|spending,target?,motive,headline,body,task?,responds_to?,condition_actor?. Внутренним участникам доступны support|oppose|petition|protest. Строки article должны быть объектами, не отдельными элементами массива. Пиши кратко и закончи весь JSON.';
   const repairSchema=repair+'\nПоля по видам: '+JSON.stringify(OrderRules.KIND_FIELDS)+'\nЗаконы: '+econLawSpecForPrompt()+'\nГосударственные устройства: '+JSON.stringify(activeScenario.rules?.governments||[])+'\neconomic: economic_policy с type ownership/coordination/tax/spending/tariff/financing. ownership:sector agriculture/industry/resources/services,target 0..1,compensation boolean,days; coordination:target market/regulated/planned,days; tax:group noble/burgher/commons/peasants/middle,target 0..100,days; spending:group education/welfare/infrastructure,target месячная сумма,days; tariff:target 0..100; financing:automaticBorrowing/monetaryFinancing boolean. finance:debt_delta положительный заём или отрицательное погашение. Личные события narrative не создают деньги или войска.';
   const repairArgs=args.slice();repairArgs[1]=0;

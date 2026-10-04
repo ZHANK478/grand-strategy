@@ -110,8 +110,9 @@ Deno.serve(async(req:Request)=>{
    return json({turn_id:body.request_id,guest_turns_remaining:left});
   }
   if(body.operation!=='generate'||!Array.isArray(body.messages)||
-    body.messages.length>16||JSON.stringify(body.messages).length>140000||
+    body.messages.length>16||
     typeof body.model!=='string'||body.model.length>120)return json({error:'bad_payload'},400);
+  if(JSON.stringify(body.messages).length>140000)return json({error:'payload_too_large',max_payload_chars:140000},400);
   if(!GUEST_MODELS.includes(body.model))return json({error:'model_not_allowed',guest_models:GUEST_MODELS},400);
   const turnId=body.turn_id||null;
   if(turnId!==null&&!uuid.test(turnId))return json({error:'bad_turn_id'},400);

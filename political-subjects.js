@@ -86,8 +86,13 @@ function policyValidate(raw,selected){
  const goalIds=new Set();
  for(const g of raw.goals){politicalKeys(g,['id','goal','target','priority','status','success']);politicalText(g.id,60);politicalAssert(!goalIds.has(g.id),'Повтор цели');goalIds.add(g.id);politicalText(g.goal,400);politicalText(g.success,400);if(g.target!=null)strategyCountry(g.target);strategyNum(g.priority,1,100);politicalAssert(['active','achieved','abandoned'].includes(g.status),'Неверная стадия цели');}
  politicalAssert(Number.isInteger(raw.nextReviewDays)&&raw.nextReviewDays>=7&&raw.nextReviewDays<=90,'Неверный срок пересмотра');
- const d=JSON.parse(JSON.stringify(raw.decision));d.actor_id=raw.country+'::government';
+ let d=JSON.parse(JSON.stringify(raw.decision));d.actor_id=raw.country+'::government';
  if(d.task&&Object.keys(d.task).length===0)delete d.task;
+ d=canonicalPoliticalDecision(d);
+ if(d.responds_to&&!ensureNewsFlow().issues.some(i=>i.id===d.responds_to&&i.recipient===raw.country)){
+  const notice=policyCabinet(raw.country).inbox.find(i=>i.id===d.responds_to&&i.status==='open');
+  if(notice)queueNewsIssue(notice.source,raw.country,notice.id,notice.text,notice.kind);
+ }
  validatePoliticalDecision(d);return {...raw,decision:d};
 }
 function policyApply(raw,selected,results){

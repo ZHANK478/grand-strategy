@@ -93,6 +93,7 @@ function validatePoliticalTask(t,owner){
  if(t.kind==='tax'&&t.effects&&Object.keys(t.effects).length&&Object.keys(t.effects).every(k=>['tax_noble','tax_burgher','tax_commons'].includes(k)))t.effects={economy:t.effects};
  if(t.kind==='spending'&&t.effects&&Object.keys(t.effects).length&&Object.keys(t.effects).every(k=>['education_spending','welfare_spending','infrastructure_spending'].includes(k)))t.effects={society:t.effects};
  if(t.kind==='political'&&(!t.effects||!Object.keys(t.effects).length))delete t.kind;
+ if(t.effects&&Object.keys(t.effects).length===1&&Array.isArray(t.effects.operations))t.kind='policy';
  if(t.effects&&Object.keys(t.effects).length){
   politicalAssert(t.kind&&OrderRules.KIND_FIELDS[t.kind]&&!['unsupported','administration'].includes(t.kind),'Неизвестный вид результата');
   const ctx=orderContext();ctx.player=owner;

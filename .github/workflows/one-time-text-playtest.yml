@@ -1,34 +1,9 @@
-name: One-time authorised text campaigns
-on:
-  push:
-    branches: [fix/text-politics-reliability]
-    paths: [tests/live-text-campaigns.mjs]
+name: Archived paid campaigns — 4 October 2026
+on: workflow_dispatch
 permissions:
   contents: read
-  actions: read
 jobs:
-  play:
+  report:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-      - run: npm install --no-save --package-lock=false playwright
-      - run: npx playwright install --with-deps chromium
-      - run: node tests/news-continuity.test.mjs
-      - run: node tests/maritime-trade.test.mjs
-      - uses: actions/download-artifact@v4
-        with:
-          name: text-campaigns-20261004
-          run-id: '37182129441'
-          github-token: ${{ github.token }}
-          path: playtest-seed/
-      - run: node tests/live-text-campaigns.mjs
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: text-campaigns-20261004
-          path: playtest-output/
-          retention-days: 7
+      - run: echo "Paid generation is disabled. Results are in docs/TEXT_CAMPAIGN_PLAYTEST_20261004.md. A new paid campaign requires a fresh explicit budget."

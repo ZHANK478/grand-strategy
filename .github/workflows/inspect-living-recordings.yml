@@ -1,0 +1,20 @@
+name: Inspect authorised campaign recordings
+on:
+  push:
+    branches: [fix/living-newspapers-20261004]
+    paths: ['tests/inspect-living-recordings.mjs', '.github/workflows/inspect-living-recordings.yml']
+permissions:
+  contents: read
+  actions: read
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          run-id: 37198763363
+          github-token: ${{ github.token }}
+          pattern: living-campaign-*
+          path: recordings
+      - run: node tests/inspect-living-recordings.mjs

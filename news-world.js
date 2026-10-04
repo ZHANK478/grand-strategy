@@ -87,7 +87,7 @@ function completePoliticalTask(t,article={}){
 }
 function validatePoliticalTask(t,owner){
  if(t.target)t.target=orderCountry(t.target);
- if(t.effects){t.effects=canonicalSovereignEffects(t.effects,owner);if(t.effects.trade_policy)t.kind='trade';}
+ if(t.effects){t.effects=canonicalSovereignEffects(t.effects,owner);if(t.effects.trade_policy)t.kind='trade';else if(t.effects.diplomatic_action)t.kind='diplomacy';}
  if(t.answer&&!t.offer){const incoming=strategyState().offers.some(o=>o.b===owner&&o.a===t.target&&o.status==='open');if(!incoming&&typeof policyCabinet==='function'&&policyCabinet(owner).inbox.some(i=>i.source===t.target&&i.status==='open'))delete t.answer;}
  if(!t.effects?.diplomatic_action&&!t.offer&&!t.answer&&t.target&&t.target!==owner&&/предлож|предлага|offer/i.test(t.goal||'')){
   if(/ненапад|nonaggression/i.test(t.goal))t.offer='nonaggression';
@@ -139,7 +139,7 @@ function politicalResponseRecord(owner,d,family='diplomacy'){
 }
 function canonicalSovereignEffects(raw,owner){
  const e=JSON.parse(JSON.stringify(raw));
- if(e.operations)e.operations=e.operations.map(s=>{const effects=canonicalSovereignEffects(s.effects,owner);return {kind:effects.trade_policy?'trade':s.kind,effects};});
+ if(e.operations)e.operations=e.operations.map(s=>{const effects=canonicalSovereignEffects(s.effects,owner);return {kind:effects.trade_policy?'trade':effects.diplomatic_action?'diplomacy':s.kind,effects};});
  let d=e.diplomatic_action;
  if(d&&['trade','customs_union'].includes(d.type)&&['offer','accept','reject','break'].includes(d.action)){
   const {terms={},...args}=d;
@@ -187,7 +187,7 @@ function canonicalPoliticalDecision(raw){
  if(d.task?.target)d.task.target=orderCountry(d.task.target);
  if(d.task){
   const owner=ensureWorldActors()[d.actor_id]?.country;
-  if(owner&&d.task.effects){d.task.effects=canonicalSovereignEffects(d.task.effects,owner);if(d.task.effects.trade_policy)d.task.kind='trade';}
+  if(owner&&d.task.effects){d.task.effects=canonicalSovereignEffects(d.task.effects,owner);if(d.task.effects.trade_policy)d.task.kind='trade';else if(d.task.effects.diplomatic_action)d.task.kind='diplomacy';}
   if(d.task.effects?.diplomatic_action?.action==='communicate'&&['accept','reject_offer'].includes(d.action))d.action='pursue';
   completePoliticalTask(d.task,d);
   d.headline||=d.task.headline;d.body||=d.task.body;

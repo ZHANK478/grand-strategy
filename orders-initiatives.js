@@ -59,9 +59,9 @@ function initiativeContext(){
 }
 function executiveFacts(){
  const c=countries[playerCountry],preview=orderBudgetPreview();
- return {country:playerCountry,treasury:c.treasury,debt:c.debt,army:c.army,population:c.population,populationUnit:'тысяч человек',moneyUnit:'расчётные единицы движка',gdp:c.gdp,monthlyIncome:c.income,society:c.society,
+ return {country:playerCountry,treasury:c.treasury,debt:c.debt,army:c.army,population:c.population,populationUnit:'тысяч человек',moneyUnit:'млн расчётных единиц',gdp:c.gdp,monthlyIncome:c.income,society:c.society,
   taxes:Object.fromEntries(Object.entries(c.economy?.classes||{}).map(([id,v])=>[id,{label:v.label,rate:v.tax,loyalty:v.loyalty,wealth:v.wealth}])),
-  spending:c.society?.spending,budget:c.lastBudget||{forecast:true,...preview},parliament:c.parliament};
+  spending:c.society?.spending,budget:{forecast:true,...(typeof econBudget==='function'&&c.econV3?econBudget(c):preview)},parliament:c.parliament};
 }
 function dossierPrompt(due){
  const names=selectPoliticalCountries(playerCountry,8),own=countries[playerCountry];

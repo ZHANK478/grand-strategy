@@ -47,7 +47,7 @@ function econEducation(c){
  return {girlsAccess:girls,access,perChild,annualLiteracyGain:Math.min(4,Math.sqrt(Math.max(0,perChild)/25)*2)*(100-c.society.literacy)/100*(.6+.4*access)};
 }
 function econDemography(c){const v=econV3(c),deaths=v.deaths+(econWar(c)?4:0)+Math.max(0,c.society.poverty-65)*.08+(v.paidRatio<.8?2:0);return {births:v.births,deaths,migration:v.migration,annualRate:(v.births-deaths+v.migration)/1000};}
-function econWar(c){return typeof isAtWar==='function'&&ALL_COUNTRIES.some(n=>countries[n]!==c&&!countries[n].annexed&&isAtWar(c.displayName,n));}
+function econWar(c){const owner=ALL_COUNTRIES.find(n=>countries[n]===c);return !!owner&&typeof isAtWar==='function'&&ALL_COUNTRIES.some(n=>countries[n]!==c&&!countries[n].annexed&&isAtWar(owner,n));}
 function econBudget(c){
  const v=econV3(c),r=econMonthlyRevenue(c),war=econWar(c),sp=c.society.spending;
  const upkeep=c.army*getEra().armyUpkeep*(war?1.5:1)*(1+v.prices)/2;

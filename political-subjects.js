@@ -22,7 +22,7 @@ function policyInterest(id){
  const fronts=s.campaigns.filter(t=>t.status==='active'&&(t.a===id||t.b===id));
  return {security:{neighbors,wars:fronts.map(x=>({enemy:x.a===id?x.b:x.a,goal:x.goal})),occupations:Object.entries(s.occupations).filter(([p,owner])=>owner===id||strategyOwner(strategyProvince(p))===id)},
  sovereignty:{dependency:c.dependency||null,obligations:contracts.map(x=>({id:x.id,type:x.type,partner:x.a===id?x.b:x.a,terms:x.terms,due:x.due}))},
- prosperity:{gdp:c.gdp,population:c.population,treasury:c.treasury,debt:c.debt,budget:c.lastBudget?{gross:c.lastBudget.gross,net:c.lastBudget.net}:null},
+ prosperity:{gdp:c.gdp,population:c.population,treasury:c.treasury,debt:c.debt,budget:typeof econBudget==='function'?{gross:econBudget(c).gross,net:econBudget(c).net,expense:econBudget(c).expense}:null},
  regime:{ruler:c.ruler,pm:c.pm,government:c.government,stability:c.stability,reputation:c.reputation,parliament:c.parliament,agenda:c.agenda||null,groups:Object.fromEntries(Object.entries(c.economy?.classes||{}).map(([k,v])=>[k,{tax:v.tax,loyalty:v.loyalty}])),spending:c.society?.spending,poverty:c.society?.poverty},
  implementation:{active:ensurePolitics().tasks.filter(t=>t.country===id&&t.status==='active').map(t=>({id:t.id,goal:t.goal.slice(0,300),target:t.target,status:t.status,due:t.due,kind:t.kind})),records:(c.politicalRecords||[]).slice(-4).map(t=>({goal:t.goal.slice(0,250),result:t.result.slice(0,400),date:t.date})),
  programs:(c.econV3?.programs||[]).filter(p=>p.status==='active').map(p=>({kind:p.kind,group:p.group,sector:p.sector,target:p.target,remainingDays:Math.max(0,p.days-p.elapsed)})),

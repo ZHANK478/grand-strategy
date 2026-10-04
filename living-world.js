@@ -2,10 +2,11 @@
    The newsroom may edit prose only: it never receives an effects executor. */
 'use strict';
 function livingPrivateResponse(e){
- const o=e.sourceOrder&&worldState.orders.find(x=>x.id===e.sourceOrder);
+ const cause=e.condition||e.sourceOrder;const o=cause&&worldState.orders.find(x=>x.id===cause);
  return !!(o?.response&&(!o.effects||Object.keys(o.effects).every(k=>k==='political_task'&&(!o.effects[k].effects||!Object.keys(o.effects[k].effects).length))));
 }
 function livingStoryKey(e){
+ if(e.condition&&worldState.orders.some(o=>o.id===e.condition))return 'order:'+e.condition;
  if(e.sourceOrder)return 'order:'+e.sourceOrder;
  if(e.storyId)return 'story:'+e.storyId;
  if(e.sourceTask)return 'task:'+e.sourceTask;
@@ -13,7 +14,8 @@ function livingStoryKey(e){
 }
 function livingGroupStories(list){
  const stories=new Map();
- for(const e of list){
+ for(const event of list){
+  const e=event.condition&&worldState.orders.some(o=>o.id===event.condition)?{...event,sourceOrder:event.condition}:event;
   if(livingPrivateResponse(e))continue;
   const o=e.sourceOrder&&worldState.orders.find(x=>x.id===e.sourceOrder);
   if(o?.technicalError||/Подтверждение исполнения пока не получено|Распоряжение ожидает подтверждения/.test(e.headline))continue;
@@ -38,12 +40,18 @@ function livingInternational(e){
 }
 const livingOldForeignWeight=foreignNewsWeight;
 foreignNewsWeight=function(e,...args){return livingOldForeignWeight(e,...args)+(livingInternational(e)?160:0);};
+function livingOrderProgress(o){
+ const day=gameDayNumber(),c=countries[playerCountry],process=ensureExecutiveProcesses().find(p=>p.id===o.processId||p.id===o.id),program=(c.econV3?.programs||[]).find(p=>p.orderId===o.id),build=maritimeState().builds.find(p=>p.orderId===o.id);
+ return process?{type:process.mode,status:process.status,remainingDays:Math.max(0,process.due-day),delivered:process.delivered||0,total:process.totalRecruit||process.reservedTroops}:
+ program?{type:program.kind,status:program.status,remainingDays:Math.max(0,program.days-program.elapsed),target:program.target}:
+ build?{type:build.type,status:build.status,remainingDays:Math.max(0,build.due-day),count:build.count,cost:build.cost,port:maritimePort(build.port)?.name}:null;
+}
 async function livingEditStories(edition,stories){
  if(!stories.length)return;
  const facts=stories.map((s,i)=>({id:'N'+(i+1),section:s.section,headline:s.headline,
  facts:s.body.slice(0,2400),execution:s.details.slice(0,1800),
  order:s.sourceOrder?worldState.orders.find(o=>o.id===s.sourceOrder)?.text:undefined,
- verified:s.sourceOrder?(()=>{const o=worldState.orders.find(o=>o.id===s.sourceOrder);return o?{status:o.status,reason:o.reason,before:o.before,after:o.after,effects:o.effects}:null;})():undefined,
+ verified:s.sourceOrder?(()=>{const o=worldState.orders.find(o=>o.id===s.sourceOrder);return o?{status:o.status,reason:o.reason,before:o.before,after:o.after,effects:o.effects,currentBudget:econBudget(countries[playerCountry]),progress:livingOrderProgress(o)}:null;})():undefined,
  actors:(s.actors||[]).map(id=>({country:countries[id]?.displayName||id,ruler:countries[id]?.ruler,government:countries[id]?.government}))}));
  const prompt='NEWSPAPER_EDITOR_V2\nТы редактор политической газеты '+year+' года в '+(countries[playerCountry].displayName||playerCountry)+'. Период '+edition.from+' — '+edition.to+'.\n'+
  'Напиши полноценные выразительные газетные заметки по событиям ниже. Газета должна показывать столкновение интересов и значение события для людей и государств. Начинай с самого события, а не поручения написать доклад. Для значимого решения 70–120 слов, 1–2 абзаца; небольшой промежуточный итог 35–60 слов. Не все события сенсация: тон соразмерен ставкам. Смерть, смена власти, война и разрыв с парламентом требуют соответствующего масштаба и открытого вопроса о будущем. Школьная реформа — рассказ о доступе к учёбе, споре об устройстве общества и людях, которых она затрагивает; не о том, что поле закона обновлено.\n'+

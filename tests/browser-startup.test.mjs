@@ -156,6 +156,32 @@ try{
    console.log(mode+' POLITICAL_PROTOCOL '+JSON.stringify(protocol));
 
 
+
+   const background=await page.evaluate(async()=>{
+    resetGame('Франция');window.politicalRunRound=undefined;window.testEnsureAIForTurn=async()=>true;
+    let finish,options;askGemini=async(prompt,tokens,cost,opts)=>{
+     if(prompt.startsWith('NEWSPAPER_EDITOR_V2')){options=opts;return new Promise(resolve=>finish=resolve);}
+     return JSON.stringify({orders:[],politics:[]});
+    };
+    queueOrder('Взять небольшой проверочный заём.','finance',{debt_delta:1});
+    const before=gameDayNumber(),done=await nextTurn('week');
+    if(!done||gameDayNumber()<=before||turnRunning||document.querySelector('.next-btn').disabled||!finish)throw Error('Editor still blocks real browser gameplay');
+    queueOrder('Подготовить следующий небольшой заём.','finance',{debt_delta:1});
+    if(!ensureOrders().some(o=>o.text==='Подготовить следующий небольшой заём.'))throw Error('Cannot queue next decision while editor is pending');
+    const oldWorld=worldState;resetGame('Франция');
+    finish(JSON.stringify({articles:[{id:'N1',headline:'Старый выпуск',body:'Поздняя редактура старой партии не должна подменять состояние вновь начатой игры. Этот выпуск относится к сохранённому предыдущему решению правительства.'}]}));
+    await window.causalWaitForNewspaper();
+    if(worldState===oldWorld||worldState.newspaperHistory?.length)throw Error('Old editorial job overwrites reset game');
+    const snapshot=policySnapshot();declareEngineWar('Бельгия',playerCountry);causalCaptureAlerts(snapshot);causalShowAlert();
+    const alert=document.getElementById('political-breaking-news');
+    if(!alert||document.getElementById('breaking-news').style.display==='flex')throw Error('Old full-screen breaking news interferes with the centered alert');
+    const count=causalState().alerts.length;if(count!==1)throw Error('Incoming war produces duplicate important popups');
+    alert.querySelector('button').click();
+    if(document.getElementById('political-breaking-news'))throw Error('Critical alert cannot be dismissed');
+    return {calendarReturnedWhileEditorPending:true,queuedNextDecision:true,lateEditorIgnored:true,criticalAlerts:count};
+   });
+   console.log(mode+' BACKGROUND_POLITICS '+JSON.stringify(background));
+
    const reading=await page.evaluate(async()=>{
     const text='Правительство открыло школы девочкам. Решение меняет доступ к образованию и вызывает спор о будущем страны.';
     renderNewspaper({from:dateLabel(),to:dateLabel(),domestic:[{headline:'Школьная реформа',body:text,details:'Права изменены.'}],foreign:[],archive:{domestic:[],foreign:[]}});

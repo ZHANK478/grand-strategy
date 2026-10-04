@@ -149,6 +149,7 @@ advanceGameDays=function(days){
  // Persistent pressures develop at dated checkpoints; no daily API requests.
  if(!worldState.causality||now<(causalState().nextDomesticDay??-Infinity))return result;
  causalState().nextDomesticDay=now+30;
+ const countryPressure={};
  for(const a of Object.values(ensureWorldActors()).filter(a=>actorAvailable(a)&&a.kind!=='government')){
   const open=(a.disputes||[]).some(d=>d.status==='open');
   if(!open)continue;
@@ -160,7 +161,12 @@ advanceGameDays=function(days){
   if(a.grievance>=35)a.organization=actorClamp((a.organization||0)+5);
   if(a.stance==='noncooperation'&&a.grievance>=35&&a.organization>=25)changeCountryStat(a.country,'stability',-1);
   else if(a.grievance<15)a.organization=Math.max(0,(a.organization||0)-5);
+  if(a.grievance>=45&&(a.organization||0)>=30&&a.stance!=='support'&&a.stance!=='resigned')countryPressure[a.country]=(countryPressure[a.country]||0)+a.organization*a.grievance*a.influence/10000;
+  const stage=a.grievance>=45&&a.organization>=30?'organized':'dispute';
+  if(stage==='organized'&&a.causalStage!==stage){a.causalStage=stage;actorNotice(a,'Оппозиция объединяется вокруг своих требований',a.label+' укрепляет организацию сторонников вокруг требования: «'+(a.demand?.text||a.issue?.text||a.goal)+'». Прежний спор перестал ограничиваться отдельными возражениями; его участники добиваются ответа власти.','Организация '+a.organization+'/100; накопленное давление влияет на устойчивость власти.',5);}
+  else if(stage==='dispute')a.causalStage=stage;
  }
+ for(const [id,pressure]of Object.entries(countryPressure))if(pressure>=15)changeCountryStat(id,'stability',-Math.min(3,Math.floor(pressure/15)));
  for(const event of causalState().events){
   if(now-event.day>365)event.status='archived';
  }
@@ -168,7 +174,7 @@ advanceGameDays=function(days){
 };
 const causalOldTask=finishPoliticalTask;
 finishPoliticalTask=function(task){
- const extra=Object.values(ensureWorldActors()).filter(a=>a.country===task.country&&a.stance==='noncooperation'&&actorAvailable(a));
+ const extra=Object.values(ensureWorldActors()).filter(a=>a.country===task.country&&actorAvailable(a)&&(a.stance==='noncooperation'||a.grievance>=30&&(a.organization||0)>=25&&a.stance!=='support'&&a.stance!=='resigned'));
  const previous=extra.map(a=>[a,a.grievance]);
  try{extra.forEach(a=>a.grievance=actorClamp(a.grievance+(a.organization||0)*.3));return causalOldTask(task);}
  finally{previous.forEach(([a,g])=>{const current=worldState.actors?.[a.id];if(current)current.grievance=g;});}
@@ -231,7 +237,7 @@ window.causalWaitForNewspaper=()=>causalEditorialWorker||Promise.resolve();
 function causalCaptureAlerts(before){
  const s=causalState(),now=policySnapshot(),old=before||now;
  for(const pair of now.wars.filter(p=>!old.wars.some(w=>w[0]===p[0]&&w[1]===p[1]))){
-  if(pair.includes(playerCountry)||pair.some(n=>politicalGeography().neighbors[playerCountry]?.has(n)))
+  if((pair.includes(playerCountry)||pair.some(n=>politicalGeography().neighbors[playerCountry]?.has(n)))&&!s.alerts.some(a=>a.day===gameDayNumber()&&/войн/i.test(a.title)&&pair.some(n=>n!==playerCountry&&a.body.includes(n))))
    causalAlert('war:'+pair.join('|')+':'+gameDayNumber(),'Объявлена война',pair.map(n=>countries[n].displayName||n).join(' и ')+' вступили в войну. Теперь действуют военные обязательства и риск потерь.');
  }
  for(const n of policyLive()){

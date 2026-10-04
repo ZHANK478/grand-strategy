@@ -232,8 +232,15 @@ checkElections=function(){
  }
 };
 function institutionTick(){
- const now=gameDayNumber();ensureWorldActors();
- for(const owner of ALL_COUNTRIES){
+ const now=gameDayNumber();
+ const due=ALL_COUNTRIES.filter(owner=>{
+  const c=countries[owner];if(!c||c.annexed)return false;const state=c.institutionsV1;
+  return !state||now>=(state.nextDay??-Infinity)||state.bills.some(b=>['debate','contested'].includes(b.status)&&now>=b.voteDay)||
+   !!c.parliament&&year>=(c.parliament.nextElection??Infinity);
+ });
+ if(!due.length)return;
+ ensureWorldActors();
+ for(const owner of due){
   let c=countries[owner];if(!c||c.annexed)continue;let s=institutionState(c);
   for(let b of s.bills.filter(b=>['debate','contested'].includes(b.status)&&now>=b.voteDay)){
    if(!c.parliament){b.status='withdrawn';b.reason='Представительный орган распущен; проект нужно принять новым решением.';}

@@ -32,3 +32,5 @@ jobs:
         with:
           name: living-campaign-${{ matrix.case }}
           path: playtest-output-${{ matrix.case }}/
+
+# Authorised one-shot batch: 45 complete turns and no more than 20 auxiliary requests.

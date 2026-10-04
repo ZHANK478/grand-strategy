@@ -1,6 +1,6 @@
 /* Text is selectable on touch devices; map gestures stay in the map. */
 .newspaper-article,.newspaper-article p,.newspaper-article h3,.newspaper-details,.newspaper-details p,
-.adv-msg,.adv-messages,.living-minister-responses,.living-minister-responses p,.order-result,.order-card strong,.economy-row,.economy-explanation {
+.adv-msg,#adv-messages,.diplo-msg,#diplo-messages,.order-summary,.order-technical-log,.order-technical-log *,.living-minister-responses,.living-minister-responses p,.order-result,.order-card strong,.economy-row,.economy-explanation {
  -webkit-user-select:text!important;user-select:text!important;-webkit-touch-callout:default!important;
 }
 .newspaper-article p,.newspaper-details p,.living-minister-responses p{white-space:pre-line}

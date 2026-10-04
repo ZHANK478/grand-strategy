@@ -23,7 +23,8 @@ try{
   page.on('pageerror',e=>{errors.push(e.stack);console.log(mode+' PAGE ERROR '+e.stack);});
   try{
    await page.goto('http://127.0.0.1:8765/index.html',{waitUntil:'load',timeout:60000});
-   await page.waitForURL('**/economy-world.html',{timeout:10000});
+   await page.waitForURL(url=>url.pathname.endsWith('/economy-world.html'),{timeout:10000});
+   assert.equal(new URL(page.url()).searchParams.get('v'),'14','Root entry uses current release');
    await page.waitForFunction(()=>window.GS_MAP_LOAD?.status==='ready',{},{timeout:30000});
    console.log(mode+' BEFORE '+JSON.stringify(await page.evaluate(()=>({status:window.GS_MAP_LOAD,start:typeof window.mobileStartGame,fullscreen:typeof window.mobileFullscreen,picker:document.getElementById('mobile-country-picker').value,disabled:document.getElementById('mobile-start-btn').disabled}))));
    if(mode==='phone'){
@@ -164,9 +165,12 @@ try{
     window.__copied='';Object.defineProperty(navigator,'clipboard',{configurable:true,value:{writeText:async value=>{window.__copied=value;}}});
     article.querySelector('.living-copy-button').click();await Promise.resolve();await Promise.resolve();
     economySetTab('people');const economy=document.getElementById('economy-body').textContent;
-    return {selected,userSelect,copied:window.__copied,economy};
+    conferenceOpen('Бельгия');conferencePost('Предложение о переговорах.');
+    const chat=document.querySelector('#diplo-messages .diplo-msg');
+    return {selected,userSelect,copied:window.__copied,economy,chatSelect:chat&&getComputedStyle(chat).userSelect};
    });
    assert.equal(reading.userSelect,'text','Touch text is selectable');
+   assert.equal(reading.chatSelect,'text','Actual diplomatic conversation is selectable');
    assert.match(reading.selected,/школы девочкам/,'Text can be selected');
    assert.match(reading.copied,/Права изменены/,'Copy includes precise effects for sharing');
    assert.match(reading.economy,/Доступ девочек|Грамотность/,'Education causes visible in actual UI');

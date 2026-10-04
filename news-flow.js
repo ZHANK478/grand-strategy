@@ -118,7 +118,7 @@ applyOrderPlan=function(plan){
  const start=(worldState.periodEvents||[]).length,results=newsOldApply(plan);
  for(const o of results){
   if(!['executed','in_progress','blocked','failed','rejected','deferred'].includes(o.status))continue;
-  let event=worldState.periodEvents.slice(start).findLast(e=>e.sourceOrder===o.id);
+  let event=worldState.periodEvents.slice(start).findLast(e=>e.sourceOrder===o.id&&!e.actor);
   const article=plan.articles?.[o.id]||newsFallbackArticle(o);
   if(!event){recordWorldEvent('domestic',article.headline,article.body,[playerCountry],newsOrderDetails(o));event=worldState.periodEvents.at(-1);}
   Object.assign(event,{sourceOrder:o.id,phase:'decision',coverage:true,details:newsOrderDetails(o),priority:10});

@@ -420,11 +420,19 @@ function executeTradePolicy(owner,o){
  maritimeTouch();return 'Торговое действие зарегистрировано; поступления и цены рассчитываются по доставленному импорту.';
 }
 function maritimeFacts(owner){
- const m=maritimeState(),trade=maritimeTrade().result[owner];
- return {ports:m.ports.filter(p=>maritimePortOwner(p)===owner).map(p=>({...p,blockade:maritimeBlockade(p)})),fleets:m.fleets.filter(f=>f.owner===owner).map(f=>({id:f.id,name:f.name,ships:f.ships,region:f.region,port:f.port,mission:f.mission,targetPort:f.targetPort,path:f.path,supply:f.supply,condition:f.condition,propulsion:f.propulsion,cargo:f.cargo.map(u=>({id:u.id,troops:u.troops}))})),
- builds:m.builds.filter(x=>x.owner===owner&&x.status==='active'),upkeep:maritimeUpkeep(owner),crew:maritimeCrew(owner),trade:trade?{imports:trade.imports,exports:trade.exports,tariffs:trade.tariffs,shortage:trade.shortage,goods:trade.goods,partners:trade.partners.slice().sort((a,b)=>b.value-a.value).slice(0,8)}:null,
- policy:maritimeTradePolicy(owner),tradeOffers:(m.tradeOffers||[]).filter(x=>x.b===owner&&x.status==='open'),agreements:(m.agreements||[]).filter(x=>x.status==='active'&&[x.a,x.b].includes(owner))};
+ const m=maritimeState(),trade=maritimeTrade().result[owner],offer=o=>({id:o.id,a:o.a,b:o.b,status:o.status,type:o.type,good:o.good,rate:o.rate,external_rate:o.external_rate,days:o.days,expires:o.expires});
+ return {ports:m.ports.filter(p=>maritimePortOwner(p)===owner).map(p=>({id:p.id,name:p.name,province:p.province,region:p.region,level:p.level,shipyard:p.shipyard,blockade:maritimeBlockade(p)})),
+ fleets:m.fleets.filter(f=>f.owner===owner).map(f=>({id:f.id,name:f.name,ships:f.ships,region:f.region,port:f.port,mission:f.mission,targetPort:f.targetPort,path:f.path,supply:f.supply,condition:f.condition,propulsion:f.propulsion,cargo:f.cargo.map(u=>({id:u.id,troops:u.troops}))})),
+ builds:m.builds.filter(x=>x.owner===owner&&x.status==='active').map(b=>({id:b.id,type:b.type,port:b.port,province:b.province,shipType:b.shipType,count:b.count,due:b.due,status:b.status})),
+ upkeep:maritimeUpkeep(owner),crew:maritimeCrew(owner),
+ trade:trade?{imports:trade.imports,exports:trade.exports,tariffs:trade.tariffs,shortage:trade.shortage,
+ goods:Object.fromEntries(Object.entries(trade.goods||{}).map(([id,g])=>[id,Object.fromEntries(Object.entries(g).filter(([k,v])=>typeof v==='number'))])),
+ partners:trade.partners.slice().sort((a,b)=>b.value-a.value).slice(0,8).map(p=>Object.fromEntries(Object.entries(p).filter(([k,v])=>typeof v!=='object')))}:null,
+ policy:maritimeTradePolicy(owner),tradeOffers:(m.tradeOffers||[]).filter(x=>x.b===owner&&x.status==='open').slice(-5).map(offer),
+ outgoingTradeOffers:(m.tradeOffers||[]).filter(x=>x.a===owner&&x.status==='open').slice(-5).map(offer),
+ agreements:(m.agreements||[]).filter(x=>x.status==='active'&&[x.a,x.b].includes(owner)).map(o=>({id:o.id,a:o.a,b:o.b,type:o.type,good:o.good,rate:o.rate,external_rate:o.external_rate,due:o.due}))};
 }
+
 const maritimeOldContext=orderContext;
 orderContext=function(){return {...maritimeOldContext(),validateNavalOrder,validateTradePolicy};};
 const maritimeOldExecute=executeOrderEffects;

@@ -108,16 +108,26 @@ function policyPublicFacts(id){
  const c=countries[id],geo=politicalGeography();
  return {id,name:c.displayName||id,ruler:c.ruler,government:c.government,gdp:c.gdp,armyEstimate:Math.round(c.army/10000)*10000,neighbors:[...(geo.neighbors[id]||[])],contracts:strategyState().contracts.filter(x=>x.status==='active'&&(x.a===id||x.b===id)).map(x=>({a:x.a,b:x.b,type:x.type})),warWith:policyLive().filter(n=>n!==id&&isAtWar(id,n))};
 }
+function policyBrief(value,max=400){return typeof value==='string'?value.slice(0,max):value;}
 function policyContext(selected,results,phase){
- const all=policyLive(),p=policyState(),actors=ensureWorldActors();
+ const all=policyLive(),actors=ensureWorldActors();
  const relevant=[...new Set([playerCountry,...selected,...selected.flatMap(n=>[...(politicalGeography().neighbors[n]||[])]),...selected.flatMap(n=>policyCabinet(n).goals.map(g=>g.target).filter(Boolean))])];
+ const offer=o=>({id:o.id,a:o.a,b:o.b,type:o.type,terms:o.terms,status:o.status,day:o.day,expires:o.expires});
  return {date:dateLabel(),phase,player:playerCountry,
- cabinets:selected.map(id=>{const a=policyCabinet(id);return {id,actor:id+'::government',interests:policyInterest(id),goals:a.goals,memory:a.memory.slice(-6),inbox:a.inbox.filter(i=>i.status==='open'),assessment:a.assessment||null,lastOutcome:a.lastOutcome||null,
- issues:ensureNewsFlow().issues.filter(i=>i.status==='open'&&i.recipient===id).slice(-5),offers:strategyState().offers.filter(o=>o.status==='open'&&o.b===id).slice(-5),
- relationships:[...new Set([...selectPoliticalCountries(id,8),...relevant])].filter(n=>n!==id).map(n=>({id:n,value:getRelation(id,n)})).slice(0,16),actorMemory:actors[id+'::government']?.memory.slice(-3)};}),
+ cabinets:selected.map(id=>{const a=policyCabinet(id),interests=policyInterest(id);
+ interests.implementation.lastSignals=(interests.implementation.lastSignals||[]).map(t=>policyBrief(t,250));
+ return {id,actor:id+'::government',interests,
+ goals:a.goals.map(g=>({...g,goal:policyBrief(g.goal,250),success:policyBrief(g.success,200)})),
+ memory:a.memory.slice(-4).map(m=>({day:m.day,text:policyBrief(m.text,400)})),
+ inbox:a.inbox.filter(i=>i.status==='open').slice(-6).map(i=>({id:i.id,source:i.source,kind:i.kind,text:policyBrief(i.text,400),day:i.day})),
+ assessment:policyBrief(a.assessment,350)||null,lastOutcome:a.lastOutcome?{...a.lastOutcome,material:policyBrief(a.lastOutcome.material,300)}:null,
+ issues:ensureNewsFlow().issues.filter(i=>i.status==='open'&&i.recipient===id).slice(-5).map(i=>({id:i.id,sender:i.sender,recipient:i.recipient,text:policyBrief(i.text,400),action:i.action,status:i.status,created:i.created,lastUpdate:i.lastUpdate})),
+ offers:strategyState().offers.filter(o=>o.status==='open'&&o.b===id).slice(-5).map(offer),
+ relationships:[...new Set([...selectPoliticalCountries(id,8),...relevant])].filter(n=>n!==id).map(n=>({id:n,value:getRelation(id,n)})).slice(0,16),
+ actorMemory:actors[id+'::government']?.memory.slice(-2).map(m=>typeof m==='string'?policyBrief(m,300):{day:m.day,text:policyBrief(m.text,300)})};}),
  countries:relevant.map(policyPublicFacts),worldPowers:all.slice().sort((a,b)=>countries[b].gdp-countries[a].gdp).slice(0,8).map(policyPublicFacts),
- confirmedDecisions:results.map(o=>({text:o.text,status:o.status,outcome:o.reason,effects:o.effects})),
- events:(worldState.periodEvents||[]).slice(-12).map(e=>({headline:e.headline,body:e.body,actors:e.actors})),
+ confirmedDecisions:results.slice(-12).map(o=>({text:policyBrief(o.text,500),status:o.status,outcome:policyBrief(o.reason,400)})),
+ events:(worldState.periodEvents||[]).slice(-8).map(e=>({headline:e.headline,body:policyBrief(e.body,350),actors:e.actors})),
  locations:selected.flatMap(owner=>{const owned=scenarioProvinces.filter(x=>strategyOwner(x)===owner),border=owned.filter(x=>[...(strategyGeometry().graph[x.id]||[])].some(id=>strategyOwner(strategyProvince(id))!==owner));return [...new Map([...border,...owned].map(x=>[x.id,x])).values()].slice(0,18);}).map(x=>({id:x.id,name:x.name,owner:strategyOwner(x),neighbors:[...(strategyGeometry().graph[x.id]||[])].map(id=>({id,owner:strategyOwner(strategyProvince(id))}))}))};
 }
 function policyPrompt(selected,results,phase){
@@ -133,6 +143,7 @@ function policyPrompt(selected,results,phase){
  'Наблюдаемая обстановка: '+compactPoliticalJSON(policyContext(selected,results,phase));
 }
 function policyValidate(raw,selected){
+ raw=JSON.parse(JSON.stringify(raw));raw.country=orderCountry(raw.country);for(const g of raw.goals||[])if(g.target)g.target=orderCountry(g.target);
  politicalKeys(raw,['country','assessment','goals','nextReviewDays','decision']);
  politicalAssert(selected.includes(raw.country),'Кабинет вне выбранных участников');
  politicalText(raw.assessment,900);

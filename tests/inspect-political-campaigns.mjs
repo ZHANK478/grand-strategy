@@ -9,6 +9,10 @@ for(const name of cases){
  for(const t of report.turns){
   const errors=(t.policyErrors||[]).filter(e=>!logged.has(JSON.stringify(e)));
   errors.forEach(e=>logged.add(JSON.stringify(e)));
+  for(const r of replies.filter(r=>r.step===t.step&&r.type==='planner')){
+   const failures=(t.receipts||[]).filter(o=>o.technical||o.status==='blocked');
+   if(failures.length)console.log('PLANNER_FAILURE '+JSON.stringify({name,step:t.step,failures,response:r.response}));
+  }
   const turns=replies.filter(r=>r.step===t.step&&r.type==='cabinets');
   for(const r of turns){
    let data;try{data=JSON.parse(r.response);}catch{console.log('PACKET_PARSE '+JSON.stringify({name,step:t.step,usage:r.usage,response:r.response}));continue;}

@@ -1,7 +1,7 @@
 name: Recorded campaigns — free regression checks
 on:
   push:
-    branches: [fix/text-politics-reliability, main]
+    branches: [fix/autonomous-politics-20261004, main]
     paths:
       - 'news-*.js'
       - 'political-subjects.js'

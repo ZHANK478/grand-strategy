@@ -1,7 +1,7 @@
 name: Browser startup integration
 on:
   push:
-    branches: [main, fix/browser-startup, fix/text-politics-reliability]
+    branches: [main, fix/browser-startup, fix/autonomous-politics-20261004]
 permissions:
   contents: read
 jobs:

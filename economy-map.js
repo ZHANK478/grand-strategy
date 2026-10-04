@@ -755,7 +755,8 @@ function renderMapObjects() {
     const xy = proj(loc);
     if (!xy || !xy.every(Number.isFinite)) return;
     const quiet = d.type==='port'||d.maritimeMarker;
-    const k = quiet ? (d.type==='port'?.48:.7)/zoom : objectScale / zoom;
+    const portScale = window.matchMedia('(min-width: 1100px) and (pointer: fine)').matches ? 1.44 : .48;
+    const k = quiet ? (d.type==='port'?portScale:.7)/zoom : objectScale / zoom;
     const node = this, g = d3.select(node);
     if(node.__gsLeaving){g.interrupt('map-appearance').attr('opacity',1);node.__gsLeaving=false;}
     const changed = node.__gsLocation != null && node.__gsLocation !== d.location;

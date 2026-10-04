@@ -86,7 +86,7 @@ try{
     check(pending.every(o=>edition.domestic.some(a=>a.sourceOrder===o.id)),'Every submitted order has newspaper coverage');
     const ports=[...document.querySelectorAll('.map-obj')].filter(el=>el.__data__?.type==='port');
     check(ports.length>0&&ports.every(el=>el.querySelector('.mo-label').getAttribute('display')==='none'),'Every port marker has no label');
-    check(ports.every(el=>el.querySelector('.mo-sym').getBoundingClientRect().width<=6),'Port anchors remain smaller than six screen pixels');
+    check(ports.every(el=>el.querySelector('.mo-sym').getBoundingClientRect().width<=(window.matchMedia('(min-width: 1100px) and (pointer: fine)').matches?18:6)),'Port anchors use a larger desktop size and small mobile size');
     check(!document.getElementById('economy-body').innerHTML.includes('maritime-fleet-form'),'No mandatory fleet controls');
     check(document.getElementById('treasury').title.includes('млн р.е.'),'Consistent money units');
     const oldSB=sb,oldUser=gsUser;let row;

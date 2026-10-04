@@ -265,7 +265,7 @@ writeNewspaper=async function(edition){
  // Preserve every player's decision and lifecycle event; no three-article cap.
  const foreignFallback=abroad.length?[]:edition.foreign;
  const ranked=newsUnique([...abroad,...foreignFallback]).filter(e=>!flow.published.some(p=>p.key===newsKey(e)&&!e.coverage));
- ranked.sort((a,b)=>Number(!!b.respondsTo)-Number(!!a.respondsTo)+(b.priority||0)-(a.priority||0)+foreignNewsWeight(b)-foreignNewsWeight(a));
+ ranked.sort((a,b)=>foreignNewsWeight(b)-foreignNewsWeight(a)+(Number(!!b.respondsTo)-Number(!!a.respondsTo))*15+(b.priority||0)-(a.priority||0));
  edition.foreign=ranked.slice(0,7);
  if(!edition.foreign.length)edition.foreign=[{headline:'За рубежом без новых публичных решений',body:'За этот период не подтверждено новых публичных решений, отобранных для выпуска. Начатые программы и действующие договоры продолжают исполняться.',actors:[]}];
  if(ranked.length>7)edition.foreign.push({headline:'Другие международные известия',body:'Дополнительные события этого периода доступны ниже.',details:ranked.slice(7).map(e=>e.headline+'\n'+e.body).join('\n\n'),actors:[]});

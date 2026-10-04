@@ -1,7 +1,7 @@
 name: Text orders reliability
 on:
   push:
-    branches: [main, fix/text-politics-reliability]
+    branches: [main, fix/autonomous-politics-20261004]
 permissions:
   contents: read
 jobs:

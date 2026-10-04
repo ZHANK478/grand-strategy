@@ -102,6 +102,49 @@ try{
    console.log(mode+' NEWSPAPER leaves turn button clickable');
    console.log(mode+' RELIABILITY '+JSON.stringify(failures));
    assert.equal(errors.length,0,'No uncaught errors during failure handling');
+   
+   const protocolFixtures=JSON.parse(await readFile('tests/fixtures/political-protocol-replies-20261004.json','utf8'));
+   const protocol=await page.evaluate(async fixtures=>{
+    resetGame('Франция');const checks=[],ok=(v,label)=>{if(!v)throw Error(label);checks.push(label)};
+    const foreign=ALL_COUNTRIES.find(n=>n!==playerCountry&&!countries[n].annexed&&countries[n].treasury>10);
+    const third=ALL_COUNTRIES.find(n=>n!==playerCountry&&n!==foreign&&!countries[n].annexed);
+    ensureWorldActors();
+    const packet=d=>({country:foreign,assessment:'Оценка собственных торговых и политических интересов.',goals:[],nextReviewDays:30,decision:d});
+    executeTradePolicy(playerCountry,{action:'offer',target:foreign,type:'trade',rate:6,days:365});
+    const offer=maritimeState().tradeOffers.find(o=>o.a===playerCountry&&o.b===foreign&&o.status==='open');
+    const decision={goal:'Согласовать торговые условия',action:'accept',target:playerCountry,motive:'Принимаем конкретные взаимные условия без военных обязательств.',headline:'Правительство принимает торговые условия',body:'Правительство согласилось на взаимные пошлины. Военных обязательств договор не создаёт. Торговля продолжится по согласованной ставке.',
+     task:{goal:'Принять конкретное торговое предложение',executor:'Министр торговли',days:0,cost:0,result:'Приняты взаимные условия торговли.',headline:'Торговые условия согласованы',body:'Страны согласовали взаимные пошлины. Военных обязательств нет.',kind:'diplomacy',effects:{diplomatic_action:{action:'accept',target:playerCountry,type:'trade',offer_id:offer.id}}}};
+    policyState().round++;
+    ok(policyApply(packet(decision),[foreign],[]),'Actual trade receipt works through shared cabinet protocol');
+    ok(maritimeState().agreements.some(a=>a.status==='active'&&a.rate===6&&[a.a,a.b].includes(foreign)),'Exact offered rate becomes a real agreement');
+    const count=maritimeState().agreements.length;
+    policyState().round++;policyApply(packet(decision),[foreign],[]);
+    ok(maritimeState().agreements.length===count,'Repeated receipt cannot duplicate a concluded agreement');
+    executeTradePolicy(playerCountry,{action:'offer',target:third,type:'trade',rate:7,days:365});
+    const other=maritimeState().tradeOffers.find(o=>o.b===third&&o.status==='open');
+    const wrong=JSON.parse(JSON.stringify(decision));wrong.task.effects.diplomatic_action.offer_id=other.id;
+    let rejected=false;try{policyValidate(packet(wrong),[foreign]);}catch{rejected=true;}
+    ok(rejected&&other.status==='open','Cabinet cannot accept a proposal addressed to somebody else');
+    const before=countries[foreign].treasury,d=JSON.parse(JSON.stringify(fixtures.delegation));
+    d.actor_id=foreign+'::government';d.task.days=0;
+    const normalized=canonicalPoliticalDecision(d);
+    ok(!!normalized.task.instructions,'Free organisational instructions are retained rather than discarded');
+    policyState().round++;
+    ok(policyApply(packet(normalized),[foreign],[]),'Unenumerated diplomatic organisation executes');
+    ok(countries[foreign].treasury===before,'Organisational prose cannot conjure or transfer funds');
+    resetGame('Франция');worldState.periodEvents=[];worldState.newspaperHistory=[];
+    window.testEnsureAIForTurn=async()=>true;window.politicalRunRound=undefined;
+    queueOrder(fixtures.recruitment.text);
+    askGemini=async()=>JSON.stringify(fixtures.recruitment.reply);
+    const army=countries[playerCountry].army;
+    ok(await nextTurn('week')===true,'Actual recorded recruitment reply advances calendar');
+    const order=worldState.orders.find(o=>o.text===fixtures.recruitment.text);
+    ok(order.status==='in_progress'&&!order.technicalError,'Nested process metadata starts actual recruitment');
+    ok(countries[playerCountry].army<army+30000,'Recruitment retains training duration rather than instant soldiers');
+    return checks;
+   },protocolFixtures);
+   console.log(mode+' POLITICAL_PROTOCOL '+JSON.stringify(protocol));
+
    console.log(mode+' PASSED start/fullscreen/country and failure isolation');
   }catch(e){failures++;console.log(mode+' FAILED '+e.stack);console.log(mode+' DIAGNOSTICS '+JSON.stringify(await page.evaluate(()=>({load:window.GS_MAP_LOAD,start:typeof window.mobileStartGame,fullscreen:typeof window.mobileFullscreen,picker:document.getElementById('mobile-country-picker')?.value,disabled:document.getElementById('mobile-start-btn')?.disabled,menu:document.getElementById('main-menu')?.style.display}))));}
   await context.close();

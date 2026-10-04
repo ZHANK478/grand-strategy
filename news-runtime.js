@@ -114,9 +114,9 @@ orders: ровно один результат каждому приказу. С
 Типы:
 policy: operations:[{kind:"поддерживаемый тип кроме policy/political/unsupported/administration",effects:{}}], до 8 последовательных шагов ОДНОГО поручения. Используй для сложного намерения, например выделить собственную часть, посадить на транспорт и начать переход. Каждый шаг проверяется при исполнении после предыдущего. Отсутствие кнопки не причина отказа. Не обещай прибытие раньше маршрута или чужое согласие. Для организационной цели political_task хранит цель, исполнителя и срок.
 tax: economy:{tax_noble, tax_burgher,tax_commons}, 0..100.
-spending: society:{education_spending,welfare_spending,infrastructure_spending}, каждый 0..${Math.round(countries[playerCountry].income*.25)} в месяц.
+spending: society:{education_spending,welfare_spending,infrastructure_spending}, каждый 0..${Math.round(countries[playerCountry].gdp/12)} млн р.е. в месяц; фактическую платёжеспособность и дефицит проверит бюджет.
 finance: debt_delta, положительный заём одновременно увеличивает долг и казну.
-power: pm_name/pm_title/ruler_name/ruler_age/ruler_title/government/parliament:{dissolve:true|restore:true|ban_party:"имя"}. Государственный строй только из ${JSON.stringify(activeScenario.rules?.governments||[])}. Концентрация власти — попытка, исход решает код.
+power: pm_name/pm_title/ruler_name/ruler_age/ruler_title/government/parliament:{dissolve:true|restore:true|ban_party:"имя"}. Название государственного строя можно выбрать самостоятельно; известные формы служат ориентирами: ${JSON.stringify(activeScenario.rules?.governments||[])}. Концентрация власти — попытка, исход решает код.
 law: law_slots:{слот:ID}; варианты ${econLawSpecForPrompt()}. Если свободный закон не соответствует слотам, используй political_task с организационным/правовым результатом и поддерживаемым экономическим эффектом, если он нужен.
 army: army_delta; положительный набор ВСЕГДА минимум 90 дней и за деньги. Нельзя создавать готовых солдат.
 map: map_objects:[{action:"create|move|update|remove",id,type:"army|hq|naval|diplomat|other",owner:"ID",label,troops,location:"город или провинция",to:"цель для move"}]. Только собственные объекты; сумма солдат не больше национальной армии. Для пограничного размещения выбери известную собственную провинцию/город у нужного соседа. ID существующего объекта используй точно.

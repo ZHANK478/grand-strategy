@@ -1,0 +1,27 @@
+name: One-time authorised text campaigns
+on:
+  push:
+    branches: [fix/text-politics-reliability]
+    paths: [tests/live-text-campaigns.mjs]
+permissions:
+  contents: read
+jobs:
+  play:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm install --no-save --package-lock=false playwright
+      - run: npx playwright install --with-deps chromium
+      - run: node tests/news-continuity.test.mjs
+      - run: node tests/maritime-trade.test.mjs
+      - run: node tests/live-text-campaigns.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: text-campaigns-20261004
+          path: playtest-output/
+          retention-days: 7

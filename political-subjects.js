@@ -182,11 +182,11 @@ async function policyBatch(selected,results,phase){
  if(p.calls.used>=ceiling)return [];
  p.calls.used++;const acted=[];
  try{
-  const raw=await askGemini(policyPrompt(selected,results,phase),6000,0,{response_format:{type:'json_object'},reasoning_effort:'low'});
+  const raw=await askGemini(policyPrompt(selected,results,phase),8000,0,{response_format:{type:'json_object'},reasoning_effort:'low'});
   const data=parseOrderReply(raw);politicalAssert(Array.isArray(data.cabinets)&&data.cabinets.length<=selected.length,'Неверный список кабинетов');
   const seen=new Set();
   for(const item of data.cabinets){try{politicalAssert(!seen.has(item.country),'Повтор кабинета');seen.add(item.country);if(policyApply(item,selected,results))acted.push(item.country);}catch(error){policyState().audit.push({day:gameDayNumber(),country:item.country,error:String(error.message).slice(0,400)});}}
-  for(const id of selected.filter(n=>!seen.has(n)))p.audit.push({day:gameDayNumber(),country:id,error:'Кабинет не получил решение; повторная оценка на следующем периоде.'});
+  for(const id of selected.filter(n=>!seen.has(n)))policyState().audit.push({day:gameDayNumber(),country:id,error:'Кабинет не получил решение; повторная оценка на следующем периоде.'});
  }catch(error){p.audit.push({day:gameDayNumber(),phase,error:String(error.message).slice(0,400)});showNotif('Оценка иностранных кабинетов не получена. Действия не выдуманы; время продолжится.');}
  policyState().audit=policyState().audit.slice(-30);return acted;
 }
@@ -199,7 +199,7 @@ async function runPoliticalRound(results=[],opts={}){
  // Recipients not yet reviewed respond to committed initiatives. No recursive loop.
  policyScanWorld();
  const eligible=policySelect(policyLive().length,true).filter(n=>!selected.includes(n)||policyCabinet(n).inbox.some(i=>i.status==='open'&&!originalSignals.get(n)?.has(i.id)));
- const recipients=eligible.slice(0,3);if(recipients.length)p.round++;
+ const recipients=eligible.slice(0,3);if(recipients.length)policyState().round++;
  await policyBatch(recipients,[], 'response');
 }
 window.politicalRunRound=runPoliticalRound;

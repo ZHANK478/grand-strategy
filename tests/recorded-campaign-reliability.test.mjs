@@ -27,18 +27,24 @@ try{
   const orders=line?JSON.parse(line):[];
   await route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({choices:[{message:{content:JSON.stringify({orders:orders.map(o=>({id:o.id,kind:'unsupported',status:'defer',reason:'Тестовый ответ транспорта, не политическое решение.',effects:{},article:{headline:'Проверка подготовки запроса',body:'Это бесплатная проверка транспорта. Решение не исполняется.'}})),politics:[]})},finish_reason:'stop'}]})});
  });
- const page=await context.newPage(),errors=[];page.on('console',m=>{if(m.text().startsWith('PLANNING_FIXTURE '))console.log(m.text());});page.on('pageerror',e=>errors.push(e.message));
+ const page=await context.newPage(),errors=[];page.on('pageerror',e=>errors.push(e.message));
  await page.goto('http://127.0.0.1:8765/economy-world.html',{waitUntil:'load'});
  await page.waitForFunction(()=>window.GS_MAP_LOAD?.status==='ready',{},{timeout:30000});
  await page.selectOption('#mobile-country-picker','Франция');await page.click('#mobile-start-btn');
  await page.evaluate(async()=>{document.getElementById('test-ai-key').value='sk-or-offline-fixture';await testUseOpenRouterKey();});
- for(const country of ['Франция','Пруссия']){
-  const saved=JSON.parse(await readFile('playtest-seed/'+country+'-state.json','utf8'));
-  await page.evaluate(async saved=>{localStorage.setItem(SAVE_PREFIX+'reliability-probe',JSON.stringify(saved));if(!await loadGameSlot('reliability-probe'))throw Error('Checkpoint not loaded');},saved);
+ const fixtures=JSON.parse(await readFile('tests/fixtures/order-context-late-1852.json','utf8'));
+ await page.evaluate(()=>{window.__originalPoliticalContext=politicalContext;});
+ for(const fixture of fixtures){
+  await page.evaluate(fixture=>{
+   politicalContext=window.__originalPoliticalContext;resetGame(fixture.country);
+   const c=countries[playerCountry];Object.assign(c,fixture.own);
+   c.gdp=fixture.context.player.gdp;c.population=fixture.context.player.population;c.debt=fixture.context.player.debt;
+   worldState.orders=fixture.context.pending.map(o=>({...o,status:'deferred',createdTurn:turn}));
+   politicalContext=()=>JSON.parse(JSON.stringify(fixture.context));
+  },fixture);
   const measured=await page.evaluate(async()=>{
    const raw=politicalContext(),ctx=orderPlanningContext(),before=countries[playerCountry].treasury;
    const size=o=>JSON.stringify([{role:'user',content:compactPoliticalJSON(o)}]).length;
-   console.log('PLANNING_FIXTURE '+JSON.stringify({country:playerCountry,context:raw,own:{treasury:before,army:countries[playerCountry].army,ruler:countries[playerCountry].ruler,rulerTitle:countries[playerCountry].rulerTitle,pm:countries[playerCountry].pm,pmTitle:countries[playerCountry].pmTitle,government:countries[playerCountry].government}}));
    const plan=await generateOrderPlan();
    if(countries[playerCountry].treasury!==before)throw Error('Context preparation mutated treasury');
    if(ctx.player.treasury!==Number(before.toPrecision(7)))throw Error('Treasury omitted');
@@ -50,8 +56,9 @@ try{
   console.log('CONTEXT '+JSON.stringify({...measured,wire}));
   assert.ok(wire<120000,'Ten-month request must fit with margin below server limit');
   assert.ok(measured.compact<measured.raw*.75,'Reduce repeated foreign data substantially');
-  assert.equal(measured.orders,saved.worldState.orders.filter(o=>['prepared','deferred'].includes(o.status)).length,'Every pending order retained');
+  assert.equal(measured.orders,fixture.context.pending.length,'Every pending order retained');
  }
+ await page.evaluate(()=>{politicalContext=window.__originalPoliticalContext;});
  // Shared cabinet parser accepts the same category conventions as player orders.
  const cabinet=await page.evaluate(()=>{
   const id=ALL_COUNTRIES.find(n=>n!==playerCountry&&!countries[n].annexed),decision={goal:'Улучшить налоговое управление',action:'pursue',motive:'Укрепить устойчивость бюджета.',headline:'Кабинет меняет налоговую политику',body:'Кабинет уточняет налоговое управление. Новые правила будут исполняться ведомствами.',task:{goal:'Улучшить налоговое управление',executor:'Министр финансов',days:0,cost:0,result:'Правила утверждены.',kind:'economic',effects:{operations:[{kind:'tax',effects:{economy:{tax_burgher:10}}}]}}};

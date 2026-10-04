@@ -186,6 +186,7 @@ function buildCountriesFromScenario() {
       parliament: d.parliament ? JSON.parse(JSON.stringify(d.parliament)) : null,
       church: d.church?JSON.parse(JSON.stringify(d.church)):undefined,
       religion: d.religion ? JSON.parse(JSON.stringify(d.religion)) : null,
+      institutionSeed:d.institutionSeed?JSON.parse(JSON.stringify(d.institutionSeed)):null,
       rulerReligion: d.rulerReligion || null,
       agenda: d.agenda || '', profilePending: !!d.profilePending,
       colorOverride: null, portrait: null, pmPortrait: null,

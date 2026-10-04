@@ -20,7 +20,7 @@ function ensureWorldActors(){
  return all;
 }
 function actorAvailable(a){
- const c=countries[a.country];return c&&!c.annexed&&!(a.kind==='parliament'&&!c.parliament);
+ const c=countries[a.country];return c&&!c.annexed&&!(a.kind==='parliament'&&!c.parliament)&&(!a.institutionKey||window.institutionActorAvailable?.(a)!==false);
 }
 function actorRemember(a,text){
  a.memory.push({date:dateLabel(),day:gameDayNumber(),text:String(text).slice(0,500)});

@@ -24,7 +24,7 @@ try{
   try{
    await page.goto('http://127.0.0.1:8765/index.html',{waitUntil:'load',timeout:60000});
    await page.waitForURL(url=>url.pathname.endsWith('/economy-world.html'),{timeout:10000});
-   assert.equal(new URL(page.url()).searchParams.get('v'),'15','Root entry uses current release');
+   assert.equal(new URL(page.url()).searchParams.get('v'),'16','Root entry uses current release');
    await page.waitForFunction(()=>window.GS_MAP_LOAD?.status==='ready',{},{timeout:30000});
    console.log(mode+' BEFORE '+JSON.stringify(await page.evaluate(()=>({status:window.GS_MAP_LOAD,start:typeof window.mobileStartGame,fullscreen:typeof window.mobileFullscreen,picker:document.getElementById('mobile-country-picker').value,disabled:document.getElementById('mobile-start-btn').disabled}))));
    if(mode==='phone'){
@@ -45,6 +45,20 @@ try{
    assert.equal(await page.evaluate(()=>window.__fullscreenCalls),1);
    await page.click('#mobile-flag-button');
    assert.equal(await page.locator('#left-panel').evaluate(el=>getComputedStyle(el).display!=='none'),true);
+   await page.locator('#left-panel button.cbtn').filter({hasText:'Религия'}).click();
+   assert.match(await page.locator('#religion-box').innerText(),/Католицизм|Свобода совести/);
+   await page.locator('#left-panel button.cbtn').filter({hasText:'Церковь'}).click();
+   assert.match(await page.locator('#church-box').innerText(),/Сотрудничество|Общественное влияние/);
+   const institutions=await page.evaluate(()=>{
+    const oldCountry=playerCountry;playerCountry='Великобритания';
+    ensureWorldActors();renderParliamentPanel();
+    const parliament=document.getElementById('parliament-box').textContent,stats=institutionFacts(playerCountry);
+    playerCountry=oldCountry;renderPlayerPowerPanel();
+    return {parliament,seats:stats.assembly.seatsSupporting,faiths:institutionFacts(oldCountry).religion.communities.length};
+   });
+   assert.match(institutions.parliament,/Виги|Консерваторы/);
+   assert.equal(institutions.seats,52);assert.ok(institutions.faiths>=3);
+
    await page.evaluate(()=>{economySetTab('sea');openEconomyPanel();});
    assert.match(await page.locator('#economy-body').innerText(),/Флот|Эскадр|эскадр/);
    await page.evaluate(()=>mobileSection('map'));

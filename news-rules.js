@@ -2,7 +2,7 @@
 (function(root){
 'use strict';
 const KIND_FIELDS={
- policy:['operations'],narrative:['court_scene'],economic:['economic_policy'],tax:['economy'],spending:['society'],law:['law_slots','laws','institutions'],
+ policy:['operations'],narrative:['court_scene'],economic:['economic_policy','parliament'],tax:['economy','parliament'],spending:['society','parliament'],law:['law_slots','laws','institutions','parliament'],
  power:['country_name','transition','government','ruler_name','ruler_age','ruler_title','pm_name','pm_title','parliament'],
  army:['army_delta','map_objects'],map:['map_objects'],finance:['debt_delta'],
  naval:['naval_order'],trade:['trade_policy'],military:['military_order'],diplomacy:['diplomatic_action','relations','treaties','war_declared','peace_made','province_transfer'],
@@ -80,10 +80,24 @@ function validateEffects(raw,ctx,scope,kind){
  if(e.society){keys(e.society,['education_spending','welfare_spending','infrastructure_spending']);e.society=clean(e.society);Object.values(e.society).forEach(v=>number(v,0,Math.max(0,mine.gdp/12)));}
  if(e.law_slots){keys(e.law_slots,Object.keys(ctx.lawSlots));e.law_slots=clean(e.law_slots);Object.entries(e.law_slots).forEach(([s,v])=>check(ctx.lawOption(s,v),'Нет такого варианта закона'));}
  if(e.laws){list(e.laws,5);e.laws.forEach(l=>{keys(l,['action','name','description']);check(['enact','repeal'].includes(l.action),'Неверное действие с законом');text(l.name,120);if(l.description!=null)text(l.description,500);});}
- if(e.institutions){keys(e.institutions,['church']);check(['abolish','restore'].includes(e.institutions.church),'Неверное действие с церковью');}
+ if(e.institutions){
+  keys(e.institutions,['church','church_policy','church_name','church_influence_delta','religious_freedom_delta','ruler_religion']);
+  const i=e.institutions;
+  if(i.church!=null)check(['abolish','restore'].includes(i.church),'Неверное действие с церковью');
+  if(i.church_policy!=null)check(['recognized','separated','suppressed'].includes(i.church_policy),'Неверное положение духовенства');
+  if(i.church!=null&&i.church_policy!=null)check((i.church==='restore'&&i.church_policy==='recognized')||(i.church==='abolish'&&i.church_policy!=='recognized'),'Противоречивое положение духовенства');
+  ['church_name','ruler_religion'].forEach(k=>{if(i[k]!=null)text(i[k],120);});
+  ['church_influence_delta','religious_freedom_delta'].forEach(k=>{if(i[k]!=null)number(i[k],-20,20);});
+ }
  if(e.parliament){
-  keys(e.parliament,scope==='world'?['support_delta','factions','veto']:['dissolve','restore','ban_party','veto']);
+  keys(e.parliament,scope==='world'?['support_delta','factions','veto']:['dissolve','restore','ban_party','veto','name','power_delta','term_years','election','route']);
   const p=clean(e.parliament);
+  if(p.name!=null)text(p.name,120);
+  if(p.power_delta!=null)number(p.power_delta,-30,30);
+  if(p.term_years!=null){number(p.term_years,1,15);check(Number.isInteger(p.term_years),'Срок должен быть целым');}
+  if(p.election!=null)check(p.election===true&&mine.parliament,'Выборы требуют представительного органа');
+  if(p.route!=null)check(['bill','decree'].includes(p.route),'Неверный способ принятия решения');
+  if(p.route==='decree')check(!p.veto,'Указ не может одновременно содержать вето');
   if(p.support_delta!=null)number(p.support_delta,-10,10);
   ['dissolve','restore'].forEach(k=>{if(p[k]!=null)check(typeof p[k]==='boolean','Неверное действие с парламентом');});
   check(!(p.dissolve&&p.restore),'Нельзя одновременно распустить и созвать парламент');
@@ -162,6 +176,7 @@ function powerChance(c){
 function authority(order,c,random=Math.random){
  const e=order.effects,p=c.parliament;
  if(order.status!=='execute')return {status:order.status==='reject'?'rejected':'deferred',reason:order.reason};
+ const institutional=root.institutionAuthority?.(order,c);if(institutional)return institutional;
  if(e.parliament?.veto)return {status:'blocked',reason:'Парламент заблокировал решение: '+e.parliament.veto};
  if(['economic','trade','tax','spending','law'].includes(order.kind)&&p&&(p.power??50)>=50&&p.support<50)return {status:'blocked',reason:'Нужна поддержка парламента: '+p.support+'/100; власть парламента '+p.power+'/100.'};
  if(order.kind==='power'){

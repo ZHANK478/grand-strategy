@@ -3,7 +3,7 @@
 'use strict';
 function conquestState(){
  const s=worldState.conquest||={version:1,baseline:{},administrations:{},history:[],observed:null};
- s.baseline||={};s.administrations||={};s.history||=[];
+ s.baseline||={};s.administrations||={};s.history||=[];s.mandates||=[];
  for(const p of scenarioProvinces)if(!s.baseline[p.id])s.baseline[p.id]={owner:p.owner,gdp:provinceEcon[p.id]?.gdp||0,population:provinceEcon[p.id]?.pop||0};
  for(const p of scenarioProvinces){const b=s.baseline[p.id],e=provinceEcon[p.id];if(e&&b.gdp<=0)b.gdp=e.gdp||0;if(e&&b.population<=0)b.population=e.pop||0;}
  return s;
@@ -21,28 +21,36 @@ function conquestRefreshGovernments(){
   c.governance||={};c.governance.territorialStatus=territory.status;
  }
 }
-function conquestProvinces(owner,d){
+function conquestApproaching(owner,id){return strategyState().routes.some(r=>worldState.mapObjects.some(u=>u.id===r.unit&&u.owner===owner&&u.troops>0)&&r.path.includes(id)&&isAtWar(owner,strategyControl(strategyProvince(id))));}
+function conquestProvinces(owner,d,allowPending=false){
  strategyKeys(d,['action','target','terms','message']);
  strategyAssert(['administer','annex'].includes(d.action),'Неизвестное территориальное поручение');
  strategyAssert(d.target&&countries[d.target]&&d.target!==owner,'Нужен существующий иностранный адресат');
  if(d.message)strategyText(d.message,900);
  if(d.terms)strategyKeys(d.terms,['provinces']);
- const list=d.terms?.provinces||scenarioProvinces.filter(p=>strategyOwner(p)===d.target&&strategyControl(p)===owner).map(p=>p.id);
+ const list=d.terms?.provinces||scenarioProvinces.filter(p=>strategyControl(p)===owner&&(strategyOwner(p)===d.target||strategyOwner(p)===owner&&conquestState().administrations[p.id]?.formerOwner===d.target)).map(p=>p.id);
  strategyAssert(Array.isArray(list)&&list.length>0&&list.length<=100&&new Set(list).size===list.length,'Нужно указать фактически контролируемую землю');
  const provinces=list.map(strategyProvince);
- strategyAssert(provinces.every(p=>p&&strategyControl(p)===owner),'Установить управление можно только там, где есть фактический контроль своих сил');
+ strategyAssert(provinces.every(p=>p&&(strategyControl(p)===owner||allowPending&&conquestApproaching(owner,p.id))),'Установить управление можно только там, где есть фактический контроль своих сил');
  strategyAssert(provinces.every(p=>strategyOwner(p)===d.target||strategyOwner(p)===owner&&conquestState().administrations[p.id]?.formerOwner===d.target),'Земля должна принадлежать указанной стороне или уже быть присоединена у неё');
- strategyAssert(!provinces.some(p=>worldState.mapObjects.some(u=>u.type==='army'&&u.owner!==owner&&isAtWar(owner,u.owner)&&strategyUnitProvince(u)===p.id&&u.troops>0)),'На этой земле ещё находится вражеская армия; сначала требуется установить действительный контроль');
+ strategyAssert(!provinces.some(p=>strategyControl(p)===owner&&worldState.mapObjects.some(u=>u.type==='army'&&u.owner!==owner&&isAtWar(owner,u.owner)&&strategyUnitProvince(u)===p.id&&u.troops>0)),'На этой земле ещё находится вражеская армия; сначала требуется установить действительный контроль');
  d.terms={provinces:provinces.map(p=>p.id)};return provinces;
 }
 const conquestOldValidateDiplomacy=validateDiplomaticAction;
 validateDiplomaticAction=function(d,owner){
- if(['administer','annex'].includes(d.action)){conquestProvinces(owner,d);return d;}
+ if(['administer','annex'].includes(d.action)){conquestProvinces(owner,d,true);return d;}
+ if(d.action==='demand'&&!d.contract_id&&!d.obligation&&d.amount==null&&d.target){const target=d.target,message=d.message||'Дипломатическое требование: '+compactPoliticalJSON({goal:d.goal,terms:d.terms});for(const k of Object.keys(d))delete d[k];Object.assign(d,{action:'communicate',target,message});}
  if(d.action==='aid'){strategyKeys(d,['action','target','amount','message']);strategyCountry(d.target);strategyAssert(d.target!==owner,'Нужен иностранный получатель');strategyNum(d.amount,1,1e7);strategyAssert(countries[owner].treasury>=d.amount,'Казна не обеспечивает сумму помощи');if(d.message)strategyText(d.message,900);return d;}
  return conquestOldValidateDiplomacy(d,owner);
 };
 function conquestApply(owner,d){
- const provinces=conquestProvinces(owner,d),s=conquestState(),changes=[];
+ const provinces=conquestProvinces(owner,d,true),s=conquestState();
+ if(provinces.some(p=>strategyControl(p)!==owner)){
+  let mandate=s.mandates.find(m=>m.status==='active'&&m.owner===owner&&m.action===d.action&&m.target===d.target&&JSON.stringify(m.provinces)===JSON.stringify(d.terms.provinces));
+  if(!mandate){mandate={id:crypto.randomUUID(),owner,action:d.action,target:d.target,provinces:d.terms.provinces.slice(),status:'active',day:gameDayNumber()};s.mandates.push(mandate);}
+  return {status:'in_progress',reason:'Поручение сохранено; управление или присоединение начнётся после фактического занятия указанной земли.',mandate:mandate.id};
+ }
+ const changes=[];
  for(const p of provinces){
   const old=s.administrations[p.id],mode=d.action==='annex'?'annexation':'occupation';
   if(old?.controller===owner&&(old.mode===mode||old.mode==='annexation'))continue;
@@ -76,6 +84,7 @@ function conquestApply(owner,d){
 }
 const conquestOldDiplomacy=executeDiplomaticAction;
 executeDiplomaticAction=function(owner,d){
+ validateDiplomaticAction(d,owner);
  if(d.action==='aid'){validateDiplomaticAction(d,owner);countries[owner].treasury-=d.amount;countries[d.target].treasury+=d.amount;
   strategyEvent(owner,'Предоставлена государственная финансовая помощь',owner+' передала '+d.target+' '+economyFmt(d.amount)+' млн р.е. Казна отправителя уменьшилась, казна получателя увеличилась. Это средства, а не мгновенно созданные войска или оружие.',[d.target]);
   conquestState().history.push({id:crypto.randomUUID(),owner,formerOwner:d.target,action:'aid',amount:d.amount,provinces:[],day:gameDayNumber()});return {status:'executed',reason:'Финансовая помощь реально перечислена получателю.'};
@@ -94,9 +103,9 @@ econMonthlyRevenue=function(c){
 const conquestOldBudget=econBudget;
 econBudget=function(c){
  const b=conquestOldBudget(c),owner=ALL_COUNTRIES.find(n=>countries[n]===c);if(!owner)return b;
- const administrations=Object.entries(conquestState().administrations).filter(([id,a])=>a.active&&a.controller===owner&&strategyControl(strategyProvince(id))===owner);
+ const administrations=Object.entries(conquestState().administrations).filter(([id,a])=>a.active&&a.mode==='occupation'&&a.controller===owner&&strategyOwner(strategyProvince(id))!==owner&&strategyControl(strategyProvince(id))===owner);
  const upkeep=administrations.reduce((n,[id])=>n+(provinceEcon[id]?.gdp||0)/12*.015,0);
- if(!upkeep)return b;
+ if(!upkeep)return {...b,territorialAdministration:0};
  return {...b,expense:b.expense+upkeep,net:b.net-upkeep,territorialAdministration:upkeep,
   lines:{...b.lines,expense:[...b.lines.expense,{name:'Военное и переходное управление',value:upkeep}]}};
 };
@@ -161,31 +170,83 @@ const conquestOldScan=policyScanWorld;
 policyScanWorld=function(){conquestOldScan();conquestScan();};
 const conquestOldPublic=policyPublicFacts;
 policyPublicFacts=function(owner){return {...conquestOldPublic(owner),territory:conquestTerritory(owner)};};
+const conquestOldPolicyValidate=policyValidate;
+policyValidate=function(raw,selected){
+ const copy=JSON.parse(JSON.stringify(raw));
+ // A former recipient in a long-lived goal must not invalidate a different, valid decision.
+ for(const g of copy.goals||[])if(g.target&&countries[orderCountry(g.target)]?.annexed)g.target=null;
+ return conquestOldPolicyValidate(copy,selected);
+};
 const conquestOldContext=policyContext;
 policyContext=function(...args){
- const c=conquestOldContext(...args),world=conquestWorldFacts();c.worldSituation=world;
+ for(const id of args[0]||[]){const cabinet=policyCabinet(id);for(const g of cabinet.goals||[])if(g.target&&countries[g.target]?.annexed){g.historicalTarget=g.target;g.target=null;g.needsReassessment=true;}}
+ const c=conquestOldContext(...args),world=conquestWorldFacts();c.worldSituation=world;c.requestedCabinets=(args[0]||[]).slice();
  for(const cabinet of c.cabinets){cabinet.exposure=conquestExposure(cabinet.id,world);cabinet.interests.security.territory=conquestTerritory(cabinet.id);}
  return c;
 };
+
+function conquestTickMandates(){
+ for(const m of conquestState().mandates.filter(m=>m.status==='active')){
+  const order=worldState.orders.find(o=>o.conquestMandates?.includes(m.id));
+  try{
+   const ready=m.provinces.filter(id=>strategyControl(strategyProvince(id))===m.owner);
+   if(ready.length){const start=(worldState.periodEvents||[]).length;conquestApply(m.owner,{action:m.action,target:m.target,terms:{provinces:ready}});if(order)for(const e of (worldState.periodEvents||[]).slice(start))e.sourceOrder||=order.id;m.provinces=m.provinces.filter(id=>!ready.includes(id));}
+   if(!m.provinces.length)m.status='completed';
+   else if(!m.provinces.every(id=>conquestApproaching(m.owner,id))){m.status='failed';m.reason='Войска не установили контроль. Последующий шаг поручения не исполнен; начатая кампания не отменяется.';}
+  }catch(error){m.status='failed';m.reason=error.message;}
+  if(order){
+   const siblings=conquestState().mandates.filter(x=>order.conquestMandates.includes(x.id));
+   order.status=siblings.some(x=>x.status==='active')?'in_progress':siblings.some(x=>x.status==='failed')?'failed':'executed';
+   order.reason=m.reason||(order.status==='executed'?'Следующие шаги поручения исполнены на фактически занятой земле.':'Ожидается фактическое занятие земли.');
+   order.after=orderStatSnapshot(countries[m.owner]);
+  }
+ }
+}
+const conquestOldApplyPlan=applyOrderPlan;
+applyOrderPlan=function(plan){
+ const before=new Set(conquestState().mandates.map(m=>m.id)),results=conquestOldApplyPlan(plan);
+ for(const o of results.filter(o=>o.status==='executed')){
+  const actions=o.effects?.diplomatic_action?[o.effects.diplomatic_action]:(o.effects?.operations||[]).map(x=>x.effects?.diplomatic_action).filter(Boolean);
+  const ids=conquestState().mandates.filter(m=>!before.has(m.id)&&m.status==='active'&&actions.some(d=>d.action===m.action&&d.target===m.target)).map(m=>m.id);
+  if(ids.length){o.status='in_progress';o.conquestMandates=ids;o.reason='Начатые действия исполнены; следующий шаг ждёт фактического занятия земли.';}
+ }
+ return results;
+};
+function conquestCompactHistory(value){
+ if(Array.isArray(value))return value.map(conquestCompactHistory);
+ if(!value||typeof value!=='object')return value;
+ const out={};
+ for(const [key,v]of Object.entries(value)){
+  if(key==='observedBy'||key==='fact'&&typeof value.summary==='string'&&value.summary.endsWith(v)||key==='interest'&&value.goal===v)continue;
+  if(['followUps','memory','disputes','lastSignals'].includes(key)&&Array.isArray(v)){out[key]=v.slice(-1).map(conquestCompactHistory);continue;}
+  out[key]=typeof v==='string'&&['summary','fact','text','motive','assessment','goal','reason','result','success','material','body'].includes(key)?policyBrief(v,400):conquestCompactHistory(v);
+ }
+ return out;
+}
+
 const conquestOldPlanning=orderPlanningContext;
 orderPlanningContext=function(...args){const c=conquestOldPlanning(...args);
  // Existing finance, military and social fields remain authoritative. Drop only repeated prose and generated geographic labels.
- const generic=p=>{const original=strategyProvince(p.id||p.province);return /\\s+\\d+$/.test(p.name||'')&&(p.name||'').replace(/\\s+\\d+$/,'').toLowerCase()===String(original?.owner||p.owner).toLowerCase();};
+ const generic=p=>{const original=strategyProvince(p.id||p.province);return /\s+\d+$/.test(p.name||'')&&(p.name||'').replace(/\s+\d+$/,'').toLowerCase()===String(original?.owner||p.owner).toLowerCase();};
  for(const rows of [c.strategy?.militaryLocations,c.landingCoasts])if(rows)for(const p of rows)if(generic(p))delete p.name;
  if(c.playerObservation?.facts){const f=c.playerObservation.facts;c.playerObservation.facts=Object.fromEntries(['agenda','posture','warPreparation','stability','relations','economics'].filter(k=>f[k]!=null).map(k=>[k,f[k]]));}
+ if(c.domesticActors&&c.actors){const ids=new Set(c.domesticActors.map(a=>a.id));c.actors=[...c.domesticActors.map(a=>({...c.actors.find(old=>old.id===a.id),...a})),...c.actors.filter(a=>!ids.has(a.id))];delete c.domesticActors;}
+ if(c.issues)c.issues=c.issues.filter(i=>i.sender===playerCountry||i.recipient===playerCountry);
+ for(const key of ['recentEvents','politicalEvents','actors','domesticActors','issues','decisions','recentOrders'])if(c[key])c[key]=conquestCompactHistory(c[key]);
+ if(c.actors)c.actors=c.actors.map(a=>{delete a.country;a.memory=(a.memory||[]).map(m=>typeof m==='string'?policyBrief(m,160):{...m,text:policyBrief(m.text,160)});return a;});
  c.worldSituation=conquestWorldFacts();c.occupiedLand=scenarioProvinces.filter(p=>strategyControl(p)===playerCountry&&strategyOwner(p)!==playerCountry).map(p=>({id:p.id,name:p.name,owner:strategyOwner(p)}));return c;};
 const conquestOldAsk=askGemini;
 askGemini=async function(prompt,...args){
  if(typeof prompt==='string'&&(prompt.includes('Свободные приказы:')||prompt.startsWith('POLITICAL_CABINETS_V1'))){
-  prompt+='\nЗАНЯТАЯ ЗЕМЛЯ: kind:diplomacy effects:{diplomatic_action:{action:"administer" для управления ИЛИ "annex" для присоединения,target:"прежний владелец",terms:{provinces:["ID фактически контролируемой земли"]}}}. Без terms выбирается вся контролируемая земля target. Подпись побеждённого и третьих держав для этих действий не нужна; чужое признание и договорной мир отдельно. Не передавай ещё не занятую землю или чужую армию текстом. Финансовая помощь: kind:diplomacy effects:{diplomatic_action:{action:"aid",target:"получатель",amount:сумма млн р.е. из собственной казны}}; это деньги, не готовое оружие/солдаты. territory.status:displaced — кабинет утратил внутреннее управление, но может искать помощь и возвращение власти. Газета не подменяет заявление восстановлением контроля.';
+  prompt+='\nЗАНЯТАЯ ЗЕМЛЯ: kind:diplomacy effects:{diplomatic_action:{action:"administer" для управления ИЛИ "annex" для присоединения,target:"прежний владелец",terms:{provinces:["ID фактически контролируемой земли"]}}}. Без terms выбирается вся контролируемая земля target. Если армия уже движется к этой земле, поручение ждёт фактического занятия и не отменяет марш. Подпись побеждённого и третьих держав для этих действий не нужна; чужое признание и договорной мир отдельно. Не передавай ещё не занятую землю или чужую армию текстом. Финансовая помощь: kind:diplomacy effects:{diplomatic_action:{action:"aid",target:"получатель",amount:сумма млн р.е. из собственной казны}}; это деньги, не готовое оружие/солдаты. territory.status:displaced — кабинет утратил внутреннее управление, но может искать помощь и возвращение власти. Газета не подменяет заявление восстановлением контроля. Обычное требование/запрос транзита — communicate с message; demand/fulfill только для существующего contract/claim. Письмо не создаёт разрешение прохода.';
  }
  if(typeof prompt==='string'&&prompt.startsWith('POLITICAL_CABINETS_V1')){
-  prompt+='\nОЦЕНКА МИРА: worldSituation — все войны, накопленные захваты, доля потерянного производства, армии за рубежом и потери; exposure — твои соседи, договоры и силы у границы. Оцени цену окончательной победы расширяющейся державы для своих интересов и цену бездействия. Коалиция не предписана историей. Нейтралитет обоснуй с условием/сроком пересмотра; при растущей угрозе выбирай предметную помощь, совместное сдерживание, мобилизацию, размещение, флот или вмешательство через реальные effects. Не повторяй протест вместо продолжения политики. Обещание помощи не является поставкой.';
+  prompt+='\nОЦЕНКА МИРА: worldSituation — все войны, накопленные захваты, доля потерянного производства, армии за рубежом и потери; exposure — твои соседи, договоры и силы у границы. Оцени цену окончательной победы расширяющейся державы для своих интересов и цену бездействия. Отвечай только за requestedCabinets; player не является выбранным кабинетом. Цели с historicalTarget/needsReassessment требуют пересмотра адресата: annexed не отдельная действующая страна. Историческое непризнание не возвращает её учреждения. Коалиция не предписана историей. Нейтралитет обоснуй с условием/сроком пересмотра; при растущей угрозе выбирай предметную помощь, совместное сдерживание, мобилизацию, размещение, флот или вмешательство через реальные effects. Не повторяй протест вместо продолжения политики. Обещание помощи не является поставкой.';
  }
  return conquestOldAsk(prompt,...args);
 };
 const conquestOldAdvance=advanceGameDays;
-advanceGameDays=function(n){const out=conquestOldAdvance(n);conquestScan();return out;};
+advanceGameDays=function(n){const out=conquestOldAdvance(n);conquestTickMandates();conquestScan();return out;};
 const conquestOldReset=resetGame;
 resetGame=function(...args){const out=conquestOldReset(...args);conquestState().observed=JSON.stringify(scenarioProvinces.map(p=>[p.id,strategyOwner(p),strategyControl(p)]));conquestRefreshGovernments();return out;};
 window.CONQUEST_WORLD_BALANCE=true;

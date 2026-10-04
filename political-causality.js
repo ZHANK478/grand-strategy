@@ -183,10 +183,10 @@ const causalOldApply=policyApply;
 policyApply=function(raw,selected,results){
  const eventStart=(worldState.periodEvents||[]).length;
  const applied=causalOldApply(raw,selected,results);if(!applied)return false;
- const impact=causalValidateSignal(raw.signal,orderCountry(raw.country));
+ const impact=causalValidateSignal(raw.signal||raw.decision?.signal,orderCountry(raw.country));
  if(impact)for(const e of worldState.periodEvents.slice(eventStart))if(e.policyAction){e.policySignal=impact;e.visibility=impact.visibility;}
  causalScan();
- for(const decision of (raw.actors||[]).slice(0,2)){
+ for(const decision of (raw.actors||raw.decision?.actors||[]).slice(0,2)){
   try{const d=canonicalPoliticalDecision(decision),a=ensureWorldActors()[d.actor_id];politicalAssert(a?.country===orderCountry(raw.country)&&a.kind!=='government','Внутренняя позиция другого государства');validatePoliticalDecision(d);executePoliticalDecision(d,[]);}catch(error){policyState().audit.push({country:raw.country,error:'Позиция внутреннего участника: '+String(error.message).slice(0,300),day:gameDayNumber()});}
  }
  causalScan();

@@ -146,6 +146,7 @@ function policyPrompt(selected,results,phase){
 }
 function policyValidate(raw,selected){
  raw=JSON.parse(JSON.stringify(raw));
+ for(const key of ['signal','actors'])if(Object.hasOwn(raw.decision||{},key)){politicalAssert(raw[key]==null||JSON.stringify(raw[key])===JSON.stringify(raw.decision[key]),'Противоречивое политическое поле: '+key);raw[key]??=raw.decision[key];delete raw.decision[key];}
  if(Object.hasOwn(raw,'responds_to')){politicalAssert(raw.decision&&(raw.decision.responds_to==null||raw.decision.responds_to===raw.responds_to),'Противоречивая ссылка ответа');raw.decision.responds_to=raw.responds_to;delete raw.responds_to;}
  raw.country=orderCountry(raw.country);for(const g of raw.goals||[])if(g.target)g.target=orderCountry(g.target);
  politicalKeys(raw,['country','assessment','goals','nextReviewDays','decision','signal','actors']);
@@ -236,9 +237,8 @@ async function policyCommitBatch(batch,results,repair=true){
  }
  if(repair&&invalid.length){
   try{
-   const fixed=parseOrderReply(await askGemini(prompt+
-    '\nВОССТАНОВЛЕНИЕ ФОРМАТА. Только неисполненные кабинеты ниже. Применение остальных решений уже закончено. Исправь формат по схеме; используй актуальные предложения, ресурсы и войны. Не принимай законченные договоры снова. Сохрани намерение, чужое согласие не выдумывай. Верни {cabinets:[...]}.\nОшибки: '+JSON.stringify(invalid)+
-    '\nАктуальные факты после проверки: '+compactPoliticalJSON(policyContext(invalid.map(x=>x.country).filter(n=>selected.includes(n)),results,'repair')),4200,0,{response_format:{type:'json_object'},reasoning_effort:'low'}));
+   const fixed=parseOrderReply(await askGemini(policyPrompt(invalid.map(x=>orderCountry(x.country)).filter(n=>selected.includes(n)),results,'repair')+
+    '\nВОССТАНОВЛЕНИЕ ФОРМАТА. Только неисполненные кабинеты ниже. Применение остальных решений уже закончено. Исправь формат по схеме; используй актуальные предложения, ресурсы и войны. Не принимай законченные договоры снова. Сохрани намерение, чужое согласие не выдумывай. Верни {cabinets:[...]}.\nОшибки: '+JSON.stringify(invalid),4200,0,{response_format:{type:'json_object'},reasoning_effort:'low'}));
    for(const failure of invalid){
     try{const matches=fixed.cabinets?.filter(d=>d.country===failure.country)||[];politicalAssert(matches.length===1,'Нет однозначного исправления');
      if(policyApply(matches[0],[failure.country],results)){acted.push(failure.country);failure.repaired=true;}

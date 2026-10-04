@@ -9,6 +9,10 @@ function repairPlannerOrders(raw,pending){
   const distinct=[...new Map(matches.map(o=>[JSON.stringify({kind:o.kind,status:o.status,effects:o.effects,process:o.process}),o])).values()];
   let item;
   if(distinct.length===1){item=JSON.parse(JSON.stringify(distinct[0]));item.id=p.id;delete item.text;
+   if(item.effects?.process){
+    politicalAssert(!item.process||JSON.stringify(item.process)===JSON.stringify(item.effects.process),'Противоречивые сроки исполнения');
+    item.process=item.effects.process;delete item.effects.process;
+   }
    if(item.kind==='political'&&item.effects&&Object.keys(item.effects).length){const keys=Object.keys(item.effects),kind=Object.entries(OrderRules.KIND_FIELDS).find(([k,fields])=>!['political','unsupported'].includes(k)&&keys.every(x=>fields.includes(x)));if(kind)item.kind=kind[0];}
    if(item.effects?.trade_policy?.action==='offer'){
     const trade=item.effects.trade_policy;

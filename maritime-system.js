@@ -121,10 +121,10 @@ function validateNavalOrder(o,owner,execution=false){
   strategyAssert(!m.fleets.some(x=>x.cargo.some(c=>c.id===u.id)),'Часть уже погружена');
   strategyAssert(f.cargo.reduce((s,u)=>s+u.troops,0)+u.troops<=f.ships.transport*MARITIME_SHIPS.transport.capacity,'Не хватает транспортов: вместимость '+f.ships.transport*1500+' солдат');return o;
  }
- if(['move','land','blockade','repair'].includes(o.action))strategyAssert(p,'Укажите действующий порт');
+ if(['land','blockade','repair'].includes(o.action)||o.action==='move'&&!o.region)strategyAssert(p,'Укажите действующий порт');
  if(o.action==='land')strategyAssert(f.cargo.length&&p&&(maritimeAccessiblePort(owner,p)||isAtWar(owner,maritimePortOwner(p))),'Высадка требует войск и доступного или вражеского берега');
  if(o.action==='blockade')strategyAssert(p&&isAtWar(owner,maritimePortOwner(p))&&f.ships.heavy+f.ships.light>0,'Блокада требует войны с владельцем порта');
- if(['repair','move'].includes(o.action))strategyAssert(maritimeAccessiblePort(owner,p),'Нет права базироваться в этом порту; море доступно через patrol/escort');
+ if(o.action==='repair'||o.action==='move'&&p)strategyAssert(maritimeAccessiblePort(owner,p),'Нет права базироваться в этом порту; море доступно через patrol/escort');
  if(o.region)strategyAssert(geo.areas[o.region],'Неизвестный морской район');
  if(['patrol','escort'].includes(o.action))strategyAssert(o.region||p,'Нужен морской район или порт');
  const to=p?.region||o.region;
@@ -166,7 +166,7 @@ function executeNavalOrder(owner,o){
   const path=maritimeSeaPath(f.region,f.destination,owner);f.path=path.slice(1);f.port=null;
   const distance=maritimeTravelDistance(path),speed=f.propulsion==='steam'?280:f.propulsion==='mixed'?230:190;
   f.approachDays=Math.max(1,Math.ceil(strategyDistance(maritimeGeo().areas[f.destination].coordinates,p?.coordinates||maritimeGeo().areas[f.destination].coordinates)/speed));
-  f.atDestination=false;strategyEvent(owner,'Флот получил новую задачу',f.name+': '+({blockade:'блокировать порт',land:'доставить и высадить войска',repair:'вернуться для ремонта',move:'перейти в порт',patrol:'патрулировать район',escort:'сопровождать торговые суда'})[o.action]+' '+(p?.name||maritimeGeo().areas[f.destination].name)+'. Переход займёт примерно '+Math.ceil(distance/speed+f.approachDays)+' дней.',p?[maritimePortOwner(p)]:[]);
+  f.atDestination=false;strategyEvent(owner,'Флот получил новую задачу',f.name+': '+({blockade:'блокировать порт',land:'доставить и высадить войска',repair:'вернуться для ремонта',move:p?'перейти в порт':'перейти в морской район',patrol:'патрулировать район',escort:'сопровождать торговые суда'})[o.action]+' '+(p?.name||maritimeGeo().areas[f.destination].name)+'. Переход займёт примерно '+Math.ceil(distance/speed+f.approachDays)+' дней.',p?[maritimePortOwner(p)]:[]);
  }else {f.atDestination=true;}
  maritimeTouch();return 'Морская задача принята; движение и результат определяет движок.';
 }
@@ -384,8 +384,8 @@ function validateTradePolicy(o,owner){
  if(o.action==='break')strategyAssert((maritimeState().agreements||[]).some(x=>x.id===o.agreement_id&&[x.a,x.b].includes(owner)&&x.status==='active'),'Нет собственного действующего торгового договора');
  return o;
 }
-function maritimeTradeNotice(owner,target,text){
- if(target&&typeof policyNotice==='function')policyNotice(owner,target,text,'trade');
+function maritimeTradeNotice(owner,target,text,kind='trade'){
+ if(target&&typeof policyNotice==='function')policyNotice(owner,target,text,kind);
  strategyEvent(owner,'Изменение торговой политики',text,target?[target]:[]);
 }
 function executeTradePolicy(owner,o){
@@ -413,14 +413,14 @@ function executeTradePolicy(owner,o){
   m.agreements.filter(x=>x.status==='active'&&[x.a,x.b].includes(offer.a)&&[x.a,x.b].includes(offer.b)).forEach(x=>x.status='replaced');
   m.agreements.push({...offer,id:crypto.randomUUID(),status:'active',since:gameDayNumber(),due:gameDayNumber()+offer.days});
   maritimeTradePolicy(offer.a).embargoes=maritimeTradePolicy(offer.a).embargoes.filter(n=>n!==offer.b);p.embargoes=p.embargoes.filter(n=>n!==offer.a);
-  offer.status='accepted';maritimeTradeNotice(owner,offer.a,'Согласованы взаимные торговые условия. Договор действует '+offer.days+' дней; страна не становится военным союзником автоматически.');
+  offer.status='accepted';policyResolveProposal(offer.id,owner);maritimeTradeNotice(owner,offer.a,'Согласованы взаимные торговые условия. Договор действует '+offer.days+' дней; страна не становится военным союзником автоматически.','resolution');
  }else if(o.action==='reject'){
-  const offer=m.tradeOffers.find(x=>x.id===o.offer_id);offer.status='rejected';maritimeTradeNotice(owner,offer.a,'Торговое предложение отклонено. Прежние условия сохраняются.');
+  const offer=m.tradeOffers.find(x=>x.id===o.offer_id);offer.status='rejected';policyResolveProposal(offer.id,owner);maritimeTradeNotice(owner,offer.a,'Торговое предложение отклонено. Прежние условия сохраняются.','resolution');
  }else {const a=m.agreements.find(x=>x.id===o.agreement_id);a.status='broken';addRelation(owner,a.a===owner?a.b:a.a,-3);maritimeTradeNotice(owner,a.a===owner?a.b:a.a,'Торговый договор прекращён досрочно. Страны снова применяют собственные ставки.');}
  maritimeTouch();return 'Торговое действие зарегистрировано; поступления и цены рассчитываются по доставленному импорту.';
 }
 function maritimeFacts(owner){
- const m=maritimeState(),trade=maritimeTrade().result[owner],offer=o=>({id:o.id,a:o.a,b:o.b,status:o.status,type:o.type,good:o.good,rate:o.rate,external_rate:o.external_rate,days:o.days,expires:o.expires});
+ const m=maritimeState(),trade=maritimeTrade().result[owner],offer=o=>({id:o.id,a:o.a,b:o.b,status:o.status,type:o.type,good:o.good,rate:o.rate,externalRate:o.externalRate,days:o.days,expires:o.expires});
  return {ports:m.ports.filter(p=>maritimePortOwner(p)===owner).map(p=>({id:p.id,name:p.name,province:p.province,region:p.region,level:p.level,shipyard:p.shipyard,blockade:maritimeBlockade(p)})),
  fleets:m.fleets.filter(f=>f.owner===owner).map(f=>({id:f.id,name:f.name,ships:f.ships,region:f.region,port:f.port,mission:f.mission,targetPort:f.targetPort,path:f.path,supply:f.supply,condition:f.condition,propulsion:f.propulsion,cargo:f.cargo.map(u=>({id:u.id,troops:u.troops}))})),
  builds:m.builds.filter(x=>x.owner===owner&&x.status==='active').map(b=>({id:b.id,type:b.type,port:b.port,province:b.province,shipType:b.shipType,count:b.count,due:b.due,status:b.status})),

@@ -338,10 +338,11 @@ declareEngineWar=function(a,b,goal){
 warGoalLabel=function(g){if(!g)return '';return ({territory:'уступка территорий: '+(g.provinces||[]).map(id=>strategyProvince(id)?.name||id).join(', '),tribute:'компенсация',subjugation:'установление зависимости',defense:'защита и прекращение угрозы'})[g.type]||g.type;};
 
 function validateDiplomaticAction(d,owner){
- strategyKeys(d,['action','target','offer_id','contract_id','claim_id','goal','type','terms','obligation','amount']);
- strategyAssert(['declare_war','offer','accept','reject','break','demand','fulfill','refuse','integrate','release','tariff'].includes(d.action),'Неизвестное дипломатическое действие');
+ strategyKeys(d,['action','message','target','offer_id','contract_id','claim_id','goal','type','terms','obligation','amount']);
+ strategyAssert(['communicate','declare_war','offer','accept','reject','break','demand','fulfill','refuse','integrate','release','tariff'].includes(d.action),'Неизвестное дипломатическое действие');
  if(d.target){strategyCountry(d.target);strategyAssert(d.target!==owner,'Нужен иностранный адресат');}
- if(['declare_war','offer','tariff'].includes(d.action))strategyAssert(d.target,'Нужен адресат');
+ if(['communicate','declare_war','offer','tariff'].includes(d.action))strategyAssert(d.target,'Нужен адресат');
+ if(d.message)strategyText(d.message,900);
  if(d.goal){strategyKeys(d.goal,['type','provinces']);strategyAssert(['territory','tribute','subjugation','defense'].includes(d.goal.type),'Неверная цель войны');}
  if(d.type!=null)strategyAssert(['alliance','nonaggression','peace','dependency'].includes(d.type),'Неверный вид договора');
  if(d.action==='offer')strategyAssert(d.type,'Нужен вид договора');
@@ -413,14 +414,19 @@ function strategyAccept(owner,id){
   if(old)old.status='superseded';
   s.contracts.push({id:crypto.randomUUID(),a,b,type:'dependency',terms:t,status:'active',subject,patron,loyalty:old?.loyalty??Math.max(20,Math.min(80,50+getRelation(a,b)/3)),arrears:old?.arrears||0,since:gameDayNumber(),due:gameDayNumber()+(t.days||3650)});
  }
- o.status='accepted';
+ o.status='accepted';policyResolveProposal(o.id,owner);
  const issue=ensureNewsFlow().issues.find(x=>x.id===o.id);if(issue)issue.status='closed';
  strategyEvent(owner,'Договор вступил в силу',a+' и '+b+' приняли условия соглашения. Обязательства и предусмотренные передачи закреплены в действующем договоре.',[a]);
  return c;
 }
 function executeDiplomaticAction(owner,d){
  validateDiplomaticAction(d,owner);const s=strategyState();
- if(d.action==='declare_war')declareEngineWar(owner,d.target,d.goal);
+ if(d.action==='communicate'){
+  const message=d.message||'Официальный дипломатический контакт';
+  policyNotice(owner,d.target,message,'diplomacy');
+  strategyEvent(owner,'Правительство направило дипломатическое обращение',message,[d.target]);
+ }
+ else if(d.action==='declare_war')declareEngineWar(owner,d.target,d.goal);
  else if(d.action==='offer')strategyOffer(owner,d.target,d.type,d.terms||{});
  else if(d.action==='accept')strategyAccept(owner,d.offer_id);
  else if(d.action==='reject'){const o=s.offers.find(x=>x.id===d.offer_id);o.status='rejected';const i=ensureNewsFlow().issues.find(x=>x.id===o.id);if(i)i.status='closed';strategyEvent(owner,'Предложение отклонено',owner+' не приняла условия '+o.a+'. Переговоры не создали обязательств.',[o.a]);}

@@ -1,0 +1,32 @@
+name: Replay late political saves without AI calls
+on:
+  push:
+    branches: [fix/autonomous-politics-20261004]
+permissions:
+  contents: read
+  actions: read
+jobs:
+  replay:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ github.token }}
+          repository: ZHANK478/grand-strategy
+          run-id: '37187363653'
+          pattern: political-campaign-*
+          path: political-seed
+      - uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ github.token }}
+          repository: ZHANK478/grand-strategy
+          run-id: '37188360731'
+          name: political-replay-fixtures
+          path: political-seed/fixtures
+      - run: npm install --no-save --package-lock=false playwright
+      - run: npx playwright install --with-deps chromium
+      - run: node tests/replay-political-campaigns.mjs

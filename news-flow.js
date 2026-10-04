@@ -9,6 +9,18 @@ function repairPlannerOrders(raw,pending){
   const distinct=[...new Map(matches.map(o=>[JSON.stringify({kind:o.kind,status:o.status,effects:o.effects,process:o.process}),o])).values()];
   let item;
   if(distinct.length===1){item=JSON.parse(JSON.stringify(distinct[0]));item.id=p.id;delete item.text;
+   // Duration and quoted cost are execution metadata; actual prices remain engine-owned.
+   if(item.effects&&item.effects.days!=null&&!OrderRules.KIND_FIELDS[item.kind]?.includes('days')){
+    const days=item.effects.days;
+    politicalAssert(Number.isInteger(days)&&days>=1&&days<=3650,'Неверный срок исполнения');
+    politicalAssert(!item.process||item.process.days===days,'Противоречивые сроки исполнения');
+    item.process||={mode:item.kind==='army'?'recruitment':'implementation',days,summary:p.text.slice(0,300)};
+    delete item.effects.days;
+   }
+   if(item.effects&&item.effects.cost!=null&&!OrderRules.KIND_FIELDS[item.kind]?.includes('cost')){
+    politicalAssert(Number.isFinite(item.effects.cost)&&item.effects.cost>=0,'Неверная оценка цены');
+    p.executionEstimate={cost:item.effects.cost,source:'model'};delete item.effects.cost;
+   }
    if(item.effects?.process){
     politicalAssert(!item.process||JSON.stringify(item.process)===JSON.stringify(item.effects.process),'Противоречивые сроки исполнения');
     item.process=item.effects.process;delete item.effects.process;

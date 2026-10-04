@@ -142,6 +142,14 @@ try{
     ok(order.status==='in_progress'&&!order.technicalError,'Nested process metadata starts actual recruitment');
     ok(ensurePolitics().decisions.some(d=>d.actor_id===playerCountry+'::military'&&d.condition_order===order.id),'Internal reaction stays attached to the aliased recorded order');
     ok(countries[playerCountry].army<army+30000,'Recruitment retains training duration rather than instant soldiers');
+    
+    resetGame('Франция');worldState.periodEvents=[];worldState.newspaperHistory=[];
+    queueOrder(fixtures.recruitmentWithMetadata.text);askGemini=async()=>JSON.stringify(fixtures.recruitmentWithMetadata.reply);
+    ok(await nextTurn('week')===true,'Flat duration and cost metadata do not discard the recorded recruitment');
+    const secondOrder=worldState.orders.find(o=>o.text===fixtures.recruitmentWithMetadata.text);
+    ok(secondOrder.status==='in_progress'&&!secondOrder.technicalError,'Engine owns recruitment price and duration');
+    ok(secondOrder.executionEstimate?.cost===120,'Quoted cost remains traceable separately from material effects');
+
     return checks;
    },protocolFixtures);
    console.log(mode+' POLITICAL_PROTOCOL '+JSON.stringify(protocol));

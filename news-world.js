@@ -153,6 +153,13 @@ function canonicalSovereignEffects(raw,owner){
  for(const [family,x]of [['diplomacy',d],['trade',e.trade_policy]])if(x){
   if(x.target)x.target=orderCountry(x.target);
   if(family==='trade'&&x.action==='tariff'&&x.target===owner)delete x.target;
+  if(family==='trade'&&x.action==='offer'){
+   if(!x.type)x.type=x.external_rate==null?'trade':'customs_union';
+   if(x.rate==null&&x.target){
+    delete e.trade_policy;e.diplomatic_action={action:'communicate',target:x.target,message:'Направлено приглашение обсудить условия торговли'+(x.good&&x.good!=='all'?' категорией '+x.good:'')+'. Конкретные ставки и согласие другой стороны ещё не определены.'};
+    continue;
+   }
+  }
   if(['accept','reject'].includes(x.action)){
    const record=politicalResponseRecord(owner,x,family);
    if(record.open){

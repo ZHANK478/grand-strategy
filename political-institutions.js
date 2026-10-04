@@ -66,6 +66,7 @@ function institutionMajority(c){
  return Object.values(s.factions).filter(f=>f.active&&f.support>=50).reduce((n,f)=>n+f.seats,0);
 }
 function institutionRequiresBill(c,kind,e){
+ if(kind==='policy')return (e.operations||[]).some(step=>institutionRequiresBill(c,step.kind,step.effects));
  return INSTITUTION_LEGISLATIVE.includes(kind)&&c.parliament&&(c.parliament.power??0)>=50&&e.parliament?.route!=='decree'&&
   !(kind==='law'&&!e.law_slots&&!e.institutions&&!e.laws?.length);
 }
@@ -254,13 +255,16 @@ function institutionTick(){
      try{verdict=institutionsOldCountryEffects(owner,b.kind,e);if(verdict.status!=='executed')rollback();}
      catch(error){rollback();verdict={status:'blocked',reason:error.message};}
      if(verdict.status==='executed'){
-      b.status='passed';b.reason='Большинство поддержало проект.';if(owner!==playerCountry)institutionApplyExtras(owner,e);
+      b.status='passed';b.reason='Большинство поддержало проект.';if(owner!==playerCountry||b.kind==='economic')institutionApplyExtras(owner,e);
       const o=worldState.orders.find(o=>o.id===b.source);
       if(o){o.status='executed';o.effects=e;o.reason=b.reason;o.after=orderStatSnapshot(c);o.resolvedTurn=turn;
        const program=c.econV3?.programs.find(p=>!programIds.has(p.id)&&p.status==='active');
        if(program){program.orderId=o.id;o.status='in_progress';o.reason='Палата приняла проект; экономическая программа выполняется постепенно.';}
        if(owner===playerCountry)recordActorReactions([o]);
       }
+      const task=ensurePolitics().tasks.find(t=>t.bill===b.id);
+      if(task){task.status='executed';task.finished=now;task.reason=b.reason;}
+      causalPublish(owner,'bill:'+b.id,{...(b.signal||{domain:'administration',visibility:'public',salience:60,targets:[],scope:'regional'}),summary:'Палата приняла предложение: '+b.text,affected:[]},b.reason,b.source);
       institutionEvent(owner,'Палата поддержала правительственный проект',
        c.parliament.name+' принял предложение: «'+b.text+'». Сторонники добились большинства; принятое решение вступило в действие.',b.reason,b.source);
       }else{
@@ -273,7 +277,7 @@ function institutionTick(){
     institutionEvent(owner,'Правительство не добилось большинства',
      c.parliament.name+' не поддержал предложение: «'+b.text+'». Оппозиция сохранила свои возражения. Власть может искать компромисс, внести новый проект или взять на себя последствия правления указами.',b.reason,b.source);
    }else{b.status='contested';b.voteDay=Math.min(b.deadline,now+14);}
-   if(['withdrawn','defeated'].includes(b.status)){const o=worldState.orders.find(o=>o.id===b.source);if(o){o.status='blocked';o.reason=b.reason;o.resolvedTurn=turn;}}
+   if(['withdrawn','defeated'].includes(b.status)){const task=ensurePolitics().tasks.find(t=>t.bill===b.id);if(task){task.status='blocked';task.reason=b.reason;task.finished=now;}const o=worldState.orders.find(o=>o.id===b.source);if(o){o.status='blocked';o.reason=b.reason;o.resolvedTurn=turn;}}
   }
   // A single dated transition per institution; quiet cooperation makes no news.
   if(now<(s.nextDay??-Infinity))continue;s.nextDay=now+30;
@@ -361,6 +365,6 @@ finishPoliticalTask=function(t){
  if(!countries[t.country])return institutionsOldFinishTask(t);
  const before=new Set(institutionState(countries[t.country]).bills.map(b=>b.id));
  const result=institutionsOldFinishTask(t);
- for(const b of institutionState(countries[t.country]).bills)if(!before.has(b.id)&&!b.source&&t.source){b.source=t.source;const o=worldState.orders.find(o=>o.id===t.source);if(o)o.bill=b.id;}
+ for(const b of institutionState(countries[t.country]).bills)if(!before.has(b.id)){t.bill=b.id;if(!b.source&&t.source){b.source=t.source;const o=worldState.orders.find(o=>o.id===t.source);if(o)o.bill=b.id;}}
  return result;
 };

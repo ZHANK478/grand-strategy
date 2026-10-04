@@ -24,7 +24,7 @@ try{
   try{
    await page.goto('http://127.0.0.1:8765/index.html',{waitUntil:'load',timeout:60000});
    await page.waitForURL(url=>url.pathname.endsWith('/economy-world.html'),{timeout:10000});
-   assert.equal(new URL(page.url()).searchParams.get('v'),'14','Root entry uses current release');
+   assert.equal(new URL(page.url()).searchParams.get('v'),'15','Root entry uses current release');
    await page.waitForFunction(()=>window.GS_MAP_LOAD?.status==='ready',{},{timeout:30000});
    console.log(mode+' BEFORE '+JSON.stringify(await page.evaluate(()=>({status:window.GS_MAP_LOAD,start:typeof window.mobileStartGame,fullscreen:typeof window.mobileFullscreen,picker:document.getElementById('mobile-country-picker').value,disabled:document.getElementById('mobile-start-btn').disabled}))));
    if(mode==='phone'){

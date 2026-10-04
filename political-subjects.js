@@ -78,18 +78,23 @@ function policyScanWorld(){
  for(const n of live)if(old.leaders[n]&&old.leaders[n]!==now.leaders[n])notify([n],'В стране '+n+' изменилась исполнительная власть: '+now.leaders[n]+'. Действующие договоры сохраняются; оценка признания и сотрудничества остаётся за вашим кабинетом.','leadership');
  state.observed=now;
 }
+function policyPending(id){
+ const a=policyCabinet(id),considered=a.considered||{},need=i=>i.status==='open'&&(!considered[i.id]||considered[i.id].revision!==(i.lastUpdate??i.created??i.day)||considered[i.id].due<=gameDayNumber());
+ return {inbox:a.inbox.filter(need),issues:ensureNewsFlow().issues.filter(i=>i.recipient===id&&need(i)),
+ offers:[...strategyState().offers,...(typeof maritimeState==='function'?maritimeState().tradeOffers||[]:[])].filter(i=>i.b===id&&need(i))};
+}
 function policySelect(limit=6,respondOnly=false,excluded=[]){
  const live=policyLive().filter(n=>n!==playerCountry&&!excluded.includes(n)),geo=politicalGeography(),ranking=policyLive().slice().sort((a,b)=>countries[b].gdp-countries[a].gdp);
  const issues=ensureNewsFlow().issues.filter(i=>i.status==='open'),s=strategyState();
  const offers=[...s.offers,...(typeof maritimeState==='function'?maritimeState().tradeOffers||[]:[])].filter(o=>o.status==='open');
  const candidates=live.map(n=>{
-  const a=policyCabinet(n),incoming=a.inbox.filter(i=>i.status==='open'),addressed=issues.filter(i=>i.recipient===n),proposal=offers.filter(o=>o.b===n);
+  const a=policyCabinet(n),pending=policyPending(n),incoming=pending.inbox,addressed=pending.issues,proposal=pending.offers;
   const urgent=incoming.length+addressed.length+proposal.length>0,wars=policyLive().filter(other=>other!==n&&isAtWar(n,other)),stale=Math.max(0,gameDayNumber()-(a.lastReviewDay??gameDayNumber()-120));
   if(respondOnly&&!urgent)return null;
   if(!respondOnly&&!urgent&&a.reviewDay>gameDayNumber()&&!wars.length&&stale<90)return null;
   const crisis=incoming.some(i=>['war','border','peace'].includes(i.kind));
   return {n,stale,urgent,score:Math.min(3,incoming.length)*70+Math.min(3,addressed.length)*50+Math.min(2,proposal.length)*100+
-   (crisis?180:0)+(wars.length?130:0)+(geo.neighbors[n]?.has(playerCountry)?35:0)+(a.reviewDay<=gameDayNumber()?30:0)+
+   (crisis?180:0)+(wars.length?400:0)+(geo.neighbors[n]?.has(playerCountry)?35:0)+(a.reviewDay<=gameDayNumber()?30:0)+
    (a.goals.some(g=>g.status==='active')?15:0)+Math.max(0,28-ranking.indexOf(n)*2)+Math.min(120,stale)};
  }).filter(Boolean).sort((a,b)=>b.score-a.score||a.n.localeCompare(b.n));
  if(respondOnly)return candidates.slice(0,limit).map(x=>x.n);
@@ -131,16 +136,17 @@ function policyValidate(raw,selected){
  politicalKeys(raw,['country','assessment','goals','nextReviewDays','decision']);
  politicalAssert(selected.includes(raw.country),'Кабинет вне выбранных участников');
  politicalText(raw.assessment,900);
- politicalAssert(Array.isArray(raw.goals)&&raw.goals.length>0&&raw.goals.length<=3,'Нужны от одной до трёх целей');
+ politicalAssert(Array.isArray(raw.goals)&&raw.goals.length<=3,'Допустимо до трёх целей');
  const goalIds=new Set();
  for(const g of raw.goals){politicalKeys(g,['id','goal','target','priority','status','success']);politicalText(g.id,60);politicalAssert(!goalIds.has(g.id),'Повтор цели');goalIds.add(g.id);politicalText(g.goal,400);politicalText(g.success,400);if(g.target!=null)strategyCountry(g.target);strategyNum(g.priority,1,100);politicalAssert(['active','achieved','abandoned'].includes(g.status),'Неверная стадия цели');}
  politicalAssert(Number.isInteger(raw.nextReviewDays)&&raw.nextReviewDays>=7&&raw.nextReviewDays<=90,'Неверный срок пересмотра');
  let d=JSON.parse(JSON.stringify(raw.decision));d.actor_id=raw.country+'::government';
  if(d.task&&Object.keys(d.task).length===0)delete d.task;
  d=canonicalPoliticalDecision(d);
- if(d.responds_to&&!ensureNewsFlow().issues.some(i=>i.id===d.responds_to&&i.recipient===raw.country)){
+ if(d.responds_to&&!ensureNewsFlow().issues.some(i=>i.id===d.responds_to&&i.recipient===raw.country&&i.status==='open')){
   const notice=policyCabinet(raw.country).inbox.find(i=>i.id===d.responds_to&&i.status==='open');
   if(notice)queueNewsIssue(notice.source,raw.country,notice.id,notice.text,notice.kind);
+  else {policyState().audit.push({day:gameDayNumber(),country:raw.country,error:'Неверная ссылка на обращение убрана; само действие проходит проверку полномочий.'});delete d.responds_to;}
  }
  validatePoliticalDecision(d);return {...raw,decision:d};
 }
@@ -167,6 +173,13 @@ function policyApply(raw,selected,results){
    const primary=articles.at(-1);primary.headline=packet.decision.headline;primary.body=packet.decision.body;
    primary.details=articles.map(e=>e.details||'').filter(Boolean).join('\n');primary.policyRound=policyState().round;primary.decisionActor=id+'::government';
    const redundant=new Set(articles.slice(0,-1));worldState.periodEvents=worldState.periodEvents.filter(e=>!redundant.has(e));
+  }
+  if(packet.decision.action==='wait'){
+   a.considered||={};
+   const pending=policyPending(id);
+   for(const i of [...pending.inbox,...pending.issues.slice(-5),...pending.offers.slice(-5)])a.considered[i.id]={revision:i.lastUpdate??i.created??i.day,due:a.reviewDay};
+   const open=new Set([...a.inbox,...ensureNewsFlow().issues.filter(i=>i.recipient===id),...strategyState().offers.filter(i=>i.b===id),...(typeof maritimeState==='function'?maritimeState().tradeOffers||[]:[]).filter(i=>i.b===id)].filter(i=>i.status==='open').map(i=>i.id));
+   a.considered=Object.fromEntries(Object.entries(a.considered).filter(([id])=>open.has(id)));
   }
   const answered=packet.decision.responds_to;
   const target=packet.decision.target||packet.decision.task?.target||packet.decision.task?.effects?.diplomatic_action?.target;

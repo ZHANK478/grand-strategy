@@ -1,33 +1,10 @@
-name: Authorised four political campaigns — one time
+name: Archived authorised four political campaigns
 on:
-  push:
-    branches: [fix/autonomous-politics-20261004]
-    paths: [tests/live-autonomous-campaign.mjs]
+  workflow_dispatch:
 permissions:
   contents: read
 jobs:
-  campaign:
+  archived:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
-    strategy:
-      fail-fast: false
-      matrix:
-        case: [peace, war, influence, reform]
-    env:
-      CAMPAIGN: ${{ matrix.case }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-      - run: node --check tests/live-autonomous-campaign.mjs
-      - run: npm install --no-save --package-lock=false playwright
-      - run: npx playwright install --with-deps chromium
-      - run: node tests/live-autonomous-campaign.mjs
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: political-campaign-${{ matrix.case }}
-          path: playtest-output-${{ matrix.case }}/
-          retention-days: 7
-          if-no-files-found: warn
+      - run: echo 'The authorised sixty turns ran once. New paid runs require a new budget.'

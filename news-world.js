@@ -119,7 +119,14 @@ function canonicalPoliticalDecision(raw){
   politicalKeys(d.action,['type','target','amount']);const {type,...args}=d.action;
   Object.entries(args).forEach(([k,v])=>{politicalAssert(d[k]==null||d[k]===v,'Противоречивое действие');d[k]=v;});d.action=type;
  }
- if(d.task&&Object.keys(d.task).length===1&&d.task.political_task)d.task=d.task.political_task;
+ if(d.political_task){
+  politicalAssert(!d.task,'Противоречивые варианты поручения');d.task=d.political_task;delete d.political_task;
+ }
+ if(d.task?.political_task){
+  const {political_task,...siblings}=d.task;
+  for(const [key,value]of Object.entries(siblings))politicalAssert(political_task[key]==null||JSON.stringify(political_task[key])===JSON.stringify(value),'Противоречивое поле поручения: '+key);
+  d.task={...political_task,...siblings};
+ }
  if(d.task)completePoliticalTask(d.task,d);
  if(d.action==='accept_offer')d.action='accept';if(d.action==='decline_offer')d.action='reject_offer';
  const actor=ensureWorldActors()[d.actor_id];

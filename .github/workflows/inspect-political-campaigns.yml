@@ -1,0 +1,28 @@
+name: Inspect recorded political campaigns without AI calls
+on:
+  push:
+    branches: [fix/autonomous-politics-20261004]
+    paths: [tests/inspect-political-campaigns.mjs]
+permissions:
+  contents: read
+  actions: read
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ github.token }}
+          repository: ZHANK478/grand-strategy
+          run-id: '37187363653'
+          pattern: political-campaign-*
+          path: political-seed
+      - run: node tests/inspect-political-campaigns.mjs
+      - uses: actions/upload-artifact@v4
+        with:
+          name: political-replay-fixtures
+          path: political-replay.json

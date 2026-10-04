@@ -63,7 +63,12 @@ try{
  await page.waitForFunction(()=>window.GS_MAP_LOAD?.status==='ready',{},{timeout:60000});
  await page.evaluate(async()=>{await initAuth();setTextModel('openai/gpt-6-luna');});
  // Only the four identified test guests receive 15 server turns from the root agent.
- await page.waitForFunction(async()=>{if(!sb||!gsUser)return false;const {data,error}=await sb.functions.invoke('guest-ai',{body:{operation:'status'}});return !error&&data?.guest_turns_remaining>=15;},{},{timeout:360000,polling:5000});
+ let quotaReady=false;
+ for(let check=0;check<72&&!quotaReady;check++){
+  quotaReady=await page.evaluate(async()=>{if(!sb||!gsUser)return false;const {data,error}=await sb.functions.invoke('guest-ai',{body:{operation:'status'}});return !error&&data?.guest_turns_remaining>=15;});
+  if(!quotaReady)await page.waitForTimeout(5000);
+ }
+ assert.ok(quotaReady,'Explicit server quota required before any paid generation');
  await page.selectOption('#mobile-country-picker',definition.country);await page.click('#mobile-start-btn');
  report.initial=await page.evaluate(()=>({date:dateLabel(),day:gameDayNumber(),cash:countries[playerCountry].treasury,debt:countries[playerCountry].debt,army:countries[playerCountry].army,gdp:countries[playerCountry].gdp,ruler:countries[playerCountry].ruler,budget:econBudget(countries[playerCountry])}));
  for(let i=0;i<15;i++){

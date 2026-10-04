@@ -1,0 +1,31 @@
+name: Live political causality continuation once
+on:
+  push:
+    branches: [feature/political-causality-20261004]
+    paths: ['.github/workflows/live-political-causality-continuation.yml']
+permissions:
+  contents: read
+jobs:
+  campaigns:
+    if: github.run_attempt == 1 && contains(github.event.head_commit.message, '[paid-causality-continue-once]')
+    strategy:
+      fail-fast: false
+      matrix:
+        campaign: [reforms, pressure, crisis]
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      CAMPAIGN: ${{ matrix.campaign }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm install --no-save --package-lock=false playwright
+      - run: npx playwright install --with-deps chromium
+      - run: node tests/live-political-causality.mjs
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: political-causality-${{ matrix.campaign }}
+          path: playtest-output-*/

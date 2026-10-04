@@ -26,6 +26,8 @@ function canonicalEffects(e){
  ['relations_between','wars_between','battles','treaties'].forEach(k=>{if(Array.isArray(copy[k]))copy[k].forEach(o=>{if(o&&typeof o==='object'){if(o.a)o.a=orderCountry(o.a);if(o.b)o.b=orderCountry(o.b);}});});
  ['foreign_leader_change','province_transfer','map_objects'].forEach(k=>{if(Array.isArray(copy[k]))copy[k].forEach(o=>{if(o&&typeof o==='object'){['country','new_owner','owner'].forEach(f=>{if(o[f])o[f]=orderCountry(o[f]);});}});});
  if(copy.initiatives)copy.initiatives.forEach(i=>{if(i.target_country)i.target_country=orderCountry(i.target_country);});
+ if(copy.operations)copy.operations=copy.operations.map(step=>({...step,effects:canonicalEffects(step.effects)}));
+ if(copy.military_order?.action==='deploy'&&!copy.military_order.unit_id)copy.military_order.unit_id=crypto.randomUUID();
  if(copy.country_color?.country)copy.country_color.country=orderCountry(copy.country_color.country);
  return copy;
 }
@@ -123,6 +125,7 @@ async function generateOrderPlan(){
 Верни только JSON:
 {"orders":[{"id":"ID","kind":"тип","status":"execute|reject|defer","reason":"до 150 символов","effects":{},"article":{"headline":"газетный заголовок","body":"3–5 предложений о принятом решении, без гарантированных исходов"}}],"politics":[{"actor_id":"ID::government или точный внутренний ID","goal":"сохраняемая политическая цель","action":"СТРОКА действия, например warn; НЕ объект","target":"ID страны если нужен","motive":"конкретная оценка интересов","headline":"газетный заголовок","body":"выразительная газетная заметка 3–5 предложений о собственном решении участника","condition_order":"только если зависит от принятия нового приказа","task":{}}]}
 orders: ровно один результат каждому приказу. Сверяй id и исходный текст: не переносить поручение другого приказа, не дублировать чужое решение. В political_task.goal включи смысл ИМЕННО этого исходного приказа, все его адресаты и условия.  reject/defer effects:{} допускается только физическая невозможность, отсутствие полномочий или ресурсов, не неизвестный вид поручения.
+Политическое поручение: всегда передавай headline, body и cost (0 если нет самостоятельных организационных затрат); статья того же решения может служить текстом поручения. army/military deploy обязательно unit_id; если новая часть, придумай короткий уникальный ID. Для постепенного повышения расходов возвращай economic_policy с type:spending, group, target и days, не мгновенный society. Взаимные пошлины — trade_policy:{action:"offer",target,type:"trade",rate,days}; customs_union только если игрок просит общий внешний таможенный союз.
 Типы:
 policy: operations:[{kind:"поддерживаемый тип кроме policy/political/unsupported/administration",effects:{}}], до 8 последовательных шагов ОДНОГО поручения. Используй для сложного намерения, например выделить собственную часть, посадить на транспорт и начать переход. Каждый шаг проверяется при исполнении после предыдущего. Отсутствие кнопки не причина отказа. Не обещай прибытие раньше маршрута или чужое согласие. Для организационной цели political_task хранит цель, исполнителя и срок.
 tax: economy:{tax_noble, tax_burgher,tax_commons}, 0..100.
@@ -256,7 +259,7 @@ function executeOrderEffects(e){
 function executedOrderDescription(e){
  const c=countries[playerCountry],parts=[];
  if(e.initiatives)parts.push('Поручения и организации зарегистрированы; документы и рекомендации готовятся по сроку');
- if(e.economy){const ids={tax_noble:'noble',tax_burgher:'burgher',tax_commons:'commons'};
+ if(e.economy){const ids=Object.fromEntries(Object.keys(c.economy.classes).map(id=>['tax_'+id,id]));
   Object.keys(e.economy).forEach(k=>parts.push(c.economy.classes[ids[k]].label+': налог '+c.economy.classes[ids[k]].tax+'%'));}
  if(e.society){const labels={education_spending:['education','образование'],welfare_spending:['welfare','помощь населению'],infrastructure_spending:['infrastructure','инфраструктура']};
   Object.keys(e.society).forEach(k=>{const [id,label]=labels[k];parts.push(label+': '+c.society.spending[id]+' / месяц');});}
@@ -290,7 +293,7 @@ function applyOrderPlan(plan){
   const c=countries[playerCountry],before=orderStatSnapshot(c),verdict=proposal.process||proposal.effects.army_delta>0?{status:proposal.status==='execute'?'executed':proposal.status==='reject'?'rejected':'deferred',reason:proposal.reason}:OrderRules.authority(proposal,c);
   const relationsBefore=Object.fromEntries(Object.keys(proposal.effects.relations||{}).map(n=>[n,getRelation(playerCountry,n)]));
   if(verdict.status==='executed'){
-   // Known resource failures reject this order; malformed state still aborts the whole turn.
+   // Resource refusals and technical failures are isolated to the affected order.
    const e=proposal.effects;
    let resourceError='';
    if(e.initiatives&&e.initiatives.reduce((n,i)=>n+(i.setup_cost||0),0)>c.treasury)resourceError='Недостаточно казны для учреждения поручений.';

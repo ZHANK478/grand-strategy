@@ -10,6 +10,20 @@ function repairPlannerOrders(raw,pending){
   let item;
   if(distinct.length===1){item=JSON.parse(JSON.stringify(distinct[0]));item.id=p.id;delete item.text;
    if(item.kind==='political'&&item.effects&&Object.keys(item.effects).length){const keys=Object.keys(item.effects),kind=Object.entries(OrderRules.KIND_FIELDS).find(([k,fields])=>!['political','unsupported'].includes(k)&&keys.every(x=>fields.includes(x)));if(kind)item.kind=kind[0];}
+   if(item.effects?.trade_policy?.action==='offer'){
+    const trade=item.effects.trade_policy;
+    // An explicit bilateral tariff mandate must not become a common external customs union.
+    if(trade.type==='customs_union'&&trade.rate==null&&Number.isFinite(trade.external_rate)&&/взаимн[^.!?]{0,60}пошлин|двусторонн[^.!?]{0,60}пошлин/i.test(p.text)&&!/таможенн[^.!?]{0,20}союз/i.test(p.text)){
+     trade.type='trade';trade.rate=trade.external_rate;delete trade.external_rate;
+    }
+   }
+   if(item.kind==='spending'&&item.effects?.society&&/постепенн|равномерн|поэтапн/i.test(p.text)){
+    const days=politicalDuration(p.text);
+    if(days){
+     const operations=Object.entries(item.effects.society).filter(([k,v])=>v!==countries[playerCountry].society.spending[k.replace('_spending','')]).map(([k,v])=>({kind:'economic',effects:{economic_policy:{type:'spending',group:k.replace('_spending',''),target:v,days}}}));
+     if(operations.length){item.kind='policy';item.effects={operations};delete item.process;}
+    }
+   }
    if(item.effects?.army_delta>0&&!item.process){const duration=politicalDuration(p.text);if(duration)item.process={mode:'recruitment',days:Math.max(90,duration),summary:'Набор и подготовка в течение '+duration+' дней'};}if(!item.effects||typeof item.effects!=='object'||Array.isArray(item.effects))item.effects={};
    if(item.status==='execute'&&item.kind!=='political'&&!Object.keys(item.effects).length)item=null;
    

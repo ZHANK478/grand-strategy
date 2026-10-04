@@ -40,6 +40,7 @@ function mentionedPoliticalCountries(text){
 function bindPoliticalMandate(task,original,article){
  const expected=mentionedPoliticalCountries(original).filter(n=>n!==playerCountry);
  task.sourceMandate=original;
+ completePoliticalTask(task,article||{});
  const interpreted=mentionedPoliticalCountries(task.goal+' '+task.result+' '+(task.target||''));
  if(expected.length&&!expected.some(n=>interpreted.includes(n))&&(!task.effects||!Object.keys(task.effects).length)){
   task.goal=original;task.executor='Министр иностранных дел';task.target=expected[0];task.targets=expected;
@@ -73,8 +74,19 @@ function politicalContext(){
  tasks:ensurePolitics().tasks.filter(t=>['active','ready'].includes(t.status)).slice(-16).map(compactPoliticalTask),
  locations:Object.keys(CITY_COORDS),ownProvinces:scenarioProvinces.filter(p=>(provinceOwners[p.id]||p.owner)===playerCountry).map(p=>({id:p.id,name:p.name})).slice(0,45)};
 }
+function completePoliticalTask(t,article={}){
+ // Missing prose can come from the same decision; material effects still require validation.
+ if(t.cost==null)t.cost=0;
+ if(t.days==null)t.days=0;
+ if(t.goal==null)t.goal=article.goal||article.headline;
+ if(t.executor==null)t.executor='Кабинет министров';
+ if(t.result==null)t.result=article.body;
+ if(t.headline==null)t.headline=article.headline||t.goal;
+ if(t.body==null)t.body=article.body||t.result;
+ return t;
+}
 function validatePoliticalTask(t,owner){
- if(!t.offer&&!t.answer&&t.target&&t.target!==owner&&/предлож|предлага|offer/i.test(t.goal||'')){
+ if(!t.effects?.diplomatic_action&&!t.offer&&!t.answer&&t.target&&t.target!==owner&&/предлож|предлага|offer/i.test(t.goal||'')){
   if(/ненапад|nonaggression/i.test(t.goal))t.offer='nonaggression';
   else if(/(?:военн|оборонит)[^.!?]{0,45}союз|military alliance/i.test(t.goal))t.offer='alliance';
   else if(isAtWar(owner,t.target)&&/предлож[^.!?]{0,45}мир|peace offer/i.test(t.goal))t.offer='peace';
@@ -108,7 +120,7 @@ function canonicalPoliticalDecision(raw){
   Object.entries(args).forEach(([k,v])=>{politicalAssert(d[k]==null||d[k]===v,'Противоречивое действие');d[k]=v;});d.action=type;
  }
  if(d.task&&Object.keys(d.task).length===1&&d.task.political_task)d.task=d.task.political_task;
- if(d.task){if(d.task.headline==null)d.task.headline=d.headline;if(d.task.body==null)d.task.body=d.body;}
+ if(d.task)completePoliticalTask(d.task,d);
  if(d.action==='accept_offer')d.action='accept';if(d.action==='decline_offer')d.action='reject_offer';
  const actor=ensureWorldActors()[d.actor_id];
  if(actor&&actor.kind!=='government'&&d.target===actor.country)delete d.target;
@@ -206,7 +218,7 @@ function finishPoliticalTask(t){
   t.status=verdict.status;t.reason=verdict.reason;
   if(t.status==='executed'){
    if(t.answer){const response=answerPoliticalOffer(t.country,t.target,t.answer,t.offer);t.status=response.status;t.reason=response.reason;}
-   else if(t.offer)createPoliticalOffer(t.country,t.target,t.offer);
+   else if(t.offer)createPoliticalOffer(t.country,t.target,t.offer,politicalContractDays(t.sourceMandate||t.goal+' '+t.result));
    if(t.status==='executed'){c.politicalRecords=[...(c.politicalRecords||[]),{id:t.id,goal:t.goal,result:t.result,executor:t.executor,target:t.target,date:dateLabel()}].slice(-40);
    actors.forEach(a=>actorRemember(a,'Решение власти: '+t.goal+'. Результат: '+t.result));}
   }
@@ -232,7 +244,11 @@ function tickPoliticalTasks(){
 }
 function answerPoliticalOffer(owner,target,answer,type){
  const offer=(ensurePolitics().offers||[]).find(o=>o.a===target&&o.b===owner&&o.status==='open'&&(!type||o.type===type));
- if(!offer)return {status:'blocked',reason:'Нет действующего предложения от адресата'};
+ if(!offer){
+  const offers=typeof strategyState==='function'?strategyState().offers.filter(o=>o.a===target&&o.b===owner&&o.status==='open'&&(!type||o.type===type)):[];
+  if(offers.length!==1)return {status:'blocked',reason:offers.length?'Нужно указать конкретное входящее предложение':'Нет действующего предложения от адресата'};
+  return applyCountryPoliticalEffects(owner,'diplomacy',{diplomatic_action:{action:answer,target,offer_id:offers[0].id}});
+ }
  if(answer==='accept'){
   if(offer.type==='peace'){
    if(owner===playerCountry||target===playerCountry){const other=owner===playerCountry?target:owner;worldState.atWarWith=worldState.atWarWith.filter(n=>n!==other);}else worldState.aiWars=worldState.aiWars.filter(([a,b])=>!((a===owner&&b===target)||(b===owner&&a===target)));
@@ -242,7 +258,12 @@ function answerPoliticalOffer(owner,target,answer,type){
  }else offer.status='rejected';
  return {status:'executed',reason:'Ответ сохранён: '+offer.status};
 }
-function createPoliticalOffer(a,b,type){
+function politicalContractDays(text){
+ const explicit=String(text||'').match(/(?:сроком\s+на|сроком|на)\s+(\d+|один|одну|одного|два|две|двух|три|трёх|четыре|четырёх|пять|пяти|шесть|шести)\s+(дн|ден|день|недел|месяц|год|лет)/i);
+ return explicit?politicalDuration('за '+explicit[1]+' '+explicit[2]):0;
+}
+function createPoliticalOffer(a,b,type,days=0){
+ if(typeof strategyOffer==='function')return strategyOffer(a,b,type,days?{days}:{});
  const state=ensurePolitics();state.offers||=[];
  const old=state.offers.find(o=>o.a===a&&o.b===b&&o.type===type&&o.status==='open');
  if(old)return old;
@@ -274,7 +295,9 @@ function executePoliticalDecision(d,results){
  }else if(d.action==='offer_alliance'||d.action==='offer_nonaggression'||d.action==='offer_peace'){
   const type=d.action==='offer_alliance'?'alliance':d.action==='offer_peace'?'peace':'nonaggression';if(type!=='peace'&&isAtWar(a.country,target))return false;createPoliticalOffer(a.country,target,type);material='Предложение '+type+' ожидает согласия адресата';
  }else if(d.action==='accept'||d.action==='reject_offer'){
-  const response=answerPoliticalOffer(a.country,target,d.action==='accept'?'accept':'reject');if(response.status!=='executed')return false;material=response.reason;
+  const action=d.task?.effects?.diplomatic_action;
+  const response=action&&action.action===(d.action==='accept'?'accept':'reject')?applyCountryPoliticalEffects(a.country,'diplomacy',{diplomatic_action:action}):answerPoliticalOffer(a.country,target,d.action==='accept'?'accept':'reject');
+  if(response.status!=='executed')return false;material=response.reason;
  }else if(d.action==='negotiate'){addRelation(a.country,target,Math.max(1,Math.min(3,d.amount||1)));material='Начаты контакты; согласие на договор не подразумевается';}
  else if(d.action==='warn'||d.action==='condemn'){addRelation(a.country,target,d.action==='warn'?-1:-3);a.concern={target,motive:d.motive,day:gameDayNumber()};material='Позиция и адресат сохранены';}
  else if(d.action==='support'||d.action==='oppose'){

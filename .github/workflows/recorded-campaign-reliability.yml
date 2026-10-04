@@ -5,6 +5,7 @@ on:
     paths:
       - 'news-*.js'
       - 'political-subjects.js'
+      - 'tests/fixtures/recorded-order-replies-20261004.json'
       - 'tests/recorded-campaign-reliability.test.mjs'
       - '.github/workflows/recorded-campaign-reliability.yml'
 permissions:

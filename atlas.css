@@ -205,3 +205,8 @@ html[data-atlas] .mobile-map-hint{border-radius:0;color:var(--dim);background:#f
  html[data-atlas] .atlas-lead h3{font-size:21px!important}
  html[data-atlas] .atlas-lead>p:first-of-type::first-letter{font-size:35px}
 }
+
+@media(max-width:1023px){
+ html[data-atlas] .newspaper-masthead{font-size:24px!important}
+ html[data-atlas] .atlas-lead h3{font-size:19px!important;margin-bottom:8px!important}
+}

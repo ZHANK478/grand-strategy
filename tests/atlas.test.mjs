@@ -80,7 +80,8 @@ try{
     foreign:[{headline:'Лондон ищет согласия с континентальными кабинетами',body:'Британские дипломаты предложили соседним державам обсудить безопасность морской торговли. Встреча должна показать, готовы ли правительства поддерживать общий порядок при несовпадающих интересах.'},{headline:'Берлин и Вена расходятся во взглядах',body:'В германских дворах обсуждают будущее совместных учреждений. Стороны пока не называют окончательных условий сближения.'}],archive:{domestic:[],foreign:[]}});
    mobileSection('news');
   });
-  const paper=await page.locator('#events-box').boundingBox(),firstText=await page.locator('#domestic-list .newspaper-article p').first().boundingBox();assert.ok(firstText.y<paper.y+paper.height*.68,'Article text appears without a long empty header');
+  await capture(page,'newspaper-'+mode);
+  const paper=await page.locator('#events-box').boundingBox(),firstText=await page.locator('#domestic-list .newspaper-article p').first().boundingBox();console.log('NEWS LAYOUT '+JSON.stringify({mode,paper,firstText}));assert.ok(firstText.y<paper.y+paper.height*.68,'Article text appears without a long empty header');
   await capture(page,'newspaper-'+mode);
   assert.equal(await page.locator('#atlas-brief').getAttribute('open'),null,'Technical summary starts folded');
   await page.locator('.atlas-reader-toggle').click();assert.equal(await page.locator('.atlas-reader-toggle').getAttribute('aria-expanded'),'true');

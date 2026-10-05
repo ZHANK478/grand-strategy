@@ -1,0 +1,63 @@
+{
+  "success": true,
+  "results": [
+    {
+      "mode": "desktop",
+      "checks": "startup, native fullscreen, theme invariance, country switch, economy, touch/wheel/drag, border mesh, ownership, saves, newspaper",
+      "physical": {
+        "mountains": 129,
+        "rivers": 187
+      },
+      "lines": [
+        {
+          "width": 0.4670059923050933,
+          "effect": "non-scaling-stroke"
+        },
+        {
+          "width": 0.9,
+          "effect": "non-scaling-stroke"
+        },
+        {
+          "width": 0.6,
+          "effect": "non-scaling-stroke"
+        }
+      ],
+      "isolation": {
+        "lab": true,
+        "production": false
+      },
+      "paidCalls": 0,
+      "errors": [],
+      "missing": []
+    },
+    {
+      "mode": "phone",
+      "checks": "startup, native fullscreen, theme invariance, country switch, economy, touch/wheel/drag, border mesh, ownership, saves, newspaper",
+      "physical": {
+        "mountains": 129,
+        "rivers": 187
+      },
+      "lines": [
+        {
+          "width": 0.2568695652173913,
+          "effect": "non-scaling-stroke"
+        },
+        {
+          "width": 0.9,
+          "effect": "non-scaling-stroke"
+        },
+        {
+          "width": 0.6,
+          "effect": "non-scaling-stroke"
+        }
+      ],
+      "isolation": {
+        "lab": true,
+        "production": false
+      },
+      "paidCalls": 0,
+      "errors": [],
+      "missing": []
+    }
+  ]
+}

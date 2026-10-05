@@ -169,6 +169,8 @@ function saveMapsIndex(idx) {
   localStorage.setItem(MAPS_INDEX_KEY, JSON.stringify(idx));
 }
 function mapDataKey(id) { return 'gs1852_editor_map_' + id; }
+async function getEditorMapData(id) { return await idbGetScenario(mapDataKey(id)) || JSON.parse(localStorage.getItem(mapDataKey(id)) || 'null'); }
+async function putEditorMapData(id,data) { await idbPutScenario(mapDataKey(id),data);localStorage.removeItem(mapDataKey(id)); }
 
 // ============================================================
 // Открыть / закрыть редактор
@@ -252,8 +254,9 @@ function closeLoadMapPicker() {
   document.getElementById('editor-loadmap-form').style.display = 'none';
 }
 
-function loadSavedMapAsBackground(id) {
-  const raw = localStorage.getItem(mapDataKey(id));
+async function loadSavedMapAsBackground(id) {
+  let data;try { data=await getEditorMapData(id); } catch(e) { showNotif('Не удалось открыть карту'); return; }
+  const raw = data ? JSON.stringify(data) : null;
   if (!raw) { showNotif('⚠️ Карта не найдена'); return; }
   let d;
   try { d = JSON.parse(raw); } catch (e) { showNotif('⚠️ Не удалось прочитать карту'); return; }
@@ -273,6 +276,8 @@ function loadSavedMapAsBackground(id) {
 function deleteSavedMap(id) {
   if (!confirm('Удалить эту карту?')) return;
   localStorage.removeItem(mapDataKey(id));
+  idbDeleteScenario(mapDataKey(id)).catch(()=>{});
+  if(window.gsCloudDelete)gsCloudDelete('map',id);
   saveMapsIndex(getMapsIndex().filter(m => m.id !== id));
   renderSavedMapsList();
 }
@@ -304,8 +309,9 @@ function loadBuiltinWorldMap(file) {
   }).catch(err => showNotif('⚠️ Не удалось загрузить карту: ' + (err && err.message || err)));
 }
 
-function openSavedMap(id) {
-  const raw = localStorage.getItem(mapDataKey(id));
+async function openSavedMap(id) {
+  let data;try { data=await getEditorMapData(id); } catch(e) { showNotif('Не удалось открыть карту'); return; }
+  const raw = data ? JSON.stringify(data) : null;
   if (!raw) return;
   try {
     const d = JSON.parse(raw);
@@ -1416,8 +1422,9 @@ function editExistingScenario(ref) {
   }).catch(err => showNotif('⚠️ Не удалось загрузить: ' + (err && err.message || err)));
 }
 
-function startScenarioForMap(id) {
-  const raw = localStorage.getItem(mapDataKey(id));
+async function startScenarioForMap(id) {
+  let data;try { data=await getEditorMapData(id); } catch(e) { showNotif('Не удалось открыть карту'); return; }
+  const raw = data ? JSON.stringify(data) : null;
   if (!raw) { showNotif('⚠️ Карта не найдена'); return; }
   let d;
   try { d = JSON.parse(raw); } catch (e) { showNotif('⚠️ Не удалось прочитать карту'); return; }
@@ -1499,6 +1506,7 @@ function saveScenarioToGame() {
     idx.push({ id, name, year, countryCount, provinceCount: provinces.length });
     localStorage.setItem(SCENARIOS_INDEX_KEY, JSON.stringify(idx));
     showNotif(`💾 Сценарий «${name}» сохранён в игру: ${countryCount} стран, ${assigned} провинций с владельцем`);
+    if(window.gsCloudPut)gsCloudPut('scenario',id,name,payload,{id,name,year,countryCount,provinceCount:provinces.length}).catch(()=>showNotif('Сценарий сохранён локально. Облачную синхронизацию можно повторить.'));
   }).catch(e => {
     showNotif('⚠️ Не удалось сохранить сценарий: ' + (e && e.message || e) + '. Скачайте его файлом.');
   });
@@ -1558,13 +1566,13 @@ function promptSaveMap() {
   document.getElementById('editor-map-name-form').style.display = 'block';
 }
 
-function confirmSaveMap() {
+async function confirmSaveMap() {
   const name = document.getElementById('emap-name').value.trim();
   if (!name) { showNotif('⚠️ Введите название карты'); return; }
 
   if (!currentMapId) currentMapId = 'map_' + Date.now().toString(36);
 
-  localStorage.setItem(mapDataKey(currentMapId), JSON.stringify({ provinces: mapProvinces }));
+  try { await putEditorMapData(currentMapId,{provinces:mapProvinces}); } catch(e) { showNotif('Не удалось сохранить карту. Скачайте её файлом.');return; }
 
   const idx = getMapsIndex();
   const existing = idx.find(m => m.id === currentMapId);
@@ -1578,6 +1586,7 @@ function confirmSaveMap() {
 
   document.getElementById('editor-map-name-form').style.display = 'none';
   showNotif('💾 Карта сохранена: ' + name);
+  if(window.gsCloudPut)gsCloudPut('map',currentMapId,name,{provinces:mapProvinces},{id:currentMapId,name,provinceCount:mapProvinces.length}).catch(()=>showNotif('Карта сохранена локально. Облачную синхронизацию можно повторить.'));
 }
 
 // Скачать текущую карту как обычный файл на компьютер — карты хранятся только в браузере

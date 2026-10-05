@@ -129,13 +129,16 @@ function showLoginOverlay() {
   const el = document.createElement('div');
   el.id = 'gs-login';
   el.innerHTML = `
-    <div class="gs-login-card">
+    <div class="gs-login-card" role="dialog" aria-modal="true" aria-label="Вход в аккаунт">
       <button class="gs-login-close" onclick="closeLogin()" title="Закрыть">✕</button>
-      <div class="gs-login-title">GRAND STRATEGY</div>
-      <div class="gs-login-sub">Войдите, чтобы сохранять партии в облаке и получать больше ходов</div>
+      <div class="gs-login-title">Ваша история</div>
+      <div class="gs-login-sub">Аккаунт по желанию. Продолжайте играть гостем или сохраните свою библиотеку между устройствами.</div>
+      <div class="gs-login-benefits"><span><b>50</b> ходов</span><span><b>5</b> изображений</span><span>Облачные сохранения</span></div>
+      <button id="gs-google-btn" class="gs-google" onclick="signInGoogle()">Продолжить с Google</button>
+      <div class="gs-login-divider">или по почте</div>
       <input id="gs-login-email" type="email" placeholder="твоя@почта" autocomplete="email">
       <button id="gs-login-btn" onclick="sendMagicLink()">Получить ссылку для входа</button>
-      <button id="gs-google-btn" class="gs-google" onclick="signInGoogle()">Войти через Google</button>
+      <button class="gs-stay-guest" onclick="closeLogin()">Продолжить без входа</button>
       <div id="gs-login-msg" class="gs-login-msg"></div>
     </div>`;
   document.body.appendChild(el);
@@ -221,7 +224,11 @@ function buyItem(i) {
 // (иначе — старый localStorage). Формат state — тот же объект, что и раньше.
 // ------------------------------------------------------------
 async function cloudSave(id, meta, state) {
-  if (!sb || !gsUser) return false;
+  if (!sb || !gsUser || gsUser.isAnonymous) return false;
+  if(window.gsCloudPut && state.scenarioRef && !state.scenarioRef.startsWith('builtin')) {
+    const scenario=await idbGetScenario(scenarioDataKey(state.scenarioRef));
+    if(scenario)await gsCloudPut('scenario',state.scenarioRef,scenario.name,scenario,getScenariosIndex().find(s=>s.id===state.scenarioRef)||{});
+  }
   const row = { id, user_id: gsUser.id, state, updated_at: new Date().toISOString(),
     scenario_ref: meta.scenarioRef, scenario_name: meta.scenarioName, country: meta.country,
     ruler: meta.ruler, turn: meta.turn, year: meta.year, month: meta.month, treasury: meta.treasury };

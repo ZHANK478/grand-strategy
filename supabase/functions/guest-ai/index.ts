@@ -1,6 +1,7 @@
 // Deploy as the separate Supabase Edge Function "guest-ai".
 // Disable gateway Verify JWT: this function validates the user itself.
 // Uses the existing OPENROUTER_KEY secret. Never expose that key to the browser.
+import { cachedImage, resolveImages } from '../_shared/images.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 const GUEST_MODELS=['google/gemini-3.1-flash-lite','openai/gpt-6-luna','z-ai/glm-5.3-flashx','z-ai/glm-5.3','anthropic/claude-sonnet-5.5'];
 // Configure the exact catalogue-confirmed Sonnet ID during deployment; do not guess it.
@@ -52,35 +53,15 @@ Deno.serve(async(req:Request)=>{
   const id=userData.user.id;
   const admin=createClient(url,service);
   const body=await req.json();
+  if(body.operation==='resolve_images'){const r=await resolveImages(admin,body.paths);return json(r.data,r.status);}
   const key=Deno.env.get('OPENROUTER_KEY');
   if(!key)return json({error:'server_no_key'},503);
   const {data:remaining,error:statusError}=await admin.rpc('mobile_guest_status',{p_user:id});
   if(statusError)return json({error:'guest_setup_required'},503);
   
   if(body.operation==='image'||body.operation==='portrait_trial'){
-   if(body.model!=='google/gemini-3.1-flash-image'||!Array.isArray(body.messages)||body.messages.length!==1||body.messages[0]?.role!=='user'||typeof body.messages[0]?.content!=='string'||body.messages[0].content.length>4000)return json({error:'bad_payload'},400);
-   const {data:claim,error:claimError}=await admin.rpc('mobile_image_claim',{p_user:id});
-   if(claimError)return json({error:'quota_unavailable'},503);
-   if(claim?.error)return json({error:claim.error},claim.error==='portrait_trial_busy'||claim.error==='image_rate_limit'?429:402);
-   if(!claim?.request_id)return json({error:'quota_unavailable'},503);
-   const controller=new AbortController();
-   const timer=setTimeout(()=>controller.abort(),90000);
-   let success=false;
-   try{
-    const response=await fetch('https://openrouter.ai/api/v1/chat/completions',{
-     method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+key},signal:controller.signal,
-     body:JSON.stringify({model:'google/gemini-3.1-flash-image',messages:body.messages,modalities:['image','text'],max_tokens:1000})
-    });
-    const result=await response.json();
-    success=response.ok&&!!result.choices?.[0]?.message?.images?.[0]?.image_url?.url;
-    if(!success)return json({error:'ai_unavailable'},502);
-    return json({...result,image_generations_remaining:claim.remaining});
-   }finally{
-    clearTimeout(timer);
-    const args={p_user:id,p_request:claim.request_id,p_success:success};
-    const done=await admin.rpc('mobile_image_finish',args);
-    if(done.error)await admin.rpc('mobile_image_finish',args);
-   }
+   const result=await cachedImage(admin,id,true,body,key);
+   return json(result.data,result.status);
   }
   if(body.operation==='redeem_images'){
    if(!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(body.code||''))return json({error:'bad_image_code'},400);

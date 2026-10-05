@@ -1,0 +1,16 @@
+.player-allowance{display:flex;flex-direction:column;gap:4px;align-items:center;margin:10px 0;color:#d6c391;font-size:13px;font-variant-numeric:tabular-nums}
+#menu-login-btn{background:transparent;border:1px solid #a8905b;color:#e8dcb9;margin-top:5px}
+#menu-logout-btn,#cloud-sync-btn{background:transparent;color:#bfb195;font-size:12px;border:0;padding:6px}
+#cloud-library-status{display:block;color:#b2bf9c;min-height:14px;font-size:11px;text-align:center}
+#cloud-library-status[data-state=error]{color:#dcc290}
+#test-hud-remaining,#test-hud-images{display:block;font-size:10px;line-height:1.35;color:#d9c69d;font-variant-numeric:tabular-nums}
+#test-hud-images{color:#b7bca7}
+#gs-login{background:rgba(13,17,18,.82);backdrop-filter:blur(7px);padding:18px;overflow:auto}
+.gs-login-card{width:380px;max-height:calc(100dvh - 36px);overflow:auto;border-radius:14px;gap:12px;padding:28px;background:#eee7d6;box-shadow:0 24px 80px #0008}
+.gs-login-title{font-size:30px}.gs-login-sub{font-style:normal;line-height:1.6;font-size:13px}
+.gs-login-benefits{display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:12px;border:1px solid #cfc1a3;border-radius:8px;color:#5e5037;font-size:12px;text-align:center}
+.gs-login-benefits span:last-child{grid-column:1/-1}.gs-login-benefits b{font-size:22px;margin-right:4px;color:#332b1d}
+.gs-login-card .gs-google{background:#293d3b;border-radius:7px}.gs-login-divider{text-align:center;font-size:11px;color:#88775b}
+.gs-login-card .gs-stay-guest{background:transparent;color:#6a604c;font-size:12px}
+.gs-login-card input,.gs-login-card button{border-radius:7px}
+@media(max-height:500px){.gs-login-card{gap:7px;padding:20px}.gs-login-title{font-size:23px}.gs-login-benefits{padding:7px}.gs-login-sub{font-size:11px}}

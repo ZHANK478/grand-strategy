@@ -9,6 +9,7 @@
 // Create a function → имя «ai» → вставить этот код → Deploy. Отключить «Verify JWT»
 // (проверку токена делаем сами внутри). Секрет OPENROUTER_KEY — см. docs/PROXY.md.
 // ============================================================
+import { cachedImage, resolveImages } from '../_shared/images.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 const cors = {
@@ -45,21 +46,33 @@ Deno.serve(async (req: Request) => {
     if (u.user.is_anonymous) return json({ error: 'guest_required' }, 403);
     const userId = u.user.id;
     const body = await req.json();
+    if(body.operation==='resolve_images'){const r=await resolveImages(admin,body.paths);return json(r.data,r.status);}
     const kind = body.kind === 'image' ? 'image' : 'text';
 
+    if (body.operation === 'begin_turn') {
+      if(!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(body.request_id||''))return json({error:'bad_payload'},400);
+      const r=await admin.rpc('account_begin_turn',{p_user:userId,p_request:body.request_id});
+      if(r.error)return json({error:'reserve_failed'},503);
+      if(r.data<0)return json({error:'no_turns',turns_balance:0},402);
+      return json({turn_id:body.request_id,turns_balance:r.data});
+    }
+    if(kind==='image') {
+      const result=await cachedImage(admin,userId,false,body,orKey);
+      return json(result.data,result.status);
+    }
+    if(typeof body.model!=='string'||!Array.isArray(body.messages)||JSON.stringify(body.messages).length>140000)return json({error:'bad_payload'},400);
     let balance: number | undefined;
-    if (kind === 'image') {
-      // Картинки дорогие → только премиум
-      const { data: prof } = await admin.from('profiles').select('plan').eq('id', userId).maybeSingle();
-      if (!prof || prof.plan !== 'premium') return json({ error: 'premium_required' }, 403);
+    if(body.turn_id) {
+      const r=await admin.from('account_turns').select('request_id').eq('user_id',userId).eq('request_id',body.turn_id).maybeSingle();
+      if(r.error||!r.data)return json({error:'turn_required'},409);
     } else {
-      // cost: 1 — действие игрока; 0 — фоновая работа движка (профили/летопись) — не списываем.
-      const cost = Math.max(0, Math.min(3, Number(body.cost ?? 1)));
-      if (cost > 0) {
-        const { data: remaining, error } = await admin.rpc('spend_turn', { p_user: userId, p_cost: cost });
-        if (error) return json({ error: 'spend_failed' }, 500);
-        if (remaining === -1 || remaining === null) return json({ error: 'no_turns', turns_balance: 0 }, 402);
-        balance = remaining as number;
+      const cost=Number(body.cost??1);
+      if(!Number.isInteger(cost)||cost<0||cost>3)return json({error:'bad_payload'},400);
+      if(cost>0) {
+        const r=await admin.rpc('spend_turn',{p_user:userId,p_cost:cost});
+        if(r.error)return json({error:'spend_failed'},500);
+        if(r.data<0)return json({error:'no_turns',turns_balance:0},402);
+        balance=r.data;
       }
     }
 

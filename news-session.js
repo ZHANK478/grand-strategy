@@ -9,19 +9,25 @@
  const guestModel='google/gemini-3.1-flash-lite';
  let guestModels=[guestModel],guestRemaining=null,imageRemaining=0;
  window.GS_GUEST_TURN_ID=null;
+ let syncedUser=null;
  function render(){
-  const labels={direct:'OpenRouter · свой ключ',account:'ИИ · аккаунт',guest:'Гость · серверный ИИ',offline:'ИИ не подключён'};
-  if(badge)badge.textContent=labels[connection.mode];
-  if(note)note.textContent=connection.mode==='offline'?'ИИ не подключён · откройте «Подключение ИИ».':connection.message;
+  const isAccount=connection.mode==='account';
+  const value=connection.mode==='guest'?guestRemaining:isAccount?gsProfile?.turns_balance:null;
+  if(badge)badge.textContent=isAccount?'Ваш аккаунт':connection.mode==='guest'?'Гостевая игра':connection.mode==='direct'?'Свой OpenRouter':'Подключение…';
+  if(note)note.textContent=connection.mode==='guest'?'10 ходов без регистрации. Вход в аккаунт — по желанию.':isAccount?'Партии и библиотека сохраняются в вашем аккаунте.':connection.message;
   if(status)status.textContent=connection.message;
+  const imageCount=isAccount?gsProfile?.image_generations_remaining:imageRemaining;
   const images=document.getElementById('test-image-remaining');
-  if(images)images.textContent=connection.mode==='guest'?'Портретов осталось: '+imageRemaining+'. Без кода изображения гостям недоступны.':connection.mode==='direct'?'Изображения оплачиваются с вашего OpenRouter-ключа.':'Код изображений предназначен для гостевого подключения без регистрации.';
+  if(images)images.textContent=connection.mode==='direct'?'Изображения оплачиваются вашим ключом.':'Изображений осталось: '+(imageCount??'…')+'. Готовые изображения из библиотеки не расходуют лимит.';
   const remaining=document.getElementById('test-hud-remaining');
-  if(remaining){
-   const value=connection.mode==='guest'?guestRemaining:connection.mode==='account'?gsProfile?.turns_balance:null;
-   remaining.hidden=typeof value!=='number';
-   remaining.textContent=typeof value==='number'?'Осталось '+value:'';
+  if(remaining){remaining.hidden=typeof value!=='number';remaining.textContent='Ходы · '+(value??'…');}
+  for(const id of ['test-hud-images','menu-image-balance']){
+   const el=document.getElementById(id);if(el){el.hidden=!isAccount;el.textContent='Изображения · '+(imageCount??'…');}
   }
+  const menuTurns=document.getElementById('menu-turn-count');if(menuTurns)menuTurns.textContent='Ходы · '+(value??'…');
+  const login=document.getElementById('menu-login-btn');if(login){login.hidden=isAccount;login.textContent='Войти · 50 ходов и 5 изображений';}
+  const logout=document.getElementById('menu-logout-btn');if(logout)logout.hidden=!isAccount;
+  const sync=document.getElementById('cloud-sync-btn');if(sync)sync.hidden=!isAccount;
  }
  function set(mode,message){connection={mode,message};render();}
  function errorMessage(code,http){
@@ -33,6 +39,9 @@
    guest_required:'Сессия не гостевая. Повторите подключение.',
    no_auth:'Сессия входа недоступна. Повторите подключение или используйте свой ключ.',
    bad_auth:'Сессия входа истекла. Войдите снова.',
+   no_images:'Все 5 генераций использованы. Готовые изображения по-прежнему доступны.',
+   image_busy:'Это изображение уже создаётся. Повторите загрузку через минуту.',
+   image_save_failed:'Не удалось сохранить изображение на сервере. Повторите загрузку.',
    premium_required:'Для аккаунта генерация изображений требует соответствующего доступа.',
    image_code_required:'Гостевые изображения доступны только по коду. Откройте «Подключение ИИ» и активируйте код изображений.',
    bad_image_code:'Код изображений неверен, просрочен или уже закреплён за другим гостем.',
@@ -76,11 +85,13 @@
    guestRemaining=data.guest_turns_remaining;
    connection.message='Гость · осталось '+data.guest_turns_remaining+' ходов. Доступно моделей: '+guestModels.length+'.';render();
   }
-  if(typeof data.image_generations_remaining==='number'){imageRemaining=data.image_generations_remaining;render();}
+  if(typeof data.image_generations_remaining==='number'){imageRemaining=data.image_generations_remaining;if(connection.mode==='account'&&gsProfile)gsProfile.image_generations_remaining=data.image_generations_remaining;}
   if(typeof data.turns_balance==='number'&&gsProfile)gsProfile.turns_balance=data.turns_balance;
+  render();
   return data;
  }
  function accept(session){
+  if(gsUser?.id!==session?.user?.id){gsProfile=null;window.GS_GUEST_TURN_ID=null;}
   gsAccessToken=session?.access_token||null;
   gsUser=session?.user?{id:session.user.id,email:session.user.email,isAnonymous:!!session.user.is_anonymous}:null;
   if(!gsUser)gsProfile=null;
@@ -115,7 +126,8 @@
    if(!gsUser)throw Error('Supabase не вернул сессию.');
    if(!gsUser.isAnonymous){
     set('account','Подключён аккаунт. Выбранная модель передаётся серверу ИИ.');
-    setTimeout(()=>loadProfile().then(render).catch(()=>{}),0);
+    await loadProfile();render();
+    if(syncedUser!==gsUser.id&&window.gsSyncLibrary){syncedUser=gsUser.id;gsSyncLibrary();}
    }else{
     set('guest','Проверяем гостевой сервер…');
     await serverRequest('guest-ai',{operation:'status'});
@@ -125,7 +137,7 @@
   return ready;
  };
  renderAccountBar=render;
- renderMenuAuth=function(){};
+ renderMenuAuth=render;
  openShop=()=>showNotif('Серверный баланс ходов исчерпан. Для собственного теста доступен свой OpenRouter-ключ.');
  turnsLeft=()=>connection.mode==='guest'?(guestRemaining??0):connection.mode==='direct'?Infinity:(gsProfile?.turns_balance??0);
  window.testRedeemTesterCode=async()=>{
@@ -229,7 +241,7 @@
    if(!guestModels.includes(payload.model))throw Error('Модель '+payload.model+' пока не разрешена гостевым сервером. Нужна настройка Supabase; ключ остаётся на сервере.');
    return serverRequest('guest-ai',{...payload,cost:(payload.turn_id??window.GS_GUEST_TURN_ID)?payload.cost:0,operation:'generate',turn_id:payload.turn_id??window.GS_GUEST_TURN_ID});
   }
-  return serverRequest('ai',{kind,...payload});
+  return serverRequest('ai',{kind,...payload,turn_id:kind==='text'?(payload.turn_id??window.GS_GUEST_TURN_ID):undefined});
  }
  // All text paths use this request; errors during a turn abort it before effects are applied.
  askGemini=async function(prompt,maxTokens=400,cost=1,options={}){
@@ -255,13 +267,14 @@
  };
  window.testEnsureAIForTurn=async(options={})=>{
   if(!await initAuth()){testOpenAIConnection();showNotif(connection.message);return false;}
-  if(connection.mode==='guest'){
+  if(connection.mode==='guest'||connection.mode==='account'){
    if(options.retry&&worldState.aiTurnId&&worldState.aiTurnUser===gsUser?.id){window.GS_GUEST_TURN_ID=worldState.aiTurnId;return true;}
-   if(!guestModels.includes(MODEL)){testOpenAIConnection();showNotif('Выбранная модель пока не разрешена гостевым сервером.');return false;}
+   if(connection.mode==='guest'&&!guestModels.includes(MODEL)){showNotif('Выбранная модель пока не разрешена гостевым сервером.');return false;}
    try{
-    const data=await serverRequest('guest-ai',{operation:'begin_turn',request_id:crypto.randomUUID()});
+    const path=connection.mode==='guest'?'guest-ai':'ai';
+    const data=await serverRequest(path,{operation:'begin_turn',request_id:crypto.randomUUID()});
     window.GS_GUEST_TURN_ID=data.turn_id;worldState.aiTurnId=data.turn_id;worldState.aiTurnUser=gsUser?.id;
-   }catch(error){set('offline',error.message);testOpenAIConnection();return false;}
+   }catch(error){showNotif(error.message);return false;}
   }
   return true;
  };

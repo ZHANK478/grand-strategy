@@ -1427,6 +1427,7 @@ function listSaves() {
     if (k && k.startsWith(SAVE_PREFIX)) {
       try {
         const d = JSON.parse(localStorage.getItem(k));
+        if(typeof gsUser!=='undefined'&&gsUser&&!gsUser.isAnonymous&&d._cloudUser&&d._cloudUser!==gsUser.id)continue;
         const savedPlayerCountry = d.playerCountry || 'Франция';
         const ruler = d.countries && d.countries[savedPlayerCountry] ? d.countries[savedPlayerCountry].ruler
           : (d.stateOfPower ? d.stateOfPower.ruler : '');
@@ -1487,10 +1488,11 @@ function saveGame(opts) {
       playerActions,
       advisorHistory: typeof advisorHistory !== 'undefined' ? advisorHistory : [],
       diplomacyHistories: typeof diplomacyHistories !== 'undefined' ? diplomacyHistories : {},
+      _cloudUser: (typeof gsUser!=='undefined'&&gsUser&&!gsUser.isAnonymous)?gsUser.id:null,
       savedAt: Date.now()
     };
     const key = SAVE_PREFIX + currentSlotId;
-    const cloudOn = (typeof backendOn === 'function' && backendOn() && typeof cloudSave === 'function' && gsUser);
+    const cloudOn = (typeof backendOn === 'function' && backendOn() && typeof cloudSave === 'function' && gsUser && !gsUser.isAnonymous);
 
     // Локальная копия. Для ВОШЕДШИХ игроков — БЕЗ портретов: они тяжёлые (мегабайты)
     // и хранятся в облаке. Иначе память браузера переполняется и ВЫТЕСНЯЕТ токен входа —
@@ -1564,8 +1566,8 @@ function migrateLegacySaveToCountries(d) {
   }
 }
 
-async function loadGameSlot(id) {
-  const raw = localStorage.getItem(SAVE_PREFIX + id);
+async function loadGameSlot(id, cloudData) {
+  const raw = cloudData ? JSON.stringify(cloudData) : localStorage.getItem(SAVE_PREFIX + id);
   if (!raw) return false;
   try {
     const d = JSON.parse(raw);

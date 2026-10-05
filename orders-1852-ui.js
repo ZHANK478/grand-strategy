@@ -882,6 +882,7 @@ function deleteSavedScenario(id, name) {
     openScenarioMenu();
     showNotif('🗑 Сценарий удалён: ' + name);
   };
+  if(window.gsCloudDelete)gsCloudDelete('scenario',id);
   if (typeof idbDeleteScenario === 'function') idbDeleteScenario(scenarioDataKey(id)).then(finish).catch(finish);
   else finish();
 }

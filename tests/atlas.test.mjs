@@ -19,7 +19,7 @@ try{
   page.on('pageerror',e=>{errors.push(e.message);console.log(mode+' PAGE ERROR '+e.stack);});
   page.on('response',r=>{if(r.status()>=400&&new URL(r.url()).origin===new URL(base).origin)missing.push(r.status()+' '+r.url());});
   await page.goto(base,{waitUntil:'load',timeout:60000});
-  await page.waitForFunction(()=>GS_MAP_LOAD?.status==='ready'&&AtlasView?.ready&&AtlasView.physicalCount?.rivers>0&&AtlasInterface?.ready,{},{timeout:45000});
+  await page.waitForFunction(()=>window.GS_MAP_LOAD?.status==='ready'&&window.AtlasView?.ready&&window.AtlasView.physicalCount?.rivers>0&&window.AtlasInterface?.ready,{},{timeout:45000});
   await page.evaluate(()=>document.fonts.ready);
   assert.equal(await page.evaluate(()=>document.fonts.check('16px AtlasBook')&&document.fonts.check('16px AtlasUI')),true);
   assert.equal(await page.evaluate(()=>document.querySelector('.atlas-menu-art img').naturalWidth>0),true);

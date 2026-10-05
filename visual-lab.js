@@ -161,7 +161,7 @@
  }
  function ready(){
   if(window.GS_MAP_LOAD?.status!=='ready')return;
-  if(!initialized){initialized=true;proj.precision(.08);_provincesBuiltFor=null;createLayers();renderScenarioProvinces();}
+  if(!initialized){initialized=true;proj.precision(.08);for(const p of scenarioProvinces)labelGeometryCache.delete(p.geometry);countryLabelOwnersSignature='';_provincesBuiltFor=null;createLayers();renderScenarioProvinces();}
   else{edgesFor=null;renderScenarioProvinces();}
   refreshBorders();cleanControlMarks();window.VisualLab.ready=true;
  }

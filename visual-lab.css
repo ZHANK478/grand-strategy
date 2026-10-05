@@ -62,3 +62,7 @@ html[data-visual-theme=political] .newspaper-section{letter-spacing:.04em}
 html[data-visual-theme=cabinet] :is(.events-hdr,.actions-hdr,.pop-hdr,.changes-hdr,.diplo-chat-hdr,.mobile-country-close,.country-card-heading){border-bottom-color:var(--gold)!important}
 html[data-visual-theme] ::-webkit-scrollbar-track{background:var(--panel2)}
 html[data-visual-theme] ::-webkit-scrollbar-thumb{background:var(--edge)}
+
+/* Active controls override the legacy high-specificity utility group. */
+html[data-visual-theme] :is(#economy-panel,#society-screen,#settings-panel,#editor-screen) :is(.map-mode-btn.active,.economy-tabs button.active,.editor-btn.active),
+html[data-visual-theme] :is(#map-mode-political.active,#map-mode-alliance.active){background:var(--vl-active)!important;color:var(--vl-active-ink)!important;border-color:var(--gold)!important}

@@ -50,9 +50,10 @@ try{
   await page.click('#mobile-start-btn');
   await page.waitForFunction(()=>gameStarted&&document.getElementById('main-menu').style.display==='none',{},{timeout:10000});
   await region(page);await settle(page);
-  const before=await signature(page),sourceGeometry=await page.evaluate(()=>JSON.stringify(scenarioProvinces.map(p=>p.geometry)));
+  const sourceGeometry=await page.evaluate(()=>JSON.stringify(scenarioProvinces.map(p=>p.geometry)));
   const seen=[];
   for(const theme of ['atlas','political','cabinet']){
+   const before=await signature(page);
    if(mode==='phone')await page.selectOption('#vl-theme-select',theme);
    else await page.click('[data-vl-theme="'+theme+'"]');
    await settle(page);
@@ -77,11 +78,11 @@ try{
   assert.equal(await page.evaluate(()=>JSON.stringify(scenarioProvinces.map(p=>p.geometry))),sourceGeometry,'Original scenario coordinates unchanged');
 
   // The actual foreign-country route and economy controls remain available.
-  await page.evaluate(()=>openCountryRelations('Пруссия'));
+  await page.evaluate(()=>openCountryRelations(ALL_COUNTRIES.find(n=>/Пруссия/.test(n))));
   assert.ok(await page.locator('#mobile-country-card').isVisible());
   assert.match(await page.locator('#mobile-card-name').innerText(),/Пруссия/);
-  await page.evaluate(()=>openCountryRelations('Австрия'));
-  assert.match(await page.locator('#mobile-card-name').innerText(),/Австрия/);
+  await page.evaluate(()=>openCountryRelations(ALL_COUNTRIES.find(n=>/Австри/.test(n))));
+  assert.match(await page.locator('#mobile-card-name').innerText(),/Австри/);
   await page.evaluate(()=>mobileDismissCard());
   await page.click('#mobile-actions-button');
   await page.locator('#mobile-actions-menu button').filter({hasText:'Экономика'}).click();
@@ -110,7 +111,7 @@ try{
   assert.ok(lines.every(n=>n.effect==='non-scaling-stroke'&&n.width<=1.25),'Borders remain thin at zoom');
   const dynamic=await page.evaluate(()=>{
    const p=scenarioProvinces.find(p=>p.owner==='Франция'),old=provinceOwners[p.id],path=document.getElementById('vl-country-borders');
-   const before=path.getAttribute('d');provinceOwners[p.id]='Австрия';recolorProvinces();VisualLab.refresh();
+   const before=path.getAttribute('d');provinceOwners[p.id]=ALL_COUNTRIES.find(n=>n!==p.owner);recolorProvinces();VisualLab.refresh();
    const changed=path.getAttribute('d')!==before;
    if(old===undefined)delete provinceOwners[p.id];else provinceOwners[p.id]=old;
    recolorProvinces();VisualLab.refresh();

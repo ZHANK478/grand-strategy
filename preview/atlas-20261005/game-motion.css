@@ -1,0 +1,38 @@
+/* Warm, restrained motion. Layout and map gestures stay immediate. */
+.gs-motion-on button,.gs-motion-on .xbtn,.gs-motion-on .sheet-close{
+ transition:background-color 140ms ease,border-color 140ms ease,color 140ms ease,box-shadow 140ms ease;
+}
+@media (hover:hover) and (pointer:fine){
+ .gs-motion-on button:not(:disabled):hover{box-shadow:inset 0 0 0 1px rgba(214,181,109,.28);}
+}
+.gs-motion-on button:not(:disabled):active,.gs-motion-on .sheet-close:active{filter:brightness(1.15);}
+.gs-motion-on .mobile-start{animation:gs-start-enter 420ms cubic-bezier(.2,.75,.25,1) both;}
+@keyframes gs-start-enter{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+@keyframes gs-loader-spin{to{transform:rotate(360deg)}}
+#map-load-status{display:flex;align-items:center;gap:8px;min-height:18px;}
+#map-load-status[data-motion-busy="true"]::before,
+.next-btn[data-motion-busy="true"]::before,
+.portrait-loading::before{
+ content:"";display:inline-block;flex:none;width:12px;height:12px;box-sizing:border-box;
+ border:1.5px solid rgba(201,172,111,.25);border-top-color:#c9ac6f;border-radius:50%;
+}
+.next-btn[data-motion-busy="true"]::before{margin-right:6px;vertical-align:-2px;}
+.gs-motion-on #map-load-status[data-motion-busy="true"]::before,
+.gs-motion-on .next-btn[data-motion-busy="true"]::before,
+.gs-motion-on .portrait-loading::before{animation:gs-loader-spin 850ms linear infinite;}
+.gs-motion-on .portrait-img{transition:opacity 180ms ease;}
+.gs-motion-on .newspaper-details[open]>p{animation:gs-start-enter 180ms ease;}
+/* Supported browsers can also fade a sheet out. Hidden sheets never intercept taps. */
+@supports (transition-behavior:allow-discrete){
+ .gs-motion-on [data-gs-motion-panel]{transition:opacity 150ms ease,display 150ms allow-discrete;}
+ .gs-motion-on [data-gs-motion-panel][hidden],
+ .gs-motion-on [data-gs-motion-panel].hidden,
+ .gs-motion-on [data-gs-motion-panel][style*="display: none"],
+ .gs-motion-on [data-gs-motion-panel][style*="display:none"]{opacity:0;pointer-events:none;}
+ @starting-style{.gs-motion-on [data-gs-motion-panel]{opacity:0;}}
+}
+.gs-motion-off .mobile-start{animation:none;}
+@media(prefers-reduced-motion:reduce){
+ .gs-motion-on button,.gs-motion-on [data-gs-motion-panel],.gs-motion-on .portrait-img{transition:none!important;}
+ .gs-motion-on .mobile-start,.gs-motion-on [data-motion-busy]::before,.gs-motion-on .portrait-loading::before{animation:none!important;}
+}

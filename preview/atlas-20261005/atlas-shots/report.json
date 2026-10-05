@@ -1,0 +1,21 @@
+{
+  "success": true,
+  "results": [
+    {
+      "mode": "desktop",
+      "portraitRatio": 0.35007957175925924,
+      "paidCalls": 0,
+      "errors": [],
+      "missing": [],
+      "checks": "startup, Cyrillic fonts, genuine portrait, country switching, succession, economy, queued order, fullscreen, pointer camera, geometry, isolated saves, newspaper reader"
+    },
+    {
+      "mode": "phone",
+      "portraitRatio": 0.3409651937793137,
+      "paidCalls": 0,
+      "errors": [],
+      "missing": [],
+      "checks": "startup, Cyrillic fonts, genuine portrait, country switching, succession, economy, queued order, fullscreen, pointer camera, geometry, isolated saves, newspaper reader"
+    }
+  ]
+}

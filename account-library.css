@@ -1,7 +1,7 @@
-.player-allowance{display:flex;flex-direction:column;gap:4px;align-items:center;margin:10px 0;color:#d6c391;font-size:13px;font-variant-numeric:tabular-nums}
-#menu-login-btn{background:transparent;border:1px solid #a8905b;color:#e8dcb9;margin-top:5px}
+.player-allowance{display:flex;flex-direction:column;gap:4px;align-items:center;margin:10px 0;color:#625b47;font-size:13px;font-variant-numeric:tabular-nums}
+#menu-login-btn{background:transparent;border:1px solid #a8905b;color:#51472f;margin-top:5px}
 #menu-logout-btn,#cloud-sync-btn{background:transparent;color:#bfb195;font-size:12px;border:0;padding:6px}
-#cloud-library-status{display:block;color:#b2bf9c;min-height:14px;font-size:11px;text-align:center}
+#cloud-library-status{display:block;color:#58734b;min-height:14px;font-size:11px;text-align:center}
 #cloud-library-status[data-state=error]{color:#dcc290}
 #test-hud-remaining,#test-hud-images{display:block;font-size:10px;line-height:1.35;color:#d9c69d;font-variant-numeric:tabular-nums}
 #test-hud-images{color:#b7bca7}
@@ -14,3 +14,7 @@
 .gs-login-card .gs-stay-guest{background:transparent;color:#6a604c;font-size:12px}
 .gs-login-card input,.gs-login-card button{border-radius:7px}
 @media(max-height:500px){.gs-login-card{gap:7px;padding:20px}.gs-login-title{font-size:23px}.gs-login-benefits{padding:7px}.gs-login-sub{font-size:11px}}
+
+body #menu-login-btn:not([hidden]){display:block!important}
+body #gs-login:not([hidden]){display:flex!important}
+body #gs-login[hidden],#test-hud-images[hidden],#test-hud-remaining[hidden],#menu-image-balance[hidden]{display:none!important}

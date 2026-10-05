@@ -125,7 +125,7 @@ async function loadProfile() {
 // ЭКРАН ВХОДА (magic link по email + опционально Google).
 // ------------------------------------------------------------
 function showLoginOverlay() {
-  if (document.getElementById('gs-login')) { document.getElementById('gs-login').style.display = 'flex'; return; }
+  if (document.getElementById('gs-login')) { document.getElementById('gs-login').hidden=false;document.getElementById('gs-login').style.display = 'flex'; return; }
   const el = document.createElement('div');
   el.id = 'gs-login';
   el.innerHTML = `
@@ -143,7 +143,7 @@ function showLoginOverlay() {
     </div>`;
   document.body.appendChild(el);
 }
-function hideLoginOverlay() { const el = document.getElementById('gs-login'); if (el) el.style.display = 'none'; }
+function hideLoginOverlay() { const el = document.getElementById('gs-login'); if (el) {el.hidden=true;el.style.display = 'none';} }
 function closeLogin() { hideLoginOverlay(); }
 
 async function sendMagicLink() {

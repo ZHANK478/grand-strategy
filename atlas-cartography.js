@@ -31,6 +31,7 @@
   if(!g.querySelector('#vl-inner-borders'))node('path',{id:'vl-inner-borders',fill:'none','vector-effect':'non-scaling-stroke'},g);
   if(!g.querySelector('#vl-country-borders'))node('path',{id:'vl-country-borders',fill:'none','vector-effect':'non-scaling-stroke'},g);
   if(!g.querySelector('#vl-coast'))node('path',{id:'vl-coast',fill:'none','vector-effect':'non-scaling-stroke'},g);
+  if(!document.getElementById('atlas-graticule')){const gr=node('path',{id:'atlas-graticule',d:pathGen(d3.geoGraticule().step([15,15])()),fill:'none',stroke:'#899c85','stroke-width':.4,'stroke-opacity':.22,'vector-effect':'non-scaling-stroke','pointer-events':'none'},null);world.insertBefore(gr,world.firstElementChild.nextSibling);}
   let paper=document.getElementById('vl-map-paper');
   if(!paper){paper=node('rect',{id:'vl-map-paper',width:960,height:560,fill:'url(#vl-paper-lines)','pointer-events':'none'},null);world.insertBefore(paper,document.getElementById('world-g'));}
   document.querySelectorAll('#world-g image').forEach(n=>n.style.display='none');

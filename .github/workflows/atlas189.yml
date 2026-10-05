@@ -24,7 +24,7 @@ jobs:
           name: atlas-art-browser
           path: atlas-shots/
       - name: Commit verified art and screenshots
-        if: success()
+        if: always()
         uses: actions/github-script@v7
         with:
           script: |
@@ -34,11 +34,12 @@ jobs:
             if(head!==context.sha){core.info('Branch advanced; artifacts kept.');return;}
             const commit=(await github.rest.git.getCommit({owner,repo,commit_sha:head})).data,entries=[];
             for(const dir of ['assets/atlas','atlas-shots']){
+              if(!fs.existsSync(dir))continue;
               for(const name of fs.readdirSync(dir)){
                 const blob=(await github.rest.git.createBlob({owner,repo,encoding:'base64',content:fs.readFileSync(dir+'/'+name).toString('base64')})).data;
                 entries.push({path:dir+'/'+name,mode:'100644',type:'blob',sha:blob.sha});
               }
             }
             const tree=(await github.rest.git.createTree({owner,repo,base_tree:commit.tree.sha,tree:entries})).data;
-            const next=(await github.rest.git.createCommit({owner,repo,message:'Capture verified historical atlas artwork and browser screenshots',tree:tree.sha,parents:[head]})).data;
+            const next=(await github.rest.git.createCommit({owner,repo,message:'Store historical artwork and browser inspection captures',tree:tree.sha,parents:[head]})).data;
             await github.rest.git.updateRef({owner,repo,ref:'heads/'+branch,sha:next.sha,force:false});

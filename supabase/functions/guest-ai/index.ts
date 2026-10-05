@@ -1,7 +1,7 @@
 // Deploy as the separate Supabase Edge Function "guest-ai".
 // Disable gateway Verify JWT: this function validates the user itself.
 // Uses the existing OPENROUTER_KEY secret. Never expose that key to the browser.
-import { cachedImage, resolveImages } from '../_shared/images.ts';
+import { cachedImage, resolveImages, lookupImages } from '../_shared/images.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 const GUEST_MODELS=['google/gemini-3.1-flash-lite','openai/gpt-6-luna','z-ai/glm-5.3-flashx','z-ai/glm-5.3','anthropic/claude-sonnet-5.5'];
 // Configure the exact catalogue-confirmed Sonnet ID during deployment; do not guess it.
@@ -53,6 +53,7 @@ Deno.serve(async(req:Request)=>{
   const id=userData.user.id;
   const admin=createClient(url,service);
   const body=await req.json();
+  if(body.operation==='lookup_images'){const r=await lookupImages(admin,body.requests);return json(r.data,r.status);}
   if(body.operation==='resolve_images'){const r=await resolveImages(admin,body.paths);return json(r.data,r.status);}
   const key=Deno.env.get('OPENROUTER_KEY');
   if(!key)return json({error:'server_no_key'},503);

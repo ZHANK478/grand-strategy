@@ -360,25 +360,31 @@ async function askGeminiImage(promptText) {
 
 // Портрет персоны: role 'ruler' (правитель, поле portrait) или 'pm' (глава правительства,
 // поле pmPortrait). Единая функция — обе кнопки и автогенерация идут через неё.
-let portraitGenerating = false;
-async function generatePersonPortrait(country, role) {
+function buildPersonPortraitPrompt(country, role) {
   const c = countries[country];
-  if (!c || portraitGenerating) return null;
-  role = role === 'pm' ? 'pm' : 'ruler';
-  portraitGenerating = true;
-  if (typeof setPortraitLoading === 'function') setPortraitLoading(true, role);
+  if (!c || !(role === 'pm' ? c.pm : c.ruler)) return null;
   const isPm = role === 'pm';
   const name = isPm ? c.pm : c.ruler;
   const title = isPm ? c.pmTitle : c.rulerTitle;
   const age = !isPm && typeof c.rulerAge === 'number' ? `${c.rulerAge} years old` : 'middle-aged';
   const faith = !isPm && c.rulerReligion ? `, ${c.rulerReligion} faith` : '';
   const era = year < 1900 ? '19th century academic style' : 'early 20th century formal style';
-  const prompt = `Formal painted state portrait, oil painting, ${era}. Subject: ${name}, ${title} of ${c.displayName}, ${age}${faith}, year ${year}. Dignified pose, period-accurate formal attire${isPm ? '' : ' and regalia'} of ${c.displayName}, muted palace background, 3:4 portrait crop, head and shoulders. No text, no frame.`;
+  return `Formal painted state portrait, oil painting, ${era}. Subject: ${name}, ${title} of ${c.displayName}, ${age}${faith}, year ${year}. Dignified pose, period-accurate formal attire${isPm ? '' : ' and regalia'} of ${c.displayName}, muted palace background, 3:4 portrait crop, head and shoulders. No text, no frame.`;
+}
+let portraitGenerating = false;
+async function generatePersonPortrait(country, role) {
+  const c = countries[country];
+  if (!c || portraitGenerating) return null;
+  role = role === 'pm' ? 'pm' : 'ruler';
+  const prompt = buildPersonPortraitPrompt(country, role);
+  if (!prompt) return null;
+  portraitGenerating = true;
+  if (typeof setPortraitLoading === 'function') setPortraitLoading(true, role);
   const url = await askGeminiImage(prompt);
   portraitGenerating = false;
   if (typeof setPortraitLoading === 'function') setPortraitLoading(false, role);
   if (url) {
-    if (isPm) c.pmPortrait = url; else c.portrait = url;
+    if (role === 'pm') c.pmPortrait = url; else c.portrait = url;
     if (country === playerCountry && typeof renderRulerPortrait === 'function') renderRulerPortrait();
     saveGame();
   }

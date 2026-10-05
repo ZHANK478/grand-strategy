@@ -63,3 +63,20 @@ export async function resolveImages(admin:any,paths:unknown){
  }
  return {status:200,data:{urls}};
 }
+
+// Lookup never claims credits and never contacts the generation provider.
+export async function lookupImages(admin:any,requests:unknown){
+ if(!Array.isArray(requests)||requests.length>100||requests.some(r=>typeof r?.id!=='string'||r.id.length>160||r.model!=='google/gemini-3.1-flash-image'||!Array.isArray(r.messages)||r.messages.length!==1||r.messages[0]?.role!=='user'||typeof r.messages[0]?.content!=='string'||r.messages[0].content.length>4000))return {status:400,data:{error:'bad_payload'}};
+ const identities=await Promise.all(requests.map(async r=>({id:r.id,key:await imageKey(r.model,r.messages)})));
+ const urls:Record<string,string>={};
+ if(!identities.length)return {status:200,data:{urls}};
+ const result=await admin.from('shared_images').select('cache_key,asset_url').eq('status','ready').in('cache_key',identities.map(r=>r.key));
+ if(result.error)return {status:503,data:{error:'image_lookup_failed'}};
+ for(const row of result.data||[]){
+  let url=row.asset_url;
+  if(typeof url!=='string')continue;
+  if(url.startsWith('storage:')){const signed=await admin.storage.from('generated-images').createSignedUrl(url.slice(8),3600);if(signed.error)return {status:503,data:{error:'image_lookup_failed'}};url=signed.data.signedUrl;}
+  for(const item of identities)if(item.key===row.cache_key)urls[item.id]=url;
+ }
+ return {status:200,data:{urls}};
+}

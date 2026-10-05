@@ -178,6 +178,7 @@
     card.style.display='block';card.hidden=false;
     document.body.classList.add('mobile-country-open');
   };
+  window.addEventListener('gs-portraits-ready',()=>{if(inspectedCountry&&!document.getElementById('mobile-country-card').hidden)renderForeignCountry(inspectedCountry);});
   // Every map/details entry opens the same cabinet, without a second large screen.
   openCountryRelations=window.mobileCountryCard;
   window.mobileBackFromDiplomacy=()=>{

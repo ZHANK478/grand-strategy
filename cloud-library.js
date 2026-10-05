@@ -1,7 +1,17 @@
 /* Private player library. Generated images use the separate, server-owned shared cache. */
 (() => {
  'use strict';
- let syncing=null,syncUser=null;
+ let syncing=null,syncUser=null,remoteSaves=[];
+ const localListSaves=listSaves;
+ listSaves=function(){
+  const local=localListSaves();
+  if(!account())return local;
+  let remote=remoteSaves;
+  if(!remote.length)try{remote=JSON.parse(localStorage.getItem('gs1852_remote_saves_'+gsUser.id)||'[]');}catch{}
+  const merged=new Map(local.map(s=>[s.id,s]));
+  for(const s of remote)if(s.user===gsUser.id&&(!merged.has(s.id)||s.savedAt>merged.get(s.id).savedAt))merged.set(s.id,s);
+  return [...merged.values()].sort((a,b)=>b.savedAt-a.savedAt);
+ };
  const writes=new Map();
  const pendingPrefix='gs1852_cloud_pending_';
  const account=()=>typeof sb!=='undefined'&&sb&&gsUser&&!gsUser.isAnonymous;
@@ -49,7 +59,7 @@
   if(syncing)return syncUser===gsUser.id?syncing:syncing.then(()=>gsSyncLibrary());
   const user=gsUser.id;syncUser=user;
   syncing=(async()=>{
-   mark('Синхронизация…');
+   mark('Сохраняем ваши партии, карты и сценарии…');
    const indexResult=await sb.from('cloud_library').select('*').eq('user_id',user);
    if(indexResult.error)throw Error(indexResult.error.message);
    const rows=indexResult.data||[],uploaded=new Set();
@@ -94,20 +104,43 @@
     }
    }
    const saves=await cloudListSaves();
-   for(const saved of saves){
-    const raw=localStorage.getItem(SAVE_PREFIX+saved.id),local=raw?JSON.parse(raw):null;
-    if(local&&local.savedAt>=saved.savedAt&&(!local._cloudUser||local._cloudUser===user))continue;
-    const data=await cloudLoad(saved.id);if(!data)throw Error('Не удалось загрузить партию');
-    data._cloudUser=user;
-    const slim=JSON.parse(JSON.stringify(data));Object.values(slim.countries||{}).forEach(c=>{c.portrait=null;c.pmPortrait=null;});
-    localStorage.setItem(SAVE_PREFIX+saved.id,JSON.stringify(slim));
-   }
+   // Cache only the small index. Full parties are fetched when opened, not all
+   // copied into the browser's limited localStorage during every sign-in.
+   remoteSaves=saves.map(s=>({...s,user}));
+   try{localStorage.setItem('gs1852_remote_saves_'+user,JSON.stringify(remoteSaves));}catch(error){console.warn('Save index:',error.message);}
    localStorage.setItem('gs1852_library_owner',user);
    if(typeof initMenu==='function')initMenu();if(typeof renderSaveList==='function')renderSaveList();
-   mark('Библиотека синхронизирована');return true;
-  })().catch(error=>{console.warn('Cloud library:',error.message);mark('Локальная копия сохранена · облако недоступно',false);return false;}).finally(()=>{syncing=null;});
+   mark('Все партии, карты и сценарии сохранены в аккаунте');return true;
+  })().catch(error=>{console.warn('Cloud library:',error.message);mark(error.name==='QuotaExceededError'?'На устройстве не хватает места для копии сохранений.':'Не удалось завершить сохранение в аккаунте. Нажмите «Повторить сохранение».',false);return false;}).finally(()=>{syncing=null;});
   return syncing;
  };
+ // Hydrate each campaign from the shared cache without generating anything.
+ window.gsHydratePortraits=async function(){
+  if(!sb||!gsUser||typeof countries==='undefined'||typeof buildPersonPortraitPrompt!=='function')return;
+  const owner=gsUser.id,world=countries,targets=[];
+  for(const [country,c] of Object.entries(world))for(const role of ['ruler','pm']){
+   const field=role==='pm'?'pmPortrait':'portrait',prompt=buildPersonPortraitPrompt(country,role);
+   if(prompt&&!c[field])targets.push({country,c,role,field,prompt,id:String(targets.length)});
+  }
+  let changed=false;
+  try{
+   for(let i=0;i<targets.length;i+=100){
+    const batch=targets.slice(i,i+100);
+    const response=await fetch(GS_CONFIG.API_BASE+'/'+(gsUser.isAnonymous?'guest-ai':'ai'),{
+     method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+await authToken(),apikey:GS_CONFIG.SUPABASE_ANON_KEY},
+     body:JSON.stringify({operation:'lookup_images',requests:batch.map(t=>({id:t.id,model:'google/gemini-3.1-flash-image',messages:[{role:'user',content:t.prompt}]}))})
+    });
+    if(!response.ok)throw Error('Не удалось загрузить готовые портреты');
+    const data=await response.json();
+    if(gsUser?.id!==owner||countries!==world)return;
+    for(const t of batch)if(data.urls?.[t.id]&&countries[t.country]===t.c&&!t.c[t.field]&&buildPersonPortraitPrompt(t.country,t.role)===t.prompt){t.c[t.field]=data.urls[t.id];changed=true;}
+   }
+   if(changed){if(typeof renderRulerPortrait==='function')renderRulerPortrait();window.dispatchEvent(new Event('gs-portraits-ready'));if(gameStarted)saveGame();}
+  }catch(error){console.warn('Ready portraits:',error.message);}
+ };
+ const originalStart=startGame;
+ startGame=function(...args){const result=originalStart(...args);gsHydratePortraits();return result;};
+ window.addEventListener('online',()=>gsHydratePortraits());
  const imagePath=url=>{
   try{const u=new URL(url);if(u.origin!==new URL(GS_CONFIG.SUPABASE_URL).origin)return null;
    const match=/\/storage\/v1\/object\/sign\/generated-images\/([a-f0-9]{64}\.(?:png|jpeg|webp))$/.exec(u.pathname);return match?.[1]||null;
@@ -147,10 +180,10 @@
   if(account())try{
    await gsSyncLibrary();
    const cloud=await cloudLoad(id);if(cloud&&(!data||cloud.savedAt>=data.savedAt))data=cloud;
-  }catch(error){mark('Открыта локальная копия',false);}
+  }catch(error){mark('Не удалось загрузить партию из аккаунта. Открыта копия с этого устройства.',false);}
   if(data)try{await gsResolveImages(data);}catch{mark('Изображения ожидают подключения',false);}
   return originalLoad(id,data);
  };
  const originalDelete=deleteSave;
- if(typeof originalDelete==='function')deleteSave=function(id){originalDelete(id);if(account())cloudDelete(id).catch(()=>mark('Не удалось удалить из облака',false));};
+ if(typeof originalDelete==='function')deleteSave=function(id){originalDelete(id);if(account())cloudDelete(id).then(()=>{remoteSaves=remoteSaves.filter(s=>s.id!==id);try{localStorage.removeItem('gs1852_remote_saves_'+gsUser.id);}catch{}if(typeof renderSaveList==='function')renderSaveList();}).catch(()=>mark('Не удалось удалить из аккаунта',false));};
 })();

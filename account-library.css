@@ -1,8 +1,8 @@
 .player-allowance{display:flex;flex-direction:column;gap:4px;align-items:center;margin:10px 0;color:#625b47;font-size:13px;font-variant-numeric:tabular-nums}
 #menu-login-btn{background:transparent;border:1px solid #a8905b;color:#51472f;margin-top:5px}
-#menu-logout-btn,#cloud-sync-btn{background:transparent;color:#bfb195;font-size:12px;border:0;padding:6px}
+#menu-logout-btn,#cloud-sync-btn{background:transparent;color:#625338;font-size:12px;border:0;padding:6px}
 #cloud-library-status{display:block;color:#58734b;min-height:14px;font-size:11px;text-align:center}
-#cloud-library-status[data-state=error]{color:#dcc290}
+#cloud-library-status[data-state=error]{color:#85502d}
 #test-hud-remaining,#test-hud-images{display:block;font-size:10px;line-height:1.35;color:#d9c69d;font-variant-numeric:tabular-nums}
 #test-hud-images{color:#b7bca7}
 #gs-login{background:rgba(13,17,18,.82);backdrop-filter:blur(7px);padding:18px;overflow:auto}

@@ -9,7 +9,7 @@
 // Create a function → имя «ai» → вставить этот код → Deploy. Отключить «Verify JWT»
 // (проверку токена делаем сами внутри). Секрет OPENROUTER_KEY — см. docs/PROXY.md.
 // ============================================================
-import { cachedImage, resolveImages } from '../_shared/images.ts';
+import { cachedImage, resolveImages, lookupImages } from '../_shared/images.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 const cors = {
@@ -46,6 +46,7 @@ Deno.serve(async (req: Request) => {
     if (u.user.is_anonymous) return json({ error: 'guest_required' }, 403);
     const userId = u.user.id;
     const body = await req.json();
+  if(body.operation==='lookup_images'){const r=await lookupImages(admin,body.requests);return json(r.data,r.status);}
     if(body.operation==='resolve_images'){const r=await resolveImages(admin,body.paths);return json(r.data,r.status);}
     const kind = body.kind === 'image' ? 'image' : 'text';
 

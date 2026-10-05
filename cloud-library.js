@@ -103,7 +103,9 @@
      const idx=getMapsIndex().filter(m=>m.id!==row.id);idx.push({...row.metadata,id:row.id,name:row.name});saveMapsIndex(idx);
     }
    }
+   if(gsUser?.id!==user)return false;
    const saves=await cloudListSaves();
+   if(gsUser?.id!==user)return false;
    // Cache only the small index. Full parties are fetched when opened, not all
    // copied into the browser's limited localStorage during every sign-in.
    remoteSaves=saves.map(s=>({...s,user}));

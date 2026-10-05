@@ -29,4 +29,13 @@ const oldFetch=globalThis.fetch;globalThis.fetch=async()=>{providerCalls++;throw
 const key=await imageKey(requests[0].model,requests[0].messages);
 const admin={rpc:()=>{rpcCalls++;throw Error('Debit forbidden')},from:()=>({select:()=>({eq:()=>({in:async()=>({data:[{cache_key:key,asset_url:'storage:test.png'}]})})})}),storage:{from:()=>({createSignedUrl:async()=>({data:{signedUrl:'https://test/signed'}})})}};
 try{const result=await lookupImages(admin,[requests[0]]);assert.equal(result.data.urls[requests[0].id],'https://test/signed');assert.equal(rpcCalls,0);assert.equal(providerCalls,0);assert.equal((await lookupImages(admin,[{id:'x'}])).status,400);}finally{globalThis.fetch=oldFetch;}
+// Sign-in lists remote parties without copying full states into localStorage.
+const stored=new Map();context.countries=world;context.localStorage={getItem:k=>stored.get(k)||null,setItem:(k,v)=>stored.set(k,v),key:()=>null,length:0};
+context.getMapsIndex=()=>[];context.getScenariosIndex=()=>[];
+context.sb={from:()=>({select(){return this},eq(){return this},then(resolve,reject){return Promise.resolve({data:[]}).then(resolve,reject)}})};
+context.cloudListSaves=async()=>[{id:'remote-party',country:'Австрия',savedAt:10}];
+context.cloudLoad=()=>{throw Error('A full party must only load when opened')};
+assert.equal(await context.gsSyncLibrary(),true);
+assert.equal(context.listSaves().find(s=>s.id==='remote-party').country,'Австрия');
+assert.equal([...stored.keys()].some(k=>k.startsWith('gs_economyworld_save_')),false);
 console.log('Shared portraits: campaign hydration, stale responses and lookup without generation or debit passed.');

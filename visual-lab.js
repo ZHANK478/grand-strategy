@@ -107,7 +107,7 @@
   if(!physical||!initialized)return;
   for(const[k,cls]of [['mountains','vl-mountain-region'],['rivers','vl-river']]){
    const g=document.getElementById('vl-'+k);if(!g)continue;
-   d3.select(g).selectAll('path').data(physical[k].features).join('path').attr('class',cls).attr('d',pathGen).attr('pointer-events','none').attr('vector-effect','non-scaling-stroke');
+   d3.select(g).selectAll('path').data(k==='mountains'?[physical[k]]:physical[k].features).join('path').attr('class',cls).attr('d',pathGen).attr('pointer-events','none').attr('vector-effect','non-scaling-stroke');
   }
   window.VisualLab.physicalCount={mountains:physical.mountains.features.length,rivers:physical.rivers.features.length};
  }

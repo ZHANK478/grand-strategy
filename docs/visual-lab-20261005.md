@@ -17,7 +17,7 @@ Themes are authored CSS and SVG; no new AI pictures, paid model calls or LoRA in
 
 The blurred raster relief is removed from the experimental renderer. The same original scenario polygons remain selectable; no smoothing, invented coastlines or province remapping. A shared-edge mesh paints each boundary once; ownership changes update country boundaries. Coast and country line widths remain screen-sized during zoom. Country-label preferred size is normalized to actual screen width; unreadably tiny or colliding labels yield to larger regions and return as zoom creates space, using the same rule for every country. The province-border visibility preference still works.
 
-Real cartographic mountain regions and river centre lines use public-domain Natural Earth data. This is vector atlas notation, not a digital elevation model or new terrain imagery. Missing detail in the original scenario's coast geometry is not recovered by these treatments.
+Overlapping mountain-region extents are drawn in a single compound path to avoid double-dark hatching. Real cartographic mountain regions and river centre lines use public-domain Natural Earth data. This is vector atlas notation, not a digital elevation model or new terrain imagery. Missing detail in the original scenario's coast geometry is not recovered by these treatments.
 
 ## Comparison and party isolation
 

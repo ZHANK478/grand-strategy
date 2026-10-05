@@ -22,6 +22,7 @@ const region=async page=>page.evaluate(()=>{
  svgEl.setAttribute('viewBox',[vb.x,vb.y,vb.w,vb.h].join(' '));updateLabels();VisualLab.refresh();
 });
 const signature=page=>page.evaluate(()=>JSON.stringify({playerCountry,countries,worldState,provinceOwners,year,month,vb}));
+const capture=async(page,file)=>{await page.waitForTimeout(200);await page.screenshot({path:file,animations:'disabled'});};
 const settle=page=>page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
 let success=false;
 try{
@@ -69,7 +70,7 @@ try{
    assert.ok(styles.border,'Theme defines border colour');seen.push(styles);
    await page.click('#mobile-flag-button');
    assert.ok(await page.locator('#left-panel').isVisible());
-   await page.screenshot({path:output+'/'+theme+'-'+mode+'.png'});
+   await capture(page,output+'/'+theme+'-'+mode+'.png');
    await page.locator('#left-panel .sheet-close').click();
   }
   assert.equal(new Set(seen.map(s=>s.ocean)).size,3,'All three oceans differ');
@@ -87,7 +88,7 @@ try{
   await page.click('#mobile-actions-button');
   await page.locator('#mobile-actions-menu button').filter({hasText:'Экономика'}).click();
   assert.ok(await page.locator('#economy-panel').isVisible());
-  await page.screenshot({path:output+'/cabinet-economy-'+mode+'.png'});
+  await capture(page,output+'/cabinet-economy-'+mode+'.png');
   await page.evaluate(()=>mobileSection('map'));
 
   // Real pointer camera input, including native touch pinch.
@@ -134,7 +135,7 @@ try{
    if(mode==='phone')await page.selectOption('#vl-theme-select',theme);
    else await page.click('[data-vl-theme="'+theme+'"]');
    await settle(page);
-   await page.screenshot({path:output+'/'+theme+'-news-'+mode+'.png'});
+   await capture(page,output+'/'+theme+'-news-'+mode+'.png');
   }
   assert.equal(paidCalls,0,'No AI requests attempted');
   assert.deepEqual(errors,[],'No uncaught browser errors');assert.deepEqual(missing,[],'No missing local resources');

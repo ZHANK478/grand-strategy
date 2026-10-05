@@ -37,6 +37,8 @@ try{
   const portrait=await page.locator('#ruler-portrait').boundingBox(),sheet=await page.locator('#left-panel').boundingBox();
   assert.ok(portrait.width<sheet.width*.45,'Portrait is compact, with name and office alongside');
   assert.ok(await page.locator('#ruler-name').isVisible());
+  assert.match(await page.locator('#atlas-pop').innerText(),/35,8/,'Actual population is visible');
+  const caption=await page.locator('#left-panel .atlas-person .portrait-caption').first().boundingBox();assert.ok(caption.x+caption.width<=sheet.x+sheet.width-10,'Caption stays inside the country sheet');
   await capture(page,'country-'+mode);
   await page.locator('#left-panel .sheet-close').click();
   await page.evaluate(()=>openCountryRelations(ALL_COUNTRIES.find(x=>/Пруссия/.test(x))));
@@ -78,6 +80,7 @@ try{
     foreign:[{headline:'Лондон ищет согласия с континентальными кабинетами',body:'Британские дипломаты предложили соседним державам обсудить безопасность морской торговли. Встреча должна показать, готовы ли правительства поддерживать общий порядок при несовпадающих интересах.'},{headline:'Берлин и Вена расходятся во взглядах',body:'В германских дворах обсуждают будущее совместных учреждений. Стороны пока не называют окончательных условий сближения.'}],archive:{domestic:[],foreign:[]}});
    mobileSection('news');
   });
+  const paper=await page.locator('#events-box').boundingBox(),firstText=await page.locator('#domestic-list .newspaper-article p').first().boundingBox();assert.ok(firstText.y<paper.y+paper.height*.68,'Article text appears without a long empty header');
   await capture(page,'newspaper-'+mode);
   assert.equal(await page.locator('#atlas-brief').getAttribute('open'),null,'Technical summary starts folded');
   await page.locator('.atlas-reader-toggle').click();assert.equal(await page.locator('.atlas-reader-toggle').getAttribute('aria-expanded'),'true');

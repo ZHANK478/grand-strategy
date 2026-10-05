@@ -56,7 +56,7 @@
   catalog(document.getElementById('ruler-portrait'),document.getElementById('ruler-portrait-emoji'),c.ruler,c.portrait);
   catalog(document.getElementById('pm-portrait'),document.getElementById('pm-portrait-emoji'),c.pm,c.pmPortrait);
   const pm=document.getElementById('pm');pm.classList.toggle('atlas-no-pm',!c.pm||c.pm==='—');
-  text(document.getElementById('atlas-pop'),typeof c.pop==='number'?new Intl.NumberFormat('ru',{maximumFractionDigits:1}).format(c.pop/1000)+' млн':c.pop||'—');
+  text(document.getElementById('atlas-pop'),typeof c.population==='number'?new Intl.NumberFormat('ru',{maximumFractionDigits:1}).format(c.population/1000)+' млн':c.pop||'—');
   text(document.getElementById('atlas-gdp'),typeof c.gdp==='number'?new Intl.NumberFormat('ru',{maximumFractionDigits:1}).format(c.gdp/1000)+' млрд':c.gdp||'—');
   text(document.getElementById('portrait-gen-btn'),'Изменить портрет');
   text(document.getElementById('pm-portrait-gen-btn'),'Изменить портрет');
@@ -114,7 +114,7 @@
   const kicker=document.getElementById('atlas-order-date');if(kicker)text(kicker,dateLabel());
  }
  function compose(){
-  ownCountry();foreignCountry();decorateNews();controls();
+  ownCountry();foreignCountry();decorateNews();controls();document.documentElement.classList.toggle('atlas-scenario-ready',window.GS_MAP_LOAD?.status==='ready');
   window.AtlasInterface.ready=true;
  }
  function schedule(){if(!scheduled)scheduled=requestAnimationFrame(()=>{scheduled=0;compose();});}
@@ -138,7 +138,7 @@
  const oldCard=window.mobileCountryCard;window.mobileCountryCard=function(name){foreign=name;const r=oldCard(name);compose();return r;};openCountryRelations=window.mobileCountryCard;
  const oldRefresh=window.mobileRefreshCountry;window.mobileRefreshCountry=function(...args){const r=oldRefresh?.(...args);compose();return r;};
  const oldPower=renderPlayerPowerPanel;renderPlayerPowerPanel=function(...args){const r=oldPower(...args);compose();return r;};
- const oldNews=renderNewspaper;renderNewspaper=function(...args){const r=oldNews(...args);decorateNews();return r;};
+ const oldNews=renderNewspaper;renderNewspaper=function(...args){const r=oldNews(...args);decorateNews();const edition=args[0];if(edition?.from===edition?.to)text(document.getElementById('newspaper-date'),edition.to);return r;};
  const observer=new MutationObserver(schedule);observer.observe(document.body,{childList:true,subtree:true,characterData:true});
  window.addEventListener('gs:scenario-status',schedule);
  document.fonts.ready.then(()=>{if(typeof updateLabels==='function')updateLabels();AtlasView.refresh();});

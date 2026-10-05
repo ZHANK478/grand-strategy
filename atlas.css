@@ -186,3 +186,22 @@ html[data-atlas] .atlas-no-pm>.mobile-own-portrait,html[data-atlas] .atlas-no-pm
 html[data-atlas] #pm.atlas-no-pm.open,html[data-atlas] .atlas-person.atlas-no-pm{grid-template-columns:1fr}
 html[data-atlas] .atlas-no-pm #pm-portrait-gen-btn,html[data-atlas] .atlas-no-pm .mobile-portrait-generate{display:none!important}
 html[data-atlas] .atlas-no-pm .pc-name{font:italic 16px var(--fd)!important}
+
+html[data-atlas] #left-panel .atlas-person .portrait-caption{width:auto!important;max-width:100%!important;min-width:0!important;margin:0!important}
+html[data-atlas] #left-panel .atlas-person :is(#portrait-gen-btn,#pm-portrait-gen-btn){width:auto!important;max-width:100%!important}
+html[data-atlas] #mobile-country-card .atlas-person-text{min-width:0}
+html[data-atlas] .atlas-person :is(.pc-name,.mobile-country-fact strong){display:block}
+
+html[data-atlas] #left-panel #pm.atlas-no-pm #pm-portrait-gen-btn{display:none!important}
+html[data-atlas].atlas-scenario-ready #map-load-status{display:none}
+html[data-atlas] .mobile-map-hint{border-radius:0;color:var(--dim);background:#f6f3e9ed;border-color:var(--rule);font-family:var(--fb)}
+@media(max-width:1023px){
+ html[data-atlas] #events-box>.events-hdr:first-child{padding:4px 10px!important;min-height:32px;margin-bottom:10px}
+ html[data-atlas] .atlas-press-mark,html[data-atlas] .atlas-edition-line{display:none}
+ html[data-atlas] .newspaper-masthead{font-size:28px!important;padding:0 0 10px!important}
+ html[data-atlas] #newspaper-date{font-size:10px!important;margin-top:7px}
+ html[data-atlas] .newspaper-section,html[data-atlas] #events-box>.atlas-domestic-heading{padding:10px 0 6px!important;min-height:0}
+ html[data-atlas] .newspaper-article{padding:12px 0!important}
+ html[data-atlas] .atlas-lead h3{font-size:21px!important}
+ html[data-atlas] .atlas-lead>p:first-of-type::first-letter{font-size:35px}
+}

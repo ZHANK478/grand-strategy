@@ -12,6 +12,7 @@
  let syncedUser=null;
  function render(){
   const isAccount=connection.mode==='account';
+  document.body.classList.toggle('has-player-account',isAccount);
   const value=connection.mode==='guest'?guestRemaining:isAccount?gsProfile?.turns_balance:null;
   if(badge)badge.textContent=isAccount?'Ваш аккаунт':connection.mode==='guest'?'Гостевая игра':connection.mode==='direct'?'Свой OpenRouter':'Подключение…';
   if(note)note.textContent=connection.mode==='guest'?'10 ходов без регистрации. Вход в аккаунт — по желанию.':isAccount?'Партии и библиотека сохраняются в вашем аккаунте.':connection.message;

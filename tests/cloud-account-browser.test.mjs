@@ -34,6 +34,8 @@ try{
   await page.waitForFunction(()=>gameStarted);
   if(mode==='account'){
    assert.match(await page.locator('#test-hud-images').textContent(),/5/);
+   await page.locator('#mobile-flag-button').click();assert.equal(await page.locator('#portrait-gen-btn').isVisible(),true,'Account can request a portrait');
+   const positions=await page.evaluate(()=>{const turns=document.getElementById('test-hud-remaining').getBoundingClientRect(),images=document.getElementById('test-hud-images').getBoundingClientRect();return {turnBottom:turns.bottom,imageTop:images.top};});assert.ok(positions.imageTop>=positions.turnBottom,'Image counter appears below turns');
    await page.evaluate(()=>saveGame());await page.waitForFunction(()=>__writes.some(w=>w.table==='saves'));
    await page.evaluate(()=>testEnsureAIForTurn());assert.match(await page.locator('#test-hud-remaining').textContent(),/49/);
   }

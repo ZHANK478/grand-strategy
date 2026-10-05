@@ -18,3 +18,6 @@
 body #menu-login-btn:not([hidden]){display:block!important}
 body #gs-login:not([hidden]){display:flex!important}
 body #gs-login[hidden],#test-hud-images[hidden],#test-hud-remaining[hidden],#menu-image-balance[hidden]{display:none!important}
+
+.mobile-date{flex-direction:column!important;flex-wrap:nowrap!important;align-items:flex-end!important;gap:1px!important}
+body.has-player-account #left-panel #portrait-gen-btn,body.has-player-account #left-panel #pm-portrait-gen-btn{display:block}

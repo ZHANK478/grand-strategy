@@ -225,11 +225,14 @@ function buyItem(i) {
 // ------------------------------------------------------------
 async function cloudSave(id, meta, state) {
   if (!sb || !gsUser || gsUser.isAnonymous) return false;
+  const userId=gsUser.id;
+  if(state._cloudUser && state._cloudUser!==userId)return false;
   if(window.gsCloudPut && state.scenarioRef && !state.scenarioRef.startsWith('builtin')) {
     const scenario=await idbGetScenario(scenarioDataKey(state.scenarioRef));
     if(scenario)await gsCloudPut('scenario',state.scenarioRef,scenario.name,scenario,getScenariosIndex().find(s=>s.id===state.scenarioRef)||{});
   }
-  const row = { id, user_id: gsUser.id, state, updated_at: new Date().toISOString(),
+  if(gsUser?.id!==userId)return false;
+  const row = { id, user_id: userId, state, updated_at: new Date().toISOString(),
     scenario_ref: meta.scenarioRef, scenario_name: meta.scenarioName, country: meta.country,
     ruler: meta.ruler, turn: meta.turn, year: meta.year, month: meta.month, treasury: meta.treasury };
   const { error } = await sb.from('saves').upsert(row);
@@ -260,7 +263,8 @@ async function cloudLoad(id) {
 
 async function cloudDelete(id) {
   if (!sb || !gsUser) return;
-  await sb.from('saves').delete().eq('user_id', gsUser.id).eq('id', id);
+  const result=await sb.from('saves').delete().eq('user_id', gsUser.id).eq('id', id);
+  if(result.error)throw Error(result.error.message);
 }
 
 // ------------------------------------------------------------

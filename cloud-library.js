@@ -1,7 +1,7 @@
 /* Private player library. Generated images use the separate, server-owned shared cache. */
 (() => {
  'use strict';
- let syncing=null;
+ let syncing=null,syncUser=null;
  const writes=new Map();
  const pendingPrefix='gs1852_cloud_pending_';
  const account=()=>typeof sb!=='undefined'&&sb&&gsUser&&!gsUser.isAnonymous;
@@ -31,8 +31,8 @@
   localStorage.removeItem(pendingKey);mark('Сохранено в облаке');return true;
  }
  window.gsCloudPut=function(kind,id,name,payload,metadata={}){
-  const key=kind+':'+id,copy=JSON.parse(JSON.stringify(payload)),meta={...metadata};
-  const next=(writes.get(key)||Promise.resolve()).catch(()=>{}).then(()=>putCloud(kind,id,name,copy,meta));
+  const key=kind+':'+id,owner=gsUser?.id,copy=JSON.parse(JSON.stringify(payload)),meta={...metadata};
+  const next=(writes.get(key)||Promise.resolve()).catch(()=>{}).then(()=>gsUser?.id===owner?putCloud(kind,id,name,copy,meta):false);
   writes.set(key,next);next.finally(()=>{if(writes.get(key)===next)writes.delete(key);}).catch(()=>{});return next;
  };
  window.gsCloudDelete=async function(kind,id){
@@ -45,8 +45,9 @@
   return JSON.parse(await result.data.text());
  }
  window.gsSyncLibrary=async function(){
-  if(!account())return false;if(syncing)return syncing;
-  const user=gsUser.id;
+  if(!account())return false;
+  if(syncing)return syncUser===gsUser.id?syncing:syncing.then(()=>gsSyncLibrary());
+  const user=gsUser.id;syncUser=user;
   syncing=(async()=>{
    mark('Синхронизация…');
    const indexResult=await sb.from('cloud_library').select('*').eq('user_id',user);

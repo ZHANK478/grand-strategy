@@ -72,6 +72,8 @@
    const b=block.querySelector('button');if(b)words.append(b);
    person.dataset.atlasRole=i===0?'ruler':'pm';
   }
+  const population=[...detail.querySelectorAll('.mobile-country-fact')].find(row=>row.querySelector('small')?.textContent==='Население');
+  if(population&&typeof c.population==='number')text(population.querySelector('strong'),new Intl.NumberFormat('ru',{maximumFractionDigits:1}).format(c.population/1000)+' млн');
   for(const person of detail.querySelectorAll('.atlas-person')){
    const pm=person.dataset.atlasRole==='pm',block=person.querySelector('.mobile-person-portrait');
    catalog(block.querySelector('img'),block.querySelector('.mobile-portrait-placeholder'),pm?c.pm:c.ruler,pm?c.pmPortrait:c.portrait);

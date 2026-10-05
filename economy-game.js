@@ -16,7 +16,7 @@ function renderDate() {
 }
 
 let gameStarted = false;
-const SAVE_PREFIX = 'gs_economyworld_save_';
+const SAVE_PREFIX = 'gs_visual_lab_save_';
 let currentSlotId = null;
 
 // Страны текущего сценария — БОЛЬШЕ НЕ ХАРДКОД: список строится из владельцев провинций
@@ -1490,7 +1490,7 @@ function saveGame(opts) {
       savedAt: Date.now()
     };
     const key = SAVE_PREFIX + currentSlotId;
-    const cloudOn = (typeof backendOn === 'function' && backendOn() && typeof cloudSave === 'function' && gsUser);
+    const cloudOn = (!window.GS_VISUAL_LAB && typeof backendOn === 'function' && backendOn() && typeof cloudSave === 'function' && gsUser);
 
     // Локальная копия. Для ВОШЕДШИХ игроков — БЕЗ портретов: они тяжёлые (мегабайты)
     // и хранятся в облаке. Иначе память браузера переполняется и ВЫТЕСНЯЕТ токен входа —

@@ -16,12 +16,7 @@ const objectsG = svg.select('#objects-g');
 // в ту же проекцию d3.geoNaturalEarth1 (scale 153, translate 480/280) — политическая
 // заливка стран лежит ПОЛУПРОЗРАЧНЫМ слоем поверх гор/пустынь/глубин океана,
 // как в современных стратегиях, вместо плоских залитых фигур на плоском фоне.
-svg.select('#world-g').append('image')
-  .attr('href', 'map_relief.jpg')
-  .attr('x', 0).attr('y', 0)
-  .attr('width', W).attr('height', H)
-  .attr('preserveAspectRatio', 'none')
-  .attr('pointer-events', 'none');
+// Visual lab uses projected vector geography; no oversized raster download.
 
 // Цвет территории страны: переопределение игрока за партию → цвет из сценария (задан в
 // редакторе) → автоцвет из названия. Хардкода списка стран больше нет.
@@ -62,55 +57,55 @@ function displayColorFor(owner) {
 
 // ---- НАСТРОЙКИ ОТОБРАЖЕНИЯ (сохраняются в localStorage) ----
 // showCountryLabels — показывать ли подписи с названиями стран (сами страны/границы видны всегда, иначе по ним нельзя будет кликать)
-let showCountryLabels = localStorage.getItem('gs1852_show_labels') !== '0';
+let showCountryLabels = localStorage.getItem('gs_visual_lab_show_labels') !== '0';
 // Upgrade only the old defaults; retain settings the player already changed.
-if(!localStorage.getItem('gs1852_label_defaults_v2')){
-  if(localStorage.getItem('gs1852_label_scale')==='1.2')localStorage.removeItem('gs1852_label_scale');
-  if(localStorage.getItem('gs1852_inner_border')==='0.12')localStorage.removeItem('gs1852_inner_border');
-  localStorage.setItem('gs1852_label_defaults_v2','1');
+if(!localStorage.getItem('gs_visual_lab_label_defaults_v2')){
+  if(localStorage.getItem('gs_visual_lab_label_scale')==='1.2')localStorage.removeItem('gs_visual_lab_label_scale');
+  if(localStorage.getItem('gs_visual_lab_inner_border')==='0.12')localStorage.removeItem('gs_visual_lab_inner_border');
+  localStorage.setItem('gs_visual_lab_label_defaults_v2','1');
 }
-let countryLabelScale = parseFloat(localStorage.getItem('gs1852_label_scale')) || 1;
-if(!localStorage.getItem('gs1852_label_defaults_v3')){
-  if(localStorage.getItem('gs1852_label_opacity')==='0.7')localStorage.removeItem('gs1852_label_opacity');
-  localStorage.setItem('gs1852_label_defaults_v3','1');
+let countryLabelScale = parseFloat(localStorage.getItem('gs_visual_lab_label_scale')) || 1;
+if(!localStorage.getItem('gs_visual_lab_label_defaults_v3')){
+  if(localStorage.getItem('gs_visual_lab_label_opacity')==='0.7')localStorage.removeItem('gs_visual_lab_label_opacity');
+  localStorage.setItem('gs_visual_lab_label_defaults_v3','1');
 }
-let countryLabelOpacity = parseFloat(localStorage.getItem('gs1852_label_opacity'));
+let countryLabelOpacity = parseFloat(localStorage.getItem('gs_visual_lab_label_opacity'));
 if(!Number.isFinite(countryLabelOpacity))countryLabelOpacity=1;
 countryLabelOpacity=Math.max(0,Math.min(1,countryLabelOpacity));
 function setCountryLabelOpacity(v){
   const n=Number(v);
   countryLabelOpacity=Number.isFinite(n)?Math.max(0,Math.min(1,n)):1;
-  localStorage.setItem('gs1852_label_opacity',countryLabelOpacity);
+  localStorage.setItem('gs_visual_lab_label_opacity',countryLabelOpacity);
   labelsG.selectAll('.country-label').attr('opacity',countryLabelOpacity);
 }
-let objectScale = parseFloat(localStorage.getItem('gs1852_obj_scale')) || 1.8;
+let objectScale = parseFloat(localStorage.getItem('gs_visual_lab_obj_scale')) || 1.8;
 
 function setShowCountryLabels(v) {
   showCountryLabels = v;
-  localStorage.setItem('gs1852_show_labels', v ? '1' : '0');
+  localStorage.setItem('gs_visual_lab_show_labels', v ? '1' : '0');
   labelsG.style('display', v ? null : 'none');
 }
 
 function setCountryLabelScale(v) {
   countryLabelScale = v;
-  localStorage.setItem('gs1852_label_scale', v);
+  localStorage.setItem('gs_visual_lab_label_scale', v);
   updateCountryLabels();
 }
 
 function setObjectScale(v) {
   objectScale = v;
-  localStorage.setItem('gs1852_obj_scale', v);
+  localStorage.setItem('gs_visual_lab_obj_scale', v);
   renderMapObjects();
 }
 
 // Толщина границ провинций — ЕДИНСТВЕННЫЙ слой границ (никаких отдельных «контуров держав»
 // через topojson: они давали фризы и двойные/фантомные линии на наложенных провинциях).
-let innerBorderWidth = parseFloat(localStorage.getItem('gs1852_inner_border'));
+let innerBorderWidth = parseFloat(localStorage.getItem('gs_visual_lab_inner_border'));
 if (isNaN(innerBorderWidth)) innerBorderWidth = 0.05;
 
 function setInnerBorderWidth(v) {
   innerBorderWidth = parseFloat(v); if (isNaN(innerBorderWidth)) innerBorderWidth = 0.05;
-  localStorage.setItem('gs1852_inner_border', innerBorderWidth);
+  localStorage.setItem('gs_visual_lab_inner_border', innerBorderWidth);
   provincesG.selectAll('path.scenario-province').attr('stroke-width', innerBorderWidth);
 }
 
@@ -272,14 +267,14 @@ function positionTooltip(e) {
 // (scenario_1852.json) или любого созданного в редакторе и сохранённого в браузере.
 // Смена сценария полностью меняет карту, список стран и год старта.
 // ============================================================
-const SCENARIOS_INDEX_KEY = 'gs1852_scenarios_index';
-const ACTIVE_SCENARIO_KEY = 'gs_economyworld_active_scenario';
+const SCENARIOS_INDEX_KEY = 'gs_visual_lab_scenarios_index';
+const ACTIVE_SCENARIO_KEY = 'gs_visual_lab_active_scenario';
 let activeScenarioRef = localStorage.getItem(ACTIVE_SCENARIO_KEY) || 'builtin-world';
 // Одноразовая миграция: старый дефолт 'builtin' → новый основной 'builtin-world'
 // (сохранения не трогаем — каждый сейв помнит и грузит СВОЙ сценарий).
-if (activeScenarioRef === 'builtin' && !localStorage.getItem('gs1852_default_migrated')) {
+if (activeScenarioRef === 'builtin' && !localStorage.getItem('gs_visual_lab_default_migrated')) {
   activeScenarioRef = 'builtin-world';
-  localStorage.setItem('gs1852_default_migrated', '1');
+  localStorage.setItem('gs_visual_lab_default_migrated', '1');
   localStorage.setItem(ACTIVE_SCENARIO_KEY, 'builtin-world');
 }
 let activeScenario = null; // {ref, name, year, countryColors, provinces}
@@ -288,7 +283,7 @@ function getScenariosIndex() {
   try { return JSON.parse(localStorage.getItem(SCENARIOS_INDEX_KEY)) || []; }
   catch (e) { return []; }
 }
-function scenarioDataKey(id) { return 'gs1852_scenario_' + id; }
+function scenarioDataKey(id) { return 'gs_visual_lab_scenario_' + id; }
 
 // Встроенные сценарии, зашитые файлами в репозиторий. 'builtin-world' — основной
 // (Мир 1852, ~48 стран); 'builtin' — старый компактный (Европа 1852, 6 стран).

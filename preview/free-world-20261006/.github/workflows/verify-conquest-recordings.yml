@@ -1,0 +1,31 @@
+name: Verify actual conquest campaigns without paid calls
+on:
+  push:
+    branches: [feature/conquest-world-balance-20261004]
+permissions:
+  contents: read
+  actions: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/download-artifact@v4
+        with:
+          name: conquest-expansion
+          run-id: 37222561482
+          github-token: ${{ github.token }}
+          path: records/expansion
+      - uses: actions/download-artifact@v4
+        with:
+          name: conquest-balance
+          run-id: 37222561482
+          github-token: ${{ github.token }}
+          path: records/balance
+      - run: npm install --no-save --package-lock=false playwright
+      - run: npx playwright install --with-deps chromium
+      - run: node tests/verify-conquest-recordings.mjs

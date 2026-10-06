@@ -1,0 +1,10 @@
+name: Archived recorded-control inspection
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  archived:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo 'Permanent recorded fixtures replace this temporary artifact inspection.'

@@ -1,0 +1,28 @@
+name: Browser startup integration
+on:
+  push:
+    branches: [experiment/free-ai-world, main, feat/cloud-library-accounts, fix/browser-startup, fix/autonomous-politics-20261004]
+permissions:
+  contents: read
+jobs:
+  browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm install --no-save --package-lock=false playwright
+      - run: npx playwright install --with-deps chromium
+      - run: node tests/browser-startup.test.mjs
+        if: github.ref != 'refs/heads/experiment/free-ai-world'
+      - run: node tests/free-ai-browser.test.mjs
+        if: github.ref == 'refs/heads/experiment/free-ai-world'
+      - run: node tests/cloud-account-browser.test.mjs
+      - run: node --experimental-strip-types tests/cloud-images.test.mjs
+      - run: node --experimental-strip-types tests/cloud-portraits.test.mjs
+      - run: node tests/free-ai-world.test.mjs
+      - run: node tests/free-ai-engine.test.mjs
+      - run: node tests/replay-free-world.test.mjs
+        if: github.ref == 'refs/heads/experiment/free-ai-world'

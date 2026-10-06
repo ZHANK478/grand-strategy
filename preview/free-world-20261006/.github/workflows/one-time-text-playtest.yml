@@ -1,0 +1,9 @@
+name: Archived paid campaigns — 4 October 2026
+on: workflow_dispatch
+permissions:
+  contents: read
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "Paid generation is disabled. Results are in docs/TEXT_CAMPAIGN_PLAYTEST_20261004.md. A new paid campaign requires a fresh explicit budget."

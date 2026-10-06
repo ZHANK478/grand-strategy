@@ -1,0 +1,10 @@
+name: Archived final two political checks
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  archived:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo 'The final two authorised requests completed. This workflow never invokes AI.'

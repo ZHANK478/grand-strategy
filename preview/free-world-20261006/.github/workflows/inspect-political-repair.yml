@@ -1,0 +1,10 @@
+name: Archived diagnostic artifact inspection
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  archived:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo 'Permanent browser fixtures cover these regressions without expiring artifacts.'

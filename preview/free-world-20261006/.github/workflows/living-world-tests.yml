@@ -1,0 +1,39 @@
+name: Living world integration
+on:
+  push:
+    branches: [main, fix/living-newspapers-20261004, feature/political-causality-20261004, feature/institutions-20261004, fix/amphibious-government-20261004, feature/conquest-world-balance-20261004]
+    paths: ['*.js', '*.css', 'economy-world.html', 'tests/**', '.github/workflows/living-world-tests.yml']
+permissions:
+  contents: read
+jobs:
+  engine:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node tests/political-world.test.mjs
+      - run: node tests/economy-world.test.mjs
+      - run: node tests/news-continuity.test.mjs
+      - run: node tests/strategy-contracts.test.mjs
+      - run: node tests/maritime-trade.test.mjs
+      - run: node tests/political-subjects.test.mjs
+      - run: node tests/living-world.test.mjs
+      - run: node tests/political-causality.test.mjs
+      - run: node tests/political-institutions.test.mjs
+      - run: node tests/amphibious-government.test.mjs
+      - run: node tests/conquest-world-balance.test.mjs
+  browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm install --no-save --package-lock=false playwright
+      - run: npx playwright install --with-deps chromium
+      - run: node tests/browser-startup.test.mjs
+      - run: node tests/recorded-campaign-reliability.test.mjs

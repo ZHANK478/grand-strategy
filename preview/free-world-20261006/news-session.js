@@ -1,0 +1,297 @@
+/* Experimental AI access: optional account/guest server or an owner's own key.
+   Added keys are kept in memory only and never logged or saved. */
+(() => {
+ 'use strict';
+ let ready=null,directKey='',running=false,connection={mode:'offline',message:'Проверяем подключение ИИ…'};
+ const badge=document.getElementById('mobile-turn-balance');
+ const note=document.getElementById('mobile-guest-note');
+ const status=document.getElementById('test-ai-status');
+ const guestModel='google/gemini-3.1-flash-lite';
+ let guestModels=[guestModel],guestRemaining=null,imageRemaining=0;
+ window.GS_GUEST_TURN_ID=null;
+ let syncedUser=null;
+ function render(){
+  const isAccount=connection.mode==='account';
+  document.body.classList.toggle('has-player-account',isAccount);
+  const value=connection.mode==='guest'?guestRemaining:isAccount?gsProfile?.turns_balance:null;
+  if(badge)badge.textContent=isAccount?'Ваш аккаунт':connection.mode==='guest'?'Гостевая игра':connection.mode==='direct'?'Свой OpenRouter':'Подключение…';
+  if(note)note.textContent=window.FREE_AI_EXPERIMENT?'Свободный мир — эксперимент. Партии этой ветки сохраняются на этом устройстве. Созданные портреты доступны из общей коллекции.':connection.mode==='guest'?'10 ходов без регистрации. Вход в аккаунт — по желанию.':isAccount?'Ваши партии, карты и сценарии сохраняются в аккаунте. Готовые портреты доступны в новых партиях бесплатно.':connection.message;
+  if(status)status.textContent=connection.message;
+  const imageCount=isAccount?gsProfile?.image_generations_remaining:imageRemaining;
+  const images=document.getElementById('test-image-remaining');
+  if(images)images.textContent=connection.mode==='direct'?'Изображения оплачиваются вашим ключом.':'Изображений осталось: '+(imageCount??'…')+'. Это число новых изображений, которые можно создать. Готовые загружаются бесплатно.';
+  const remaining=document.getElementById('test-hud-remaining');
+  if(remaining){remaining.hidden=typeof value!=='number';remaining.textContent='Ходов осталось · '+(value??'…');}
+  for(const id of ['test-hud-images','menu-image-balance']){
+   const el=document.getElementById(id);if(el){el.hidden=!isAccount;el.textContent='Новых изображений · '+(imageCount??'…');}
+  }
+  const menuTurns=document.getElementById('menu-turn-count');if(menuTurns)menuTurns.textContent='Ходов осталось · '+(value??'…');
+  const login=document.getElementById('menu-login-btn');if(login){login.hidden=isAccount;login.textContent='Войти · 50 ходов и 5 изображений';}
+  const logout=document.getElementById('menu-logout-btn');if(logout)logout.hidden=!isAccount;
+  const sync=document.getElementById('cloud-sync-btn');if(sync){sync.hidden=!isAccount||!!window.FREE_AI_EXPERIMENT;sync.textContent='Повторить сохранение';}
+ }
+ function set(mode,message){connection={mode,message};render();}
+ function errorMessage(code,http){
+  const messages={
+   server_no_key:'На сервере не настроен OpenRouter-ключ.',
+   payload_too_large:'Сведения партии превысили предел запроса. Поручения сохранены; это техническая ошибка подготовки данных.',
+   bad_payload:'Сервер не принял формат запроса. Поручения сохранены; это техническая ошибка подключения.',
+   guest_setup_required:'Гостевые таблицы или функции Supabase ещё не настроены.',
+   guest_required:'Сессия не гостевая. Повторите подключение.',
+   no_auth:'Сессия входа недоступна. Повторите подключение или используйте свой ключ.',
+   bad_auth:'Сессия входа истекла. Войдите снова.',
+   no_images:'Все 5 генераций использованы. Готовые изображения по-прежнему доступны.',
+   image_busy:'Это изображение уже создаётся. Повторите загрузку через минуту.',
+   image_save_failed:'Не удалось сохранить изображение на сервере. Повторите загрузку.',
+   premium_required:'Для аккаунта генерация изображений требует соответствующего доступа.',
+   image_code_required:'Гостевые изображения доступны только по коду. Откройте «Подключение ИИ» и активируйте код изображений.',
+   bad_image_code:'Код изображений неверен, просрочен или уже закреплён за другим гостем.',
+   image_rate_limit:'Можно сделать до 10 попыток генерации изображения в час.',
+   portrait_trial_used:'Пробная генерация портрета уже использована.',
+   portrait_trial_busy:'Портрет уже генерируется. Дождитесь результата.',
+   bad_tester_code:'Код неверен или уже активирован другим гостем.',
+   no_turns:'Серверный баланс ходов исчерпан.',
+   request_limit:'Лимит гостевых запросов исчерпан.',
+   model_not_allowed:'Выбранная модель не разрешена гостевым сервером. Повторите подключение.',
+   turn_required:'Для этого запроса нужен зарезервированный гостевой ход.',
+   server_error:'Ошибка серверной функции.',
+   ai_unavailable:'Сервер не получил ответ от OpenRouter.',
+   quota_unavailable:'Не удалось проверить гостевую квоту.',
+   reserve_failed:'Не удалось зарезервировать гостевой ход.'
+  };
+  if(messages[code])return messages[code];
+  if(http===404)return 'Функция ИИ не развёрнута по настроенному адресу Supabase.';
+  if(http===401||http===403)return 'Сервер отклонил авторизацию. Проверьте вход и настройку функции.';
+  if(http===429)return 'Провайдер ограничил частоту запросов. Попробуйте позже.';
+  if(http>=500)return 'Сервер ИИ временно недоступен.';
+  return 'Не удалось подключиться к ИИ'+(http?' (HTTP '+http+')':'')+'.';
+ }
+ async function serverRequest(path,body){
+  const token=await authToken();
+  if(!token)throw Error(errorMessage('no_auth'));
+  const response=await fetch(window.GS_CONFIG.API_BASE+'/'+path,{
+   method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+token,apikey:window.GS_CONFIG.SUPABASE_ANON_KEY},
+   body:JSON.stringify(body)
+  });
+  let data;try{data=await response.json();}catch{throw Error(errorMessage('',response.status));}
+  if(!response.ok||data.error){
+   const code=typeof data.error==='string'?data.error:'';
+   throw Error(errorMessage(code,response.status));
+  }
+  if(Array.isArray(data.guest_models))guestModels=data.guest_models.filter(model=>typeof model==='string');
+  if(typeof data.model==='string'){
+   const used=document.getElementById('test-ai-used-model');if(used)used.textContent='Последний ответ: '+data.model;
+  }
+  if(typeof data.guest_turns_remaining==='number'&&connection.mode==='guest'){
+   guestRemaining=data.guest_turns_remaining;
+   connection.message='Гость · осталось '+data.guest_turns_remaining+' ходов. Доступно моделей: '+guestModels.length+'.';render();
+  }
+  if(typeof data.image_generations_remaining==='number'){imageRemaining=data.image_generations_remaining;if(connection.mode==='account'&&gsProfile)gsProfile.image_generations_remaining=data.image_generations_remaining;}
+  if(typeof data.turns_balance==='number'&&gsProfile)gsProfile.turns_balance=data.turns_balance;
+  render();
+  return data;
+ }
+ function accept(session){
+  if(gsUser?.id!==session?.user?.id){gsProfile=null;window.GS_GUEST_TURN_ID=null;}
+  gsAccessToken=session?.access_token||null;
+  gsUser=session?.user?{id:session.user.id,email:session.user.email,isAnonymous:!!session.user.is_anonymous}:null;
+  if(!gsUser)gsProfile=null;
+ }
+ initAuth=function(){
+  if(directKey)return Promise.resolve(true);
+  if(ready)return ready;
+  ready=(async()=>{
+   if(!backendOn()||!window.supabase)throw Error('Серверное подключение недоступно. Можно использовать свой OpenRouter-ключ.');
+   if(!sb){
+    sb=window.supabase.createClient(window.GS_CONFIG.SUPABASE_URL,window.GS_CONFIG.SUPABASE_ANON_KEY,{
+     auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true,flowType:'pkce'}
+    });
+    sb.auth.onAuthStateChange((event,session)=>{
+     accept(session);
+     // Do not call Supabase methods while its auth callback holds the lock.
+     if(event==='SIGNED_IN'||event==='SIGNED_OUT')setTimeout(()=>{
+      ready=null;if(!directKey)initAuth();
+     },0);
+    });
+   }
+   const {data,error}=await sb.auth.getSession();
+   if(error)throw Error('Не удалось восстановить сессию Supabase. Повторите подключение.');
+   let session=data?.session;
+   if(!session){
+    const result=await sb.auth.signInAnonymously();
+    if(result.error)throw Error('Гостевой вход Supabase недоступен. Проверьте Anonymous Sign-ins; для теста доступен свой OpenRouter-ключ.');
+    session=result.data.session;
+   }
+   accept(session);
+   if(directKey)return true;
+   if(!gsUser)throw Error('Supabase не вернул сессию.');
+   if(!gsUser.isAnonymous){
+    set('account','Подключён аккаунт. Выбранная модель передаётся серверу ИИ.');
+    await loadProfile();render();
+    if(syncedUser!==gsUser.id&&window.gsSyncLibrary){syncedUser=gsUser.id;gsSyncLibrary();}
+   }else{
+    set('guest','Проверяем гостевой сервер…');
+    await serverRequest('guest-ai',{operation:'status'});
+   }
+   if(window.gsHydratePortraits)gsHydratePortraits();
+   hideLoginOverlay();return true;
+  })().catch(error=>{if(directKey)return true;set('offline',error instanceof TypeError?'Сеть не отвечает. Повторите подключение или используйте свой ключ.':error.message);return false;});
+  return ready;
+ };
+ renderAccountBar=render;
+ renderMenuAuth=render;
+ openShop=()=>showNotif('Серверный баланс ходов исчерпан. Для собственного теста доступен свой OpenRouter-ключ.');
+ turnsLeft=()=>connection.mode==='guest'?(guestRemaining??0):connection.mode==='direct'?Infinity:(gsProfile?.turns_balance??0);
+ window.testRedeemTesterCode=async()=>{
+  if(running||turnRunning){showNotif('Дождитесь завершения хода');return;}
+  if(!await initAuth()||connection.mode!=='guest'){showNotif('Код доступен при гостевом серверном подключении.');return;}
+  const field=document.getElementById('test-tester-code'),button=document.getElementById('test-tester-redeem');
+  button.disabled=true;
+  try{
+   await serverRequest('guest-ai',{operation:'redeem_tester',code:field.value.trim()});
+   field.value='';showNotif('Тестовые ходы активированы.');
+  }catch(error){status.textContent=error.message;}
+  finally{button.disabled=false;}
+ };
+ window.testRedeemImageCode=async()=>{
+  if(running||turnRunning||typeof portraitGenerating!=='undefined'&&portraitGenerating){showNotif('Дождитесь завершения запроса');return;}
+  if(!await initAuth()||connection.mode!=='guest'){showNotif('Код изображений активируется в гостевой сессии без регистрации.');return;}
+  const field=document.getElementById('test-image-code'),button=document.getElementById('test-image-redeem');
+  button.disabled=true;
+  try{await serverRequest('guest-ai',{operation:'redeem_images',code:field.value.trim()});field.value='';showNotif('Лимит портретов активирован: '+imageRemaining+'.');}
+  catch(error){status.textContent=error.message;}
+  finally{button.disabled=false;}
+ };
+ window.testOpenAIConnection=function(){
+  closePauseMenu();closeModelMenu();
+  document.getElementById('test-ai-connection').style.display='flex';render();
+ };
+ window.testCloseAIConnection=()=>{document.getElementById('test-ai-connection').style.display='none';};
+ window.testResumeAIConnection=()=>{if(directKey)return;ready=null;initAuth();};
+ window.testRetryAIConnection=async()=>{
+  if(running||turnRunning){showNotif('Дождитесь завершения хода');return;}
+  directKey='';ready=null;set('offline','Повторяем подключение…');
+  await initAuth();
+ };
+ window.testUseOpenRouterKey=async()=>{
+  if(running||turnRunning){showNotif('Дождитесь завершения хода');return;}
+  const field=document.getElementById('test-ai-key'),button=document.getElementById('test-ai-key-connect');
+  const key=(field.value||'').trim();
+  if(!/^sk-or-[A-Za-z0-9_-]+$/.test(key)){status.textContent='Введите OpenRouter-ключ в поле. Не отправляйте его в чат.';return;}
+  button.disabled=true;status.textContent='Проверяем ключ без запроса генерации…';
+  const controller=new AbortController();const timer=setTimeout(()=>controller.abort(),12000);
+  try{
+   const response=await fetch('https://openrouter.ai/api/v1/auth/key',{headers:{Authorization:'Bearer '+key},signal:controller.signal});
+   if(!response.ok)throw Error(response.status===401?'OpenRouter отклонил ключ. Проверьте, что он действующий.':errorMessage('',response.status));
+   const data=await response.json();
+   if(!data||!data.data)throw Error('OpenRouter не подтвердил ключ.');
+   directKey=key;field.value='';ready=null;
+   set('direct','Ключ подтверждён OpenRouter. Выбранная модель будет использоваться напрямую; генерация ещё не проверена.');
+   showNotif('OpenRouter подключён. Теперь можно выполнить ход.');
+  }catch(error){status.textContent=error.name==='AbortError'?'Проверка ключа не ответила. Попробуйте ещё раз.':error instanceof TypeError?'Не удалось связаться с OpenRouter. Проверьте сеть.':error.message;}
+  finally{clearTimeout(timer);button.disabled=false;}
+ };
+ window.testDisconnectOpenRouterKey=()=>{
+  if(running||turnRunning){showNotif('Дождитесь завершения хода');return;}
+  directKey='';document.getElementById('test-ai-key').value='';ready=null;initAuth();
+ };
+ window.testLoginAIAccount=async()=>{
+  await initAuth();
+  if(!sb){status.textContent='Supabase SDK не загрузился. Обновите страницу.';return;}
+  testCloseAIConnection();openLogin();
+ };
+ function textContent(message){
+  if(typeof message?.content==='string')return message.content;
+  if(Array.isArray(message?.content))return message.content.filter(x=>x.type==='text').map(x=>x.text||'').join('\n');
+  return '';
+ }
+ async function directRequest(body){
+  const controller=new AbortController();const timer=setTimeout(()=>controller.abort(),90000);
+  try{
+   const response=await fetch('https://openrouter.ai/api/v1/chat/completions',{
+    method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+directKey},
+    body:JSON.stringify(body),signal:controller.signal
+   });
+   const data=await response.json();
+   if(!response.ok||data.error){
+    if(response.status===402)throw Error('На OpenRouter недостаточно средств для этого запроса.');
+    if(response.status===400||response.status===404)throw Error('OpenRouter отклонил выбранную модель или параметры. Проверьте точный ID в меню.');
+    if(response.status===401)throw Error('OpenRouter отклонил ключ. Переподключите его в меню.');
+    throw Error(errorMessage('',response.status));
+   }
+   if(typeof data.model==='string'){
+    const used=document.getElementById('test-ai-used-model');
+    if(used)used.textContent='Последний ответ: '+data.model;
+   }
+   return data;
+  }catch(error){
+   if(error.name==='AbortError')throw Error('Ответ ИИ не пришёл вовремя. Ход не завершён.');
+   if(error instanceof TypeError)throw Error('Не удалось связаться с ИИ. Проверьте сеть.');
+   throw error;
+  }finally{clearTimeout(timer);}
+ }
+ async function request(kind,payload){
+  if(kind==='text'&&JSON.stringify(payload.messages).length>140000)throw Error(errorMessage('payload_too_large'));
+  if(!await initAuth())throw Error(connection.message);
+  if(connection.mode==='direct'){
+   const {cost,reasoning_effort,turn_id,...providerPayload}=payload;
+   if(reasoning_effort==='low'&&/^(openai\/gpt-6-|z-ai\/glm-5\.3$)/.test(payload.model))providerPayload.reasoning={effort:'low'};
+   return directRequest(providerPayload);
+  }
+  if(connection.mode==='guest'){
+   if(kind==='image')return serverRequest('guest-ai',{operation:'image',model:'google/gemini-3.1-flash-image',messages:payload.messages});
+   if(!guestModels.includes(payload.model))throw Error('Модель '+payload.model+' пока не разрешена гостевым сервером. Нужна настройка Supabase; ключ остаётся на сервере.');
+   return serverRequest('guest-ai',{...payload,cost:(payload.turn_id??window.GS_GUEST_TURN_ID)?payload.cost:0,operation:'generate',turn_id:payload.turn_id??window.GS_GUEST_TURN_ID});
+  }
+  return serverRequest('ai',{kind,...payload,turn_id:kind==='text'?(payload.turn_id??window.GS_GUEST_TURN_ID):undefined});
+ }
+ // All text paths use this request; errors during a turn abort it before effects are applied.
+ askGemini=async function(prompt,maxTokens=400,cost=1,options={}){
+  try{
+   const data=await request('text',{model:MODEL,messages:[{role:'user',content:prompt}],max_tokens:Math.max(maxTokens,options.response_format?maxTokens:1800),temperature:0.75,cost,reasoning_effort:'low',...options});
+   const text=textContent(data.choices?.[0]?.message);
+   if(!text.trim()){const reason=data.choices?.[0]?.finish_reason;throw Error(reason==='length'?'Провайдер исчерпал лимит ответа до выдачи текста. Запрос сохранён; его можно повторить.':'Провайдер вернул пустой ответ. Запрос сохранён; это сбой ИИ, а не отказ министра.');}
+   if(data.choices?.[0]?.finish_reason==='length'&&options.response_format)throw Error('Провайдер обрезал план до завершения. Неподтверждённые приказы сохранены; повторите их обработку без хода.');
+   return text;
+  }catch(error){
+   if(turnRunning)throw error;
+   showNotif(error.message);
+   return 'ИИ недоступен: '+error.message;
+  }
+ };
+ askGeminiImage=async function(prompt){
+  try{
+   const data=await request('image',{model:IMAGE_MODEL,messages:[{role:'user',content:prompt}],modalities:['image','text']});
+   const url=data.choices?.[0]?.message?.images?.[0]?.image_url?.url;
+   if(!url)throw Error('ИИ не вернул изображение.');
+   return url;
+  }catch(error){showNotif(error.message);return null;}
+ };
+ window.testEnsureAIForTurn=async(options={})=>{
+  if(!await initAuth()){testOpenAIConnection();showNotif(connection.message);return false;}
+  if(connection.mode==='guest'||connection.mode==='account'){
+   if(options.retry&&worldState.aiTurnId&&worldState.aiTurnUser===gsUser?.id){window.GS_GUEST_TURN_ID=worldState.aiTurnId;return true;}
+   if(connection.mode==='guest'&&!guestModels.includes(MODEL)){showNotif('Выбранная модель пока не разрешена гостевым сервером.');return false;}
+   try{
+    const path=connection.mode==='guest'?'guest-ai':'ai';
+    const data=await serverRequest(path,{operation:'begin_turn',request_id:crypto.randomUUID()});
+    window.GS_GUEST_TURN_ID=data.turn_id;worldState.aiTurnId=data.turn_id;worldState.aiTurnUser=gsUser?.id;
+   }catch(error){showNotif(error.message);return false;}
+  }
+  return true;
+ };
+ const originalNextTurn=nextTurn;
+ nextTurn=async function(kind){
+  if(running||turnRunning)return;
+  if(window.ordersCanStartTurn&&!window.ordersCanStartTurn()){showNotif('Дождитесь дипломатического ответа');return;}
+  running=true;const button=document.querySelector('.next-btn');button.disabled=true;
+  try{
+   if(!await testEnsureAIForTurn())return;
+   mobileSection('map');return await originalNextTurn(kind);
+  }finally{running=false;button.disabled=false;button.textContent='Следующий ход ▶';}
+ };
+ // Settings must stay stable while the active request is using the selected route.
+ const originalSetModel=setTextModel;
+ setTextModel=function(model){if(running||turnRunning){showNotif('Дождитесь завершения хода');return;}originalSetModel(model);};
+ render();initMenu();initSkipSelect();initAuth();
+})();

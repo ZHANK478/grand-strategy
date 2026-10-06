@@ -1,0 +1,24 @@
+name: Recorded campaigns — free regression checks
+on:
+  push:
+    branches: [fix/autonomous-politics-20261004, main]
+    paths:
+      - 'news-*.js'
+      - 'political-subjects.js'
+      - 'tests/fixtures/recorded-order-replies-20261004.json'
+      - 'tests/recorded-campaign-reliability.test.mjs'
+      - '.github/workflows/recorded-campaign-reliability.yml'
+permissions:
+  contents: read
+jobs:
+  recorded:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm install --no-save --package-lock=false playwright
+      - run: npx playwright install --with-deps chromium
+      - run: node tests/recorded-campaign-reliability.test.mjs

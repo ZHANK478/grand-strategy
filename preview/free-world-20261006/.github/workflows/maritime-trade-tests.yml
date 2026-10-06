@@ -1,0 +1,27 @@
+name: Maritime war and trade
+on:
+  push:
+    branches: [main, experiment/maritime-trade]
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  maritime:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node --check maritime-data.js
+      - run: node --check maritime-system.js
+      - run: node --check maritime-ui.js
+      - run: node --check diplomatic-conferences.js
+      - run: node --check economy-map.js
+      - run: node tests/scenario-startup.test.mjs
+      - run: node tests/maritime-trade.test.mjs
+      - run: node tests/political-world.test.mjs
+      - run: node tests/economy-world.test.mjs
+      - run: node tests/news-continuity.test.mjs
+      - run: node tests/strategy-contracts.test.mjs
+      - run: node tests/political-subjects.test.mjs

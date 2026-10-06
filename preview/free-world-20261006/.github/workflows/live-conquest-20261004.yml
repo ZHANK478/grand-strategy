@@ -1,0 +1,9 @@
+name: Archived authorised conquest playtest
+on: workflow_dispatch
+permissions:
+  contents: read
+jobs:
+  archive:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "Authorised 20-turn playtest completed in run 37222561482. This workflow makes no AI requests."

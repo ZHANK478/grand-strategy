@@ -1,0 +1,39 @@
+name: Published historical atlas checks
+on:
+  push:
+    branches: ['main']
+    paths: ['preview/atlas-20261005/**','.github/workflows/atlas-published.yml']
+permissions:
+  contents: read
+jobs:
+  browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm install --no-save --package-lock=false playwright
+      - run: npx playwright install --with-deps chromium
+      - name: Wait for Pages to publish this snapshot
+        run: |
+          node --input-type=module <<'NODE'
+          const base='https://zhank478.github.io/grand-strategy/preview/atlas-20261005/';
+          for(let i=0;i<80;i++){
+            const response=await fetch(base+'release.json',{cache:'no-store'}).catch(()=>null);
+            if(response?.ok){const release=await response.json();if(release.source===process.env.ATLAS_SOURCE){console.log('Published atlas found.');process.exit(0);}}
+            await new Promise(r=>setTimeout(r,4000));
+          }
+          throw Error('Pages did not publish the expected snapshot');
+          NODE
+        env:
+          ATLAS_SOURCE: d3754926a3214402d318fe1bdc05cef2c8a50884
+      - run: node preview/atlas-20261005/tests/atlas.test.mjs
+        env:
+          ATLAS_TEST_URL: https://zhank478.github.io/grand-strategy/preview/atlas-20261005/atlas.html
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: published-atlas-browser
+          path: atlas-shots/

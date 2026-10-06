@@ -1,0 +1,24 @@
+name: Text orders reliability
+on:
+  push:
+    branches: [main, fix/autonomous-politics-20261004]
+permissions:
+  contents: read
+jobs:
+  engines:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node --check news-runtime.js
+      - run: node --check news-flow.js
+      - run: node --check news-world.js
+      - run: node --check maritime-ui.js
+      - run: node tests/maritime-trade.test.mjs
+      - run: node tests/news-continuity.test.mjs
+      - run: node tests/economy-world.test.mjs
+      - run: node tests/political-world.test.mjs
+      - run: node tests/political-subjects.test.mjs
+      - run: node tests/strategy-contracts.test.mjs

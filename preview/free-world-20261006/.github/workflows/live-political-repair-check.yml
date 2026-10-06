@@ -1,0 +1,10 @@
+name: Archived authorised political repair diagnostics
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  archived:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo 'Twelve diagnostic requests completed once. Paid reruns need a new explicit budget.'

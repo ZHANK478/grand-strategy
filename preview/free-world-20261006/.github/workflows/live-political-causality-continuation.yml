@@ -1,0 +1,10 @@
+name: Archived political causality continuation
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  archived:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo 'Completed three ten-turn campaigns; paid automatic replay disabled.'

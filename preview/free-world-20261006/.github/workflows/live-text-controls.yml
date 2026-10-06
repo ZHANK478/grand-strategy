@@ -1,0 +1,9 @@
+name: Archived paid controls — 4 October 2026
+on: workflow_dispatch
+permissions:
+  contents: read
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "Paid requests are disabled. See docs/TEXT_CAMPAIGN_PLAYTEST_20261004.md."

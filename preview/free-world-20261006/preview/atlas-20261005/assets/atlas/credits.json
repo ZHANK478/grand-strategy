@@ -1,0 +1,139 @@
+{
+  "paintings": [
+    {
+      "name": "Napoleon III, 1851.png",
+      "file": "napoleon.webp",
+      "author": "Unknown",
+      "date": "1851",
+      "subject": "Луи-Наполеон Бонапарт",
+      "source": "https://commons.wikimedia.org/wiki/File:Napoleon_III%2C_1851.png",
+      "download": "https://upload.wikimedia.org/wikipedia/commons/0/00/Napoleon_III%2C_1851.png",
+      "license": "Public domain / PD-Art",
+      "modifications": "Resized and converted to WebP; no generative processing",
+      "originalSize": [
+        1657,
+        2197
+      ],
+      "bytes": 86140,
+      "sha256": "3737aa8774d81df17ff98dc3887ff2ae59e8f556fc4c510f5203f347e7b12ba5"
+    },
+    {
+      "name": "Franz Krüger - Portrait of Emperor Nicholas I - WGA12289.jpg",
+      "file": "nicholas.webp",
+      "author": "Franz Krüger",
+      "date": "1852",
+      "subject": "Николай I",
+      "source": "https://commons.wikimedia.org/wiki/File:Franz_Kr%C3%BCger_-_Portrait_of_Emperor_Nicholas_I_-_WGA12289.jpg",
+      "download": "https://upload.wikimedia.org/wikipedia/commons/c/cc/Franz_Kr%C3%BCger_-_Portrait_of_Emperor_Nicholas_I_-_WGA12289.jpg",
+      "license": "Public domain / PD-Art",
+      "modifications": "Resized and converted to WebP; no generative processing",
+      "originalSize": [
+        1104,
+        1465
+      ],
+      "bytes": 31576,
+      "sha256": "be6d44b5e54956bae6716b7440c618aaef6acc8a4fc863182361f1a40c5f160c"
+    },
+    {
+      "name": "Franz Krüger - Porträt des Königs Friedrich Wilhelm IV. von Preußen.jpg",
+      "file": "frederick.webp",
+      "author": "Franz Krüger",
+      "date": "19th century",
+      "subject": "Фридрих Вильгельм IV",
+      "source": "https://commons.wikimedia.org/wiki/File:Franz_Kr%C3%BCger_-_Portr%C3%A4t_des_K%C3%B6nigs_Friedrich_Wilhelm_IV._von_Preu%C3%9Fen.jpg",
+      "download": "https://upload.wikimedia.org/wikipedia/commons/b/b8/Franz_Kr%C3%BCger_-_Portr%C3%A4t_des_K%C3%B6nigs_Friedrich_Wilhelm_IV._von_Preu%C3%9Fen.jpg",
+      "license": "Public domain / PD-Art",
+      "modifications": "Resized and converted to WebP; no generative processing",
+      "originalSize": [
+        1279,
+        1500
+      ],
+      "bytes": 78924,
+      "sha256": "8a848123395525e8fb0799e42e5da651fe4741a3f89b4438a237bb9987c64cd0"
+    },
+    {
+      "name": "Winterhalter - Queen Victoria 1843.jpg",
+      "file": "victoria.webp",
+      "author": "Franz Xaver Winterhalter",
+      "date": "1843",
+      "subject": "Виктория",
+      "source": "https://commons.wikimedia.org/wiki/File:Winterhalter_-_Queen_Victoria_1843.jpg",
+      "download": "https://upload.wikimedia.org/wikipedia/commons/a/a7/Winterhalter_-_Queen_Victoria_1843.jpg",
+      "license": "Public domain / PD-Art",
+      "modifications": "Resized and converted to WebP; no generative processing",
+      "originalSize": [
+        1231,
+        1500
+      ],
+      "bytes": 36280,
+      "sha256": "895bfe1c51cf61f597db373cf231e144b18d0f43c3c621bf2f5f39f21ea92f95"
+    },
+    {
+      "name": "KaiserFranzjosef1853-1-.jpg",
+      "file": "franz.webp",
+      "author": "Miklós Barabás",
+      "date": "1853",
+      "subject": "Франц Иосиф I",
+      "source": "https://commons.wikimedia.org/wiki/File:KaiserFranzjosef1853-1-.jpg",
+      "download": "https://upload.wikimedia.org/wikipedia/commons/b/b4/KaiserFranzjosef1853-1-.jpg",
+      "license": "Public domain / PD-Art",
+      "modifications": "Resized and converted to WebP; no generative processing",
+      "originalSize": [
+        727,
+        1092
+      ],
+      "bytes": 64438,
+      "sha256": "af6920d5167fd67376a38b332528939e58929fbb1d8e8c5a9e28fed121fa7bfc"
+    },
+    {
+      "name": "1852 Levasseur Map of Europe - Geographicus - Europe-levasseur-1852.jpg",
+      "file": "europe1852.webp",
+      "author": "Victor Levasseur / Frédéric-Guillaume Laguillermie",
+      "date": "1852",
+      "subject": "Decorative start-screen illustration, not scenario geography",
+      "source": "https://commons.wikimedia.org/wiki/File:1852_Levasseur_Map_of_Europe_-_Geographicus_-_Europe-levasseur-1852.jpg",
+      "download": "https://upload.wikimedia.org/wikipedia/commons/5/57/1852_Levasseur_Map_of_Europe_-_Geographicus_-_Europe-levasseur-1852.jpg",
+      "license": "Public domain / PD-Art",
+      "modifications": "Resized and converted to WebP; no generative processing",
+      "originalSize": [
+        3500,
+        2448
+      ],
+      "bytes": 581736,
+      "sha256": "d87cb674733986a168a5095905bc180bdc3e75c96731767caf8c4c41e2466873"
+    }
+  ],
+  "fonts": [
+    {
+      "url": "https://raw.githubusercontent.com/google/fonts/main/ofl/oldstandardtt/OFL.txt",
+      "sha": "618d209cf110925dabf2c533df818e701fa068da",
+      "path": "assets/atlas/OldStandard-OFL.txt"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/google/fonts/main/ofl/oldstandardtt/OldStandard-Bold.ttf",
+      "sha": "4e138db49eadd49f11a882056411ddfb338520d6",
+      "path": "assets/atlas/OldStandard-Bold.ttf"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/google/fonts/main/ofl/oldstandardtt/OldStandard-Italic.ttf",
+      "sha": "c6bd25f9dd03e5a6ecce32b66f5ad0d62f06c729",
+      "path": "assets/atlas/OldStandard-Italic.ttf"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/google/fonts/main/ofl/oldstandardtt/OldStandard-Regular.ttf",
+      "sha": "655abd750736123c26a11c69fa2ad711a5ac22d7",
+      "path": "assets/atlas/OldStandard-Regular.ttf"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/google/fonts/main/ofl/sourcesans3/OFL.txt",
+      "sha": "50ee76cf00fbfe42fb7c74a9b95c9508dec5bb8f",
+      "path": "assets/atlas/SourceSans3-OFL.txt"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/google/fonts/main/ofl/sourcesans3/SourceSans3%5Bwght%5D.ttf",
+      "sha": "d259aa494fe7117141a2752a998a52c172bbd42b",
+      "path": "assets/atlas/SourceSans3.ttf"
+    }
+  ],
+  "cartography": "Natural Earth, public domain, see atlas-physical.json"
+}

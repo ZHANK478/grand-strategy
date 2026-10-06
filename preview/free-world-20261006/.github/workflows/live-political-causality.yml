@@ -1,0 +1,10 @@
+name: Archived first political causality attempt
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  archived:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo 'Archived paid run; automatic replay disabled.'

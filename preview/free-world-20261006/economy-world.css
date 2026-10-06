@@ -1,0 +1,16 @@
+/* Transparent compact economy; enlarged only with a laptop pointer. */
+#economy-body{color:var(--ink)!important;font-size:11px;line-height:1.45}
+#economy-body h3{font-size:12px;margin:12px 0 6px}
+#economy-body p{font-size:10px;line-height:1.5;opacity:.85}
+#economy-body article{padding:7px 0;border-bottom:1px solid var(--rule)}
+.economy-row{display:flex;justify-content:space-between;gap:8px;padding:5px 0;border-bottom:1px solid var(--edge)}
+.economy-row strong{text-align:right;max-width:50%;overflow-wrap:anywhere}
+.economy-tabs{display:grid;grid-template-columns:1fr 1fr;gap:4px;position:sticky;top:0;background:var(--panel);padding:5px 0;z-index:1}
+.economy-tabs button{background:var(--panel);border:1px solid var(--rule);color:var(--ink);padding:6px;font:inherit}
+.economy-tabs button.active{background:var(--panel2);font-weight:bold}
+#economy-hud-extra{font-size:9px!important;white-space:nowrap;padding:3px!important;min-width:0!important}
+@media(min-width:1024px) and (hover:hover) and (pointer:fine){
+ #economy-panel{width:44vw!important;max-width:700px!important}
+ #economy-body{font-size:14px}#economy-body h3{font-size:16px}#economy-body p{font-size:12px}
+ .economy-tabs{grid-template-columns:repeat(4,1fr)}
+}

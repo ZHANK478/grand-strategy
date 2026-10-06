@@ -1,0 +1,10 @@
+name: Archived living world campaigns
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  archived:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "Paid run 37198763363 completed. This workflow makes no model requests. A new run requires new scoped authorization and a new guarded test."

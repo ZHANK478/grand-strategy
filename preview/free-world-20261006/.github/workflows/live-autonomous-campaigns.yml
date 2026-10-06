@@ -1,0 +1,10 @@
+name: Archived authorised four political campaigns
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  archived:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo 'The authorised sixty turns ran once. New paid runs require a new budget.'

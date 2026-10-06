@@ -1,0 +1,10 @@
+name: Archived final living world diagnostic
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  archived:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "Paid diagnostic 37200463847 completed. No provider calls. All 20 auxiliary requests have been used."

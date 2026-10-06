@@ -1,0 +1,22 @@
+name: Published game startup — no AI calls
+on:
+  push:
+    branches: [main]
+    paths:
+      - economy-world.html
+      - tests/published-startup.test.mjs
+      - .github/workflows/published-startup.yml
+permissions:
+  contents: read
+jobs:
+  public:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm install --no-save --package-lock=false playwright
+      - run: npx playwright install --with-deps chromium
+      - run: node tests/published-startup.test.mjs

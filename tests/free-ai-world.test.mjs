@@ -8,7 +8,7 @@ const ctx={turn:2,countries:c,playerCountry:'France',ALL_COUNTRIES:['France','Ru
  generateOrderPlan(){},executeOrderEffects(){},OrderRules:{authority(){}},applyOrderPlan:()=>[],advanceGameDays:n=>{clock+=n;return {months:0,deaths:[],econ:[]}},writeNewspaper:async()=>{},
  ensureOrders:()=>ctx.worldState.orders.filter(o=>['prepared','deferred'].includes(o.status)),orderStatSnapshot:x=>JSON.parse(JSON.stringify(x)),
  econV3:()=>{},econBudget:x=>({gross:x.gdp/120,net:x.gdp/120-x.debt/100}),econRecompute:()=>{for(const x of Object.values(ctx.countries))x.income=x.gdp/120;},reconcileOrderArmies:()=>{},
- setCountryLeader:(id,fields)=>Object.assign(ctx.countries[id],fields),renameCountry:(id,name)=>ctx.countries[id].displayName=name,addRelation(){},isAtWar:()=>false,declareEngineWar(){},createPoliticalOffer(){},
+ setCountryLeader:(id,fields)=>Object.assign(ctx.countries[id],fields),renameCountry:(id,name)=>ctx.countries[id].displayName=name,addRelation(){},isAtWar:()=>false,declareEngineWar(){},createPoliticalOffer(){},ensurePolitics:()=>({offers:[]}),
  recordWorldEvent:(section,headline,body,actors,details)=>ctx.worldState.periodEvents.push({section,headline,body,actors,details}),askGemini:async p=>{queries.push(p);return JSON.stringify({orders:[],events:[]});},
  captureOrderExecution:()=>({countries:JSON.parse(JSON.stringify(ctx.countries)),worldState:JSON.parse(JSON.stringify(ctx.worldState)),provinceEcon:JSON.parse(JSON.stringify(ctx.provinceEcon))}),restoreOrderExecution:s=>{for(const key of ['countries','worldState','provinceEcon'])ctx[key]=s[key];}};
 ctx.Math.random=()=>random;ctx.window=ctx;vm.createContext(ctx);vm.runInContext(fs.readFileSync('free-ai-world.js','utf8'),ctx);
@@ -18,6 +18,8 @@ api.schedule(d({changes:[{path:'gdp',mode:'multiply',value:2},{path:'population'
 assert.equal(ctx.countries.France.gdp,2000);assert.equal(ctx.provinceEcon.f.gdp,2000);assert.equal(ctx.provinceEcon.f.pop,200);assert.equal(ctx.countries.France.econV3.sectors.industry.output,800);assert.equal(ctx.countries.France.stability,30);assert.equal(ctx.countries.France.income,2000/120);
 api.schedule(d({changes:[{path:'debt',mode:'add',value:10000}]}),'order');assert.equal(ctx.countries.France.treasury,10100,'Loan credits cash once');assert.equal(ctx.countries.France.debtDomestic+ctx.countries.France.debtForeign,ctx.countries.France.debt,'Debt components agree beyond old cap');
 api.schedule(d({changes:[{path:'debt',mode:'add',value:-100}]}),'order');assert.equal(ctx.countries.France.treasury,10000,'Repayment debits cash once');
+assert.throws(()=>api.schedule(d({changes:[{path:'army',mode:'set',value:100000000}]}),'order'),'Recruitment cannot exceed physical population');
+assert.throws(()=>api.validate(d({diplomacy:{action:'accept',target:'Russia',type:'peace'}})),'Cannot invent bilateral agreement');
 const before=JSON.stringify(ctx.countries.France);assert.throws(()=>api.schedule(d({changes:[{path:'debt',mode:'add',value:1},{path:'treasury',mode:'add',value:1}]}),'order'));assert.equal(JSON.stringify(ctx.countries.France),before,'Invalid financing is atomic');
 assert.throws(()=>api.validate(d({country:'Russia',state:{ruler:'Dead'}}),'order'),'Cannot decree foreign death');
 assert.throws(()=>api.validate(d({country:'Russia',cause:'succession',state:{ruler:'Successor'}})),'No invented natural death');

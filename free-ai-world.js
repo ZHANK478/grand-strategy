@@ -205,12 +205,13 @@
  advanceGameDays=function(...args){const result=oldAdvance(...args);for(const task of worldState.freeWorld?.tasks||[])if(task.status==='active'&&task.due<=gameDayNumber())finish(task);return result;};
  // One living-world planner replaces the restricted cabinet batches in this branch.
  window.politicalRunRound=async()=>{};
- const oldNewspaper=writeNewspaper;
  writeNewspaper=async function(edition){
-  await oldNewspaper(edition);
+  if(typeof collectNewspaperFacts==='function')await collectNewspaperFacts(edition);
   // Keep all admitted world developments: no seven-foreign-article selection cap.
   const events=worldState.periodEvents||[];
   for(const section of ['domestic','foreign']){const seen=new Set(edition[section].map(e=>e.headline+'\n'+e.body));for(const e of events.filter(e=>e.section===section))if(!seen.has(e.headline+'\n'+e.body)){edition[section].push(copy(e));seen.add(e.headline+'\n'+e.body);}}
  };
+ // Keep alerts and saves, without a second restrictive editor rewriting free-world news.
+ if(typeof causalCommitTurn==='function')causalCommitTurn=function(){causalCaptureAlerts(causalTurnBefore);saveGame();causalShowAlert();};
  window.FreeWorld={validate,apply,schedule,paths,reconcile,probability};
 })();

@@ -18,3 +18,4 @@ jobs:
       - run: node tests/news-continuity.test.mjs
       - run: node tests/scenario-startup.test.mjs
       - run: node tests/free-ai-engine.test.mjs
+      - run: node tests/replay-free-world.test.mjs

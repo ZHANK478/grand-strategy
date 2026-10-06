@@ -1,7 +1,7 @@
 name: Browser startup integration
 on:
   push:
-    branches: [main, feat/cloud-library-accounts, fix/browser-startup, fix/autonomous-politics-20261004]
+    branches: [experiment/free-ai-world, main, feat/cloud-library-accounts, fix/browser-startup, fix/autonomous-politics-20261004]
 permissions:
   contents: read
 jobs:
@@ -19,3 +19,5 @@ jobs:
       - run: node tests/cloud-account-browser.test.mjs
       - run: node --experimental-strip-types tests/cloud-images.test.mjs
       - run: node --experimental-strip-types tests/cloud-portraits.test.mjs
+      - run: node tests/free-ai-world.test.mjs
+      - run: node tests/free-ai-engine.test.mjs

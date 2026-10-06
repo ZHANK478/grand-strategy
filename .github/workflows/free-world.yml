@@ -1,0 +1,20 @@
+name: Free AI world experiment
+on:
+  push:
+    branches: [experiment/free-ai-world]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  engine:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node tests/free-ai-world.test.mjs
+      - run: node tests/economy-world.test.mjs
+      - run: node tests/news-continuity.test.mjs
+      - run: node tests/scenario-startup.test.mjs
+      - run: node tests/free-ai-engine.test.mjs

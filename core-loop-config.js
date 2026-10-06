@@ -30,3 +30,6 @@ window.GS_BACKEND_ON = !/^__/.test(window.GS_CONFIG.SUPABASE_URL) &&
 if (window.GS_BACKEND_ON && !window.GS_CONFIG.API_BASE) {
   window.GS_CONFIG.API_BASE = window.GS_CONFIG.SUPABASE_URL.replace(/\/+$/, '') + '/functions/v1';
 }
+
+// Branch-only namespace: experimental parties do not enter the main game library.
+window.FREE_AI_EXPERIMENT = true;

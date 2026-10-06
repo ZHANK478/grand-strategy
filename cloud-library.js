@@ -14,7 +14,7 @@
  };
  const writes=new Map();
  const pendingPrefix='gs1852_cloud_pending_';
- const account=()=>typeof sb!=='undefined'&&sb&&gsUser&&!gsUser.isAnonymous;
+ const account=()=>!window.FREE_AI_EXPERIMENT&&typeof sb!=='undefined'&&sb&&gsUser&&!gsUser.isAnonymous;
  const mark=(message,ok=true)=>{
   window.GS_LIBRARY_STATUS={message,ok};
   const el=document.getElementById('cloud-library-status');if(el){el.textContent=message;el.dataset.state=ok?'saved':'error';}

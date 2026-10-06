@@ -15,7 +15,7 @@
   document.body.classList.toggle('has-player-account',isAccount);
   const value=connection.mode==='guest'?guestRemaining:isAccount?gsProfile?.turns_balance:null;
   if(badge)badge.textContent=isAccount?'Ваш аккаунт':connection.mode==='guest'?'Гостевая игра':connection.mode==='direct'?'Свой OpenRouter':'Подключение…';
-  if(note)note.textContent=connection.mode==='guest'?'10 ходов без регистрации. Вход в аккаунт — по желанию.':isAccount?'Ваши партии, карты и сценарии сохраняются в аккаунте. Готовые портреты доступны в новых партиях бесплатно.':connection.message;
+  if(note)note.textContent=window.FREE_AI_EXPERIMENT?'Свободный мир — эксперимент. Партии этой ветки сохраняются на этом устройстве. Созданные портреты доступны из общей коллекции.':connection.mode==='guest'?'10 ходов без регистрации. Вход в аккаунт — по желанию.':isAccount?'Ваши партии, карты и сценарии сохраняются в аккаунте. Готовые портреты доступны в новых партиях бесплатно.':connection.message;
   if(status)status.textContent=connection.message;
   const imageCount=isAccount?gsProfile?.image_generations_remaining:imageRemaining;
   const images=document.getElementById('test-image-remaining');
@@ -28,7 +28,7 @@
   const menuTurns=document.getElementById('menu-turn-count');if(menuTurns)menuTurns.textContent='Ходов осталось · '+(value??'…');
   const login=document.getElementById('menu-login-btn');if(login){login.hidden=isAccount;login.textContent='Войти · 50 ходов и 5 изображений';}
   const logout=document.getElementById('menu-logout-btn');if(logout)logout.hidden=!isAccount;
-  const sync=document.getElementById('cloud-sync-btn');if(sync){sync.hidden=!isAccount;sync.textContent='Повторить сохранение';}
+  const sync=document.getElementById('cloud-sync-btn');if(sync){sync.hidden=!isAccount||!!window.FREE_AI_EXPERIMENT;sync.textContent='Повторить сохранение';}
  }
  function set(mode,message){connection={mode,message};render();}
  function errorMessage(code,http){

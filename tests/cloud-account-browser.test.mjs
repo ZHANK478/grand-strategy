@@ -19,6 +19,7 @@ try{
   await page.waitForFunction(()=>window.GS_MAP_LOAD?.status==='ready');
   console.log(mode+' auth '+JSON.stringify(await page.evaluate(()=>({note:document.getElementById('mobile-guest-note').textContent,sdk:!!window.supabase}))));
   await page.waitForFunction(mode=>mode==='account'?document.getElementById('menu-turn-count').textContent.includes('50'):document.getElementById('menu-turn-count').textContent.includes('10'),mode);
+  const experiment=await page.evaluate(()=>!!window.FREE_AI_EXPERIMENT);
   assert.equal(await page.locator('#gs-login').count(),0,'No forced registration');
   assert.equal(await page.locator('#menu-login-btn').isVisible(),mode==='guest');
   if(mode==='guest'){
@@ -28,7 +29,7 @@ try{
   }else{
    assert.match(await page.locator('#menu-image-balance').textContent(),/5/);
    await page.evaluate(()=>gsCloudPut('map','test-map','Test map',{provinces:[]},{provinceCount:0}));
-   assert.equal(await page.evaluate(()=>__writes.some(w=>w.table==='cloud_library'&&w.row.kind==='map')),true);
+   assert.equal(await page.evaluate(()=>__writes.some(w=>w.table==='cloud_library'&&w.row.kind==='map')),!experiment);
   }
   await page.selectOption('#mobile-country-picker','Франция');await page.locator('#mobile-start-btn').click();
   await page.waitForFunction(()=>gameStarted);
@@ -36,7 +37,7 @@ try{
    assert.match(await page.locator('#test-hud-images').textContent(),/5/);
    await page.locator('#mobile-flag-button').click();assert.equal(await page.locator('#portrait-gen-btn').isVisible(),true,'Account can request a portrait');
    const positions=await page.evaluate(()=>{const turns=document.getElementById('test-hud-remaining').getBoundingClientRect(),images=document.getElementById('test-hud-images').getBoundingClientRect();return {turnBottom:turns.bottom,imageTop:images.top};});assert.ok(positions.imageTop>=positions.turnBottom,'Image counter appears below turns');
-   await page.evaluate(()=>saveGame());await page.waitForFunction(()=>__writes.some(w=>w.table==='saves'));
+   await page.evaluate(()=>saveGame());if(experiment){assert.equal(await page.evaluate(()=>listSaves().length>0),true,'Experimental party stays local');}else await page.waitForFunction(()=>__writes.some(w=>w.table==='saves'));
    await page.evaluate(()=>testEnsureAIForTurn());assert.match(await page.locator('#test-hud-remaining').textContent(),/49/);
   }
   assert.deepEqual(errors,[],mode+' runtime errors');
